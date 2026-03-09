@@ -192,7 +192,14 @@ export default function MiningFarm() {
                     <div className="pt-2">
                       <button
                         onClick={() => {
-                          dispatch({ type: 'REPAIR_RIG', rigId: selectedRig.id });
+                          dispatch({
+                            type: 'UPDATE_FARM',
+                            settings: {
+                              rigStatuses: state.farmSettings.rigStatuses.map(r =>
+                                r.id === selectedRig.id ? { ...r, isBroken: false, condition: 100 } : r
+                              )
+                            }
+                          });
                           setSelectedRigId(null);
                         }}
                         className="w-full py-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-emerald-500/10 hover:border-emerald-500/30 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider text-zinc-300 hover:text-emerald-400 transition-all active:scale-[0.98]"

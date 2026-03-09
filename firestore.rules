@@ -8,6 +8,11 @@ service cloud.firestore {
       return request.auth != null;
     }
     
+    function isAdmin() {
+      return isSignedIn() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
@@ -19,45 +24,43 @@ service cloud.firestore {
     // Global settings: Public read, Admin write
     match /settings/{settingId} {
       allow read: if true;
-      allow write: if false; 
+      allow write: if isAdmin(); 
     }
     
-    // Users: Private read/write by owner with validation
+    // Users: Private read/write by owner with validation, Admin full access
     match /users/{userId} {
-      allow read: if isOwner(userId);
-      allow write: if isOwner(userId) 
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if isAdmin() || (isOwner(userId) 
         && isValidNumber(request.resource.data.btcBalance)
         && isValidNumber(request.resource.data.tycoonPoints)
-        && request.resource.data.level is int;
+        && request.resource.data.level is int);
       
       match /transactions/{txId} {
-        allow read: if isOwner(userId);
-        allow create: if isOwner(userId) 
         allow read: if isOwner(userId) || isAdmin();
-        allow create: if (isOwner(userId) 
+        allow create: if isAdmin() || (isOwner(userId) 
           && request.resource.data.date is int
-          && request.resource.data.amount is number) || isAdmin();
+          && request.resource.data.amount is number);
       }
     }
     
-    // Guilds: Public read, Members/Owner write
+    // Guilds: Public read, Members/Owner write, Admin full access
     match /guilds/{guildId} {
       allow read: if true;
       allow create: if isSignedIn() || isAdmin();
-      allow update: if (isSignedIn() 
-        && (resource.data.ownerId == request.auth.uid || request.resource.data.members == resource.data.members + 1)) || isAdmin();
-      allow delete: if (resource.data.ownerId == request.auth.uid) || isAdmin();
+      allow update: if isAdmin() || (isSignedIn() 
+        && (resource.data.ownerId == request.auth.uid || request.resource.data.members == resource.data.members + 1));
+      allow delete: if isAdmin() || (resource.data.ownerId == request.auth.uid);
     }
     
-    // Marketplace: Public read, Owners delete, Auth create
+    // Marketplace: Public read, Owners delete, Auth create, Admin full access
     match /marketplace/{listingId} {
       allow read: if true;
-      allow create: if (isSignedIn() 
+      allow create: if isAdmin() || (isSignedIn() 
         && request.resource.data.sellerId == request.auth.uid
         && isValidNumber(request.resource.data.price)
-        && request.resource.data.hashRate is number) || isAdmin();
-      allow delete: if (isSignedIn() && (resource.data.sellerId == request.auth.uid)) || isAdmin();
-      allow update: if false; 
+        && request.resource.data.hashRate is number);
+      allow delete: if isAdmin() || (isSignedIn() && (resource.data.sellerId == request.auth.uid));
+      allow update: if isAdmin(); 
     }
   }
 }

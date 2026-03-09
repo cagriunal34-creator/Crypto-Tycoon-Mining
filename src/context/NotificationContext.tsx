@@ -10,7 +10,7 @@ import { cn } from '../lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type NotifType = 'success' | 'warning' | 'info' | 'mining';
+type NotifType = 'success' | 'warning' | 'info' | 'mining' | 'error';
 
 interface Notification {
   id: string;
@@ -37,6 +37,7 @@ const ICONS: Record<NotifType, React.ElementType> = {
   warning: TriangleAlert,
   info: Info,
   mining: Zap,
+  error: TriangleAlert,
 };
 
 const COLORS: Record<NotifType, string> = {
@@ -44,6 +45,7 @@ const COLORS: Record<NotifType, string> = {
   warning: 'text-orange-500 bg-orange-500/10 border-orange-500/30',
   info: 'text-blue-400 bg-blue-500/10 border-blue-500/30',
   mining: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/30',
+  error: 'text-red-500 bg-red-500/10 border-red-500/30',
 };
 
 const ICON_COLORS: Record<NotifType, string> = {
@@ -51,6 +53,7 @@ const ICON_COLORS: Record<NotifType, string> = {
   warning: 'text-orange-500',
   info: 'text-blue-400',
   mining: 'text-yellow-400',
+  error: 'text-red-500',
 };
 
 // ─── Toast Component ──────────────────────────────────────────────────────────

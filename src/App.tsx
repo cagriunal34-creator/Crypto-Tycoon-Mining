@@ -15,7 +15,7 @@ import { LoginScreen } from './components/LoginScreen';
 import { auth, db, requestForToken, onMessageListener, COLLECTIONS } from './lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, onSnapshot, getDoc, setDoc, collection, query, orderBy, limit } from 'firebase/firestore';
-const AdminPortal = React.lazy(() => import('./admin/AdminPortal'));
+const NewsTicker = React.lazy(() => import('./components/NewsTicker'));
 import { Screen, MarketListing, Guild, Transaction } from './types';
 import { cn } from './lib/utils';
 import { GameProvider, useGame } from './context/GameContext';
@@ -52,7 +52,6 @@ import BattlePassScreen from './components/BattlePassScreen';
 import MarketplaceScreen from './components/MarketplaceScreen';
 import VIPScreen from './components/VIPScreen';
 // import AdminPanel from './components/AdminPanel';
-import NewsTicker from './components/NewsTicker';
 import HackerAttack from './components/HackerAttack';
 import { InfrastructureScreen } from './components/InfrastructureScreen';
 
@@ -70,9 +69,6 @@ function AppInner() {
   const [isWatchingAd, setIsWatchingAd] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [isPrestigeOpen, setIsPrestigeOpen] = useState(false);
-  const [isAdminOpen, setIsAdminOpen] = useState(false);
-  const [demoTapCount, setDemoTapCount] = useState(0);
-  const lastTapTime = useRef(0);
   const [successModal, setSuccessModal] = useState<{ isOpen: boolean; type: 'withdraw' | 'package' }>({ isOpen: false, type: 'withdraw' });
   const [showHackerAttack, setShowHackerAttack] = useState(false);
   const [globalSettings, setGlobalSettings] = useState<any>({ isMaintenance: false, announcement: "", eventMultiplier: 1.0 });
@@ -93,15 +89,15 @@ function AppInner() {
       const now = Date.now();
       const timeSinceLast = now - state.lastInterstitialAdAt;
 
-      // Trigger if interval met AND not already watching/admin/menu
-      if (timeSinceLast >= state.interstitialAdInterval && !isWatchingAd && !isAdminOpen && !menuOpen) {
+      // Trigger if interval met AND not already watching/menu
+      if (timeSinceLast >= state.interstitialAdInterval && !isWatchingAd && !menuOpen) {
         setIsWatchingAd(true);
         dispatch({ type: 'RESET_INTERSTITIAL_TIMER' });
       }
     }, 5000); // Check every 5s for performance
 
     return () => clearInterval(checkInterval);
-  }, [state.lastInterstitialAdAt, state.interstitialAdInterval, isWatchingAd, isAdminOpen, menuOpen, dispatch]);
+  }, [state.lastInterstitialAdAt, state.interstitialAdInterval, isWatchingAd, menuOpen, dispatch]);
 
   const handleHackerSuccess = () => {
     setShowHackerAttack(false);
@@ -115,21 +111,6 @@ function AppInner() {
     notify({ type: 'warning', title: 'SİSTEM ÇÖKTÜ!', message: 'Hacker içeri girdi. Enerji kaybı yaşandı.' });
   };
 
-  const handleDemoTap = () => {
-    const now = Date.now();
-    if (now - lastTapTime.current < 500) { // Within 500ms of last tap
-      const newCount = demoTapCount + 1;
-      if (newCount >= 3) { // Triple tap
-        setIsAdminOpen(true);
-        setDemoTapCount(0); // Reset count after opening
-      } else {
-        setDemoTapCount(newCount);
-      }
-    } else {
-      setDemoTapCount(1); // First tap or tap after a long pause
-    }
-    lastTapTime.current = now;
-  };
 
   const handleWithdrawSuccess = () => {
     setIsWithdrawOpen(false);
@@ -305,7 +286,7 @@ function AppInner() {
 
       {/* 🛠️ Maintenance Overlay */}
       <AnimatePresence>
-        {globalSettings.isMaintenance && !isAdminOpen && (
+        {globalSettings.isMaintenance && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-[1000] bg-zinc-950 flex flex-col items-center justify-center p-8 text-center"
@@ -339,10 +320,10 @@ function AppInner() {
 
               {/* Hidden Admin Access Trigger for Devs */}
               <button
-                onClick={handleDemoTap}
+                onClick={() => window.location.href = '/admin.html'}
                 className="text-[9px] font-black text-zinc-800 uppercase tracking-[0.3em] hover:text-zinc-700 transition-colors"
               >
-                Admin Access v1.0
+                Admin Control Access
               </button>
             </div>
           </motion.div>
@@ -441,13 +422,6 @@ function AppInner() {
             <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-zinc-900 animate-pulse" />
           </button>
 
-          <div
-            onClick={handleDemoTap}
-            className="px-2 py-0.5 rounded-full cursor-pointer select-none active:scale-95 transition-transform"
-            style={{ background: `${a1}12`, border: `1px solid ${a1}28` }}
-          >
-            <span className="text-[9px] font-bold uppercase tracking-widest" style={{ color: a1 }}>Demo</span>
-          </div>
           <button onClick={() => navigate('inbox')} className="p-2 rounded-full hover:bg-white/5 transition-colors relative">
             <Bell size={18} style={{ color: activeScreen === 'inbox' ? a1 : 'var(--ct-muted)' }} />
             <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full border"
@@ -514,33 +488,6 @@ function AppInner() {
       )}
       <PrestigeModal isOpen={isPrestigeOpen} onClose={() => setIsPrestigeOpen(false)} />
 
-      {/* 🛡️ Integrated Admin Portal (Lazy Loaded) */}
-      <AnimatePresence>
-        {isAdminOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[500] bg-black/60 backdrop-blur-xl flex items-center justify-center p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="w-full max-w-lg h-[80vh] bg-black border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl"
-            >
-              <React.Suspense fallback={
-                <div className="h-full flex flex-col items-center justify-center gap-4 text-emerald-500">
-                  <RefreshCw className="animate-spin" size={32} />
-                  <span className="text-[10px] font-black uppercase tracking-[0.2em]">Booting Admin Module...</span>
-                </div>
-              }>
-                <AdminPortal onClose={() => setIsAdminOpen(false)} />
-              </React.Suspense>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
