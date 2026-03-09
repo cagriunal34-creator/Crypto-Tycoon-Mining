@@ -75,6 +75,7 @@ function AppInner() {
   const lastTapTime = useRef(0);
   const [successModal, setSuccessModal] = useState<{ isOpen: boolean; type: 'withdraw' | 'package' }>({ isOpen: false, type: 'withdraw' });
   const [showHackerAttack, setShowHackerAttack] = useState(false);
+  const [globalSettings, setGlobalSettings] = useState<any>({ isMaintenance: false, announcement: "", eventMultiplier: 1.0 });
 
   // Trigger Hacker Attack randomly
   useEffect(() => {
@@ -217,10 +218,11 @@ function AppInner() {
         onSnapshot(globalRef, (snapshot) => {
           if (snapshot.exists()) {
             const data = snapshot.data();
+            setGlobalSettings(data);
             // Update rewards/prices in state
             dispatch({ type: 'ADMIN_UPDATE_AD_SETTINGS', updates: data.ads || {} });
             dispatch({ type: 'ADMIN_UPDATE_INTERSTITIAL_SETTINGS', updates: data.interstitials || {} });
-            // ... more global settings
+            dispatch({ type: 'SET_GLOBAL_MULTIPLIER', multiplier: data.eventMultiplier || 1.0 });
           }
         });
 
@@ -299,7 +301,53 @@ function AppInner() {
       style={{ background: 'var(--ct-bg, #030303)' }}>
 
       <AmbientBackground />
-      <NewsTicker />
+      <NewsTicker announcement={globalSettings.announcement} />
+
+      {/* 🛠️ Maintenance Overlay */}
+      <AnimatePresence>
+        {globalSettings.isMaintenance && !isAdminOpen && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[1000] bg-zinc-950 flex flex-col items-center justify-center p-8 text-center"
+          >
+            <div className="absolute inset-0 opacity-20 pointer-events-none">
+              <div className="absolute inset-0 bg-[#10b98110] blur-[100px] rounded-full" />
+            </div>
+
+            <div className="relative">
+              <div className="w-24 h-24 rounded-[2rem] bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mb-8 animate-pulse">
+                <Settings className="text-emerald-500" size={48} />
+              </div>
+              <motion.div
+                initial={{ scale: 0.9 }} animate={{ scale: 1 }}
+                className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-black px-2 py-1 rounded-full shadow-lg"
+              >
+                BAKIMDA
+              </motion.div>
+            </div>
+
+            <h2 className="text-2xl font-black text-white mb-2 tracking-tighter uppercase italic">Sistem Bakımı</h2>
+            <p className="text-zinc-400 text-sm font-medium leading-relaxed max-w-[280px]">
+              Daha iyi bir deneyim için şu an çalışıyoruz. Lütfen kısa süre sonra tekrar deneyin.
+            </p>
+
+            <div className="mt-12 flex flex-col items-center gap-4">
+              <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10">
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-500">Hazırlanıyor...</span>
+              </div>
+
+              {/* Hidden Admin Access Trigger for Devs */}
+              <button
+                onClick={handleDemoTap}
+                className="text-[9px] font-black text-zinc-800 uppercase tracking-[0.3em] hover:text-zinc-700 transition-colors"
+              >
+                Admin Access v1.0
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {isWatchingAd && (
         <AdRewardModal isOpen={isWatchingAd} onClose={() => setIsWatchingAd(false)} />

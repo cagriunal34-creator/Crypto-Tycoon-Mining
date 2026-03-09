@@ -175,6 +175,7 @@ export interface GameState {
   // ── NEW: Firebase Auth & Sync ─────────────────────────────────────────────
   user: any | null; // Firebase User object
   isLoading: boolean;
+  globalMultiplier: number; // Global event/setting multiplier
 }
 
 // ─── Initial State ────────────────────────────────────────────────────────────
@@ -320,6 +321,7 @@ export const INITIAL_STATE: GameState = {
   lastInterstitialAdAt: Date.now(),
   user: null,
   isLoading: true,
+  globalMultiplier: 1.0,
 };
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
@@ -389,6 +391,7 @@ type Action =
   | { type: 'SET_GAME_STATE'; state: Partial<GameState> }
   | { type: 'SET_MARKETPLACE'; listings: MarketListing[] }
   | { type: 'SET_GUILDS'; guilds: Guild[] }
+  | { type: 'SET_GLOBAL_MULTIPLIER'; multiplier: number }
   | { type: 'ADMIN_RESET_GAME' };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -408,7 +411,8 @@ export function calcBtcPerSecond(
   energyScale: number,
   isFever: boolean = false,
   researchedNodes: string[] = [],
-  vipMult: number = 1.0
+  vipMult: number = 1.0,
+  globalMult: number = 1.0
 ): number {
   if (baseHashRate < 0) return 0; // Ensure non-negative hashrate
   // Sum up event multipliers (multiplicative) and hash boosts
@@ -430,7 +434,9 @@ export function calcBtcPerSecond(
   if (researchedNodes?.includes('mining-1')) researchMult += 0.1;
   if (researchedNodes?.includes('mining-2')) researchMult += 0.5;
 
-  return base * eventMult * prestigeMultiplier * energyScale * researchMult * (vipMult || 1.0);
+  const finalMult = eventMult * prestigeMultiplier * energyScale * researchMult * (vipMult || 1.0) * (globalMult || 1.0);
+
+  return base * finalMult;
 }
 
 function xpForLevel(level: number): number {
@@ -587,9 +593,18 @@ function gameReducer(state: GameState, action: Action): GameState {
         .reduce((acc, rig) => acc + (rig.isBroken ? 0 : Math.floor(rig.efficiency * 1.2)), 0);
 
       const totalHashRateWithFarm = state.totalHashRate + farmHashRate;
-      const btcEarned = calcBtcPerSecond(totalHashRateWithFarm, activeEvents, state.prestigeMultiplier, energyScale, state.isFeverMode, state.researchedNodes, vipMult) * elapsed;
-      const tpEarned = Math.floor(elapsed * 0.5);
-      const xpEarned = Math.floor(elapsed * 0.2);
+      const btcEarned = calcBtcPerSecond(
+        totalHashRateWithFarm,
+        activeEvents,
+        state.prestigeMultiplier,
+        energyScale,
+        state.isFeverMode,
+        state.researchedNodes,
+        vipMult,
+        state.globalMultiplier
+      ) * elapsed;
+      const tpEarned = Math.floor(elapsed * 0.5 * (state.globalMultiplier || 1.0));
+      const xpEarned = Math.floor(elapsed * 0.2 * (state.globalMultiplier || 1.0));
 
       // Level up
       let newXp = state.xp + xpEarned;
@@ -1294,6 +1309,8 @@ function gameReducer(state: GameState, action: Action): GameState {
 
     case 'SET_GUILDS':
       return { ...state, guilds: action.guilds };
+    case 'SET_GLOBAL_MULTIPLIER':
+      return { ...state, globalMultiplier: action.multiplier };
     case 'ADMIN_RESET_GAME':
       return { ...INITIAL_STATE, lastMiningTick: Date.now() };
 
