@@ -1,0 +1,121 @@
+@import "tailwindcss";
+
+/* ── Theme CSS Variables (set by ThemeContext.tsx) ─────── */
+:root {
+  --ct-bg:             #020202;
+  --ct-surface:        #050505;
+  --ct-card-bg:        rgba(8, 8, 8, 0.4);
+  --ct-a1:             #10b981;
+  --ct-a2:             #059669;
+  --ct-a3:             #34d399;
+  --ct-gold:           #f59e0b;
+  --ct-gold-glow:      rgba(245, 158, 11, 0.3);
+  --ct-text:           #fdfdfd;
+  --ct-muted:          #a1a1aa;
+  --ct-border:         rgba(255, 255, 255, 0.08);
+  --ct-glow:           0 0 30px rgba(16, 185, 129, 0.2);
+  --ct-active-bg:      rgba(16, 185, 129, 0.1);
+  --ct-active-border:  rgba(16, 185, 129, 0.3);
+}
+
+/* ── Ambient canvas animation keyframes ─────────────────── */
+@keyframes heatRise {
+  0%   { transform: scaleX(1) translateY(0); opacity: 0.1; }
+  100% { transform: scaleX(1.4) translateY(-20px); opacity: 0.2; }
+}
+
+@keyframes flow {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes spin-slow {
+  from { transform: rotateY(0deg); }
+  to { transform: rotateY(360deg); }
+}
+
+/* ── Fonts ───────────────────────────────────────────────── */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+/* ── Base ────────────────────────────────────────────────── */
+@layer base {
+  body {
+    @apply antialiased font-sans;
+    background-color: var(--ct-bg);
+    color: var(--ct-text);
+    overflow-x: hidden;
+  }
+
+  /* Subtly moving mesh background overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: 
+      radial-gradient(circle at 0% 0%, rgba(16, 185, 129, 0.05) 0%, transparent 50%),
+      radial-gradient(circle at 100% 100%, rgba(59, 130, 246, 0.05) 0%, transparent 50%);
+    filter: blur(80px);
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+    background-size: 40px 40px;
+    mask-image: radial-gradient(circle at center, black, transparent 80%);
+  }
+}
+
+/* ── Utility classes ─────────────────────────────────────── */
+.neon-glow    { box-shadow: var(--ct-glow); }
+.neon-border  { border-color: var(--ct-a1); box-shadow: 0 0 10px rgba(16, 185, 129, 0.2); }
+.neon-text    { text-shadow: 0 0 10px var(--ct-a1); }
+.gold-text    { color: var(--ct-gold); text-shadow: 0 0 12px var(--ct-gold-glow); }
+
+.glass-card {
+  background: var(--ct-card-bg);
+  border: 1px solid var(--ct-border);
+  @apply backdrop-blur-2xl shadow-2xl;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
+}
+
+.glass-panel {
+  background: var(--ct-card-bg);
+  border: 1px solid var(--ct-border);
+  @apply backdrop-blur-md;
+}
+
+.mining-cell-active {
+  background: var(--ct-a1);
+  box-shadow: 0 0 8px var(--ct-a1), 0 0 14px var(--ct-a1);
+}
+
+.energy-flow {
+  background: linear-gradient(90deg, transparent, var(--ct-a1), transparent);
+  background-size: 200% 100%;
+  animation: flow 1.5s linear infinite;
+  opacity: 0.4;
+}
+
+/* ── Scrollbar ───────────────────────────────────────────── */
+::-webkit-scrollbar          { width: 4px; }
+::-webkit-scrollbar-track    { background: var(--ct-bg); }
+::-webkit-scrollbar-thumb    { background: var(--ct-a1); opacity: 0.3; border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { opacity: 0.6; }
+
+.no-scrollbar::-webkit-scrollbar { display: none; }

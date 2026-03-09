@@ -1,0 +1,60 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidNumber(val) {
+      return val is number && val >= 0;
+    }
+
+    // Global settings: Public read, Admin write
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if false; 
+    }
+    
+    // Users: Private read/write by owner with validation
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId) 
+        && isValidNumber(request.resource.data.btcBalance)
+        && isValidNumber(request.resource.data.tycoonPoints)
+        && request.resource.data.level is int;
+      
+      match /transactions/{txId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) 
+          && request.resource.data.date is int
+          && request.resource.data.amount is number;
+      }
+    }
+    
+    // Guilds: Public read, Members/Owner write
+    match /guilds/{guildId} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() 
+        && (resource.data.ownerId == request.auth.uid || request.resource.data.members == resource.data.members + 1);
+    }
+    
+    // Marketplace: Public read, Owners delete, Auth create
+    match /marketplace/{listingId} {
+      allow read: if true;
+      allow create: if isSignedIn() 
+        && request.resource.data.sellerId == request.auth.uid
+        && isValidNumber(request.resource.data.price)
+        && request.resource.data.hashRate is number;
+      allow delete: if isSignedIn() && (resource.data.sellerId == request.auth.uid);
+      allow update: if false; 
+    }
+  }
+}

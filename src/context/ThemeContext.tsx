@@ -1,0 +1,170 @@
+import React, { createContext, useContext, useState, useEffect } from 'react';
+
+export interface ThemeConfig {
+  id: string;
+  name: string;
+  tag: string;
+  emoji: string;
+  description: string;
+  keywords: string[];
+  // These all map onto the same CSS var names, so every component adapts automatically
+  vars: Record<string, string>;
+}
+
+export const THEMES: ThemeConfig[] = [
+  {
+    id: 'emerald',
+    name: 'EMERALD CORE',
+    tag: 'Varsayılan',
+    emoji: '💚',
+    description: 'Orijinal yeşil neon tema. Parlak emerald aksan, koyu siyah zemin.',
+    keywords: ['Emerald yeşil', 'Dark mode', 'Neon glow'],
+    vars: {
+      '--ct-bg':       '#030303',
+      '--ct-surface':  '#0a0a0a',
+      '--ct-card-bg':  'rgba(10,10,10,0.8)',
+      '--ct-a1':       '#10b981',
+      '--ct-a2':       '#059669',
+      '--ct-a3':       '#34d399',
+      '--ct-text':     '#ffffff',
+      '--ct-muted':    '#71717a',
+      '--ct-border':   'rgba(255,255,255,0.05)',
+      '--ct-glow':     '0 0 20px rgba(16,185,129,0.3)',
+      '--ct-active-bg':'rgba(16,185,129,0.1)',
+      '--ct-active-border': 'rgba(16,185,129,0.2)',
+    },
+  },
+  {
+    id: 'plasma',
+    name: 'PLASMA CORE',
+    tag: 'Sci-Fi Luxury',
+    emoji: '🔮',
+    description: 'Holografik mor-pembe gradyanlar. Kristal panel efektleri, galaktik derinlik.',
+    keywords: ['Mor-pembe', 'Holografik', 'Neon glow'],
+    vars: {
+      '--ct-bg':       '#040011',
+      '--ct-surface':  '#0A0520',
+      '--ct-card-bg':  'rgba(15,8,48,0.8)',
+      '--ct-a1':       '#FF4ECD',
+      '--ct-a2':       '#7B5EFF',
+      '--ct-a3':       '#4FFFCE',
+      '--ct-text':     '#EDE8FF',
+      '--ct-muted':    '#6B5F8A',
+      '--ct-border':   'rgba(255,78,205,0.15)',
+      '--ct-glow':     '0 0 20px rgba(255,78,205,0.3)',
+      '--ct-active-bg':'rgba(255,78,205,0.1)',
+      '--ct-active-border': 'rgba(255,78,205,0.25)',
+    },
+  },
+  {
+    id: 'deepsea',
+    name: 'DEEP SEA',
+    tag: 'Biyolüminesan',
+    emoji: '🌊',
+    description: 'Okyanus tabanında gizli istasyon. Sonar ping animasyonu, biyolüminesan ışık partikülleri.',
+    keywords: ['Teal-mavi', 'Sonar ping', 'Derin okyanus'],
+    vars: {
+      '--ct-bg':       '#000814',
+      '--ct-surface':  '#001428',
+      '--ct-card-bg':  'rgba(0,20,45,0.85)',
+      '--ct-a1':       '#00FFC8',
+      '--ct-a2':       '#00AAFF',
+      '--ct-a3':       '#80FFE8',
+      '--ct-text':     '#E0FFF5',
+      '--ct-muted':    '#2A6060',
+      '--ct-border':   'rgba(0,255,200,0.15)',
+      '--ct-glow':     '0 0 20px rgba(0,255,200,0.3)',
+      '--ct-active-bg':'rgba(0,255,200,0.08)',
+      '--ct-active-border': 'rgba(0,255,200,0.25)',
+    },
+  },
+  {
+    id: 'lavaforge',
+    name: 'LAVA FORGE',
+    tag: 'Endüstriyel Ateş',
+    emoji: '🌋',
+    description: 'Volkanik eriyen madde tesisi. Canlı lav arka planı, ateş gradyanları, güç hissi.',
+    keywords: ['Turuncu-ateş', 'Lav akışı', 'Endüstriyel'],
+    vars: {
+      '--ct-bg':       '#080100',
+      '--ct-surface':  '#120300',
+      '--ct-card-bg':  'rgba(20,5,0,0.9)',
+      '--ct-a1':       '#FF6A00',
+      '--ct-a2':       '#FFB800',
+      '--ct-a3':       '#FF3000',
+      '--ct-text':     '#FFF0E8',
+      '--ct-muted':    '#6B3A1A',
+      '--ct-border':   'rgba(255,106,0,0.18)',
+      '--ct-glow':     '0 0 20px rgba(255,106,0,0.35)',
+      '--ct-active-bg':'rgba(255,106,0,0.08)',
+      '--ct-active-border': 'rgba(255,106,0,0.25)',
+    },
+  },
+  {
+    id: 'aurora',
+    name: 'AURORA SILK',
+    tag: 'Galaktik Premium',
+    emoji: '🌌',
+    description: 'Kuzey ışıklarından ilham. Dalgalanan aurora wave efektleri, derin uzay moru.',
+    keywords: ['Mor-buz mavisi', 'Aurora dalgası', 'Galaktik'],
+    vars: {
+      '--ct-bg':       '#060410',
+      '--ct-surface':  '#0C0820',
+      '--ct-card-bg':  'rgba(15,10,35,0.85)',
+      '--ct-a1':       '#C878FF',
+      '--ct-a2':       '#64C8FF',
+      '--ct-a3':       '#96FFE0',
+      '--ct-text':     '#F0EEFF',
+      '--ct-muted':    '#5A4A7A',
+      '--ct-border':   'rgba(200,120,255,0.15)',
+      '--ct-glow':     '0 0 20px rgba(200,120,255,0.3)',
+      '--ct-active-bg':'rgba(200,120,255,0.08)',
+      '--ct-active-border': 'rgba(200,120,255,0.25)',
+    },
+  },
+];
+
+interface ThemeContextValue {
+  theme: ThemeConfig;
+  setTheme: (id: string) => void;
+  allThemes: ThemeConfig[];
+}
+
+const ThemeContext = createContext<ThemeContextValue | null>(null);
+const STORAGE_KEY = 'ct_theme_v1';
+
+function applyTheme(t: ThemeConfig) {
+  const root = document.documentElement;
+  Object.entries(t.vars).forEach(([k, v]) => root.style.setProperty(k, v));
+  root.setAttribute('data-theme', t.id);
+  // Also update body background directly for immediate effect
+  document.body.style.backgroundColor = t.vars['--ct-bg'];
+}
+
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const [themeId, setThemeId] = useState<string>(() => {
+    try { return localStorage.getItem(STORAGE_KEY) || 'emerald'; }
+    catch { return 'emerald'; }
+  });
+
+  const theme = THEMES.find(t => t.id === themeId) ?? THEMES[0];
+
+  useEffect(() => { applyTheme(theme); }, [theme]);
+
+  const setTheme = (id: string) => {
+    setThemeId(id);
+    try { localStorage.setItem(STORAGE_KEY, id); } catch {}
+  };
+
+  return (
+    <ThemeContext.Provider value={{ theme, setTheme, allThemes: THEMES }}>
+      {children}
+    </ThemeContext.Provider>
+  );
+}
+
+export function useTheme() {
+  const ctx = useContext(ThemeContext);
+  if (!ctx) throw new Error('useTheme must be used within ThemeProvider');
+  return ctx;
+}
