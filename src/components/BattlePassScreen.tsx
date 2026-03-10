@@ -97,7 +97,7 @@ export default function BattlePassScreen() {
       setShowPremiumModal(true);
       return;
     }
-    dispatch({ type: 'BP_CLAIM_REWARD', rewardId: reward.id, reward });
+    dispatch({ type: 'BP_CLAIM_REWARD', rewardId: reward.id });
     const labels: Record<string, string> = {
       tp: `+ ${reward.value} TP kazandın!`,
       btc: `+ ${reward.value.toFixed(5)} BTC kazandın!`,

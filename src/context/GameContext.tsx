@@ -29,6 +29,7 @@ import {
   PrestigeRecord
 } from '../types';
 import { supabase, TABLES } from '../lib/supabase';
+import { auth, onAuthStateChanged } from '../lib/firebase';
 
 export type {
   LightingColor,
@@ -117,6 +118,7 @@ export interface GameState {
 
   // ── Phase 2: Marketplace ───────────────────────────────────────────────────
   marketListings: MarketListing[];
+  leaderboard: any[];
 
   // ── Phase 2: VIP ───────────────────────────────────────────────────────────
   vip: VIPState;
@@ -178,14 +180,15 @@ export interface GameState {
   globalMultiplier: number; // Global event/setting multiplier
   isMaintenance: boolean;
   announcement: string;
+  activeModal: string | null;
   globalSettings: any;
 }
 
 // ─── Initial State ────────────────────────────────────────────────────────────
 
 export const INITIAL_STATE: GameState = {
-  btcBalance: 0.00000000001,
-  tycoonPoints: 1500,
+  btcBalance: 0,
+  tycoonPoints: 0,
   usdRate: 91200,
 
   energyCells: 24,
@@ -203,36 +206,32 @@ export const INITIAL_STATE: GameState = {
 
   ownedContracts: [],
 
-  guilds: [
-    { id: 'g1', name: 'Kripto Titanları', description: 'En büyük madenciler buraya!', members: 48, totalHash: 142000, rank: 1, badge: '🏆', level: 5, xp: 1200, xpToNextLevel: 5000 },
-    { id: 'g2', name: 'Diamond Miners', description: 'Elmas eller.', members: 35, totalHash: 98000, rank: 2, badge: '💎', level: 3, xp: 450, xpToNextLevel: 3000 },
-    { id: 'g3', name: 'Hash Lords', description: 'Hız bizim işimiz.', members: 29, totalHash: 72000, rank: 3, badge: '⚡', level: 2, xp: 100, xpToNextLevel: 1500 },
-  ],
+  guilds: [],
   userGuildId: null,
 
   transactions: [],
 
   questProgress: {
-    adsWatched: 1,
+    adsWatched: 0,
     contractsPurchased: 0,
     referralsDone: 0,
-    loginStreak: 1,
+    loginStreak: 0,
     claimedQuestIds: [],
   },
 
-  level: 3,
-  xp: 340,
+  level: 1,
+  xp: 0,
   xpToNextLevel: 500,
   loginStreak: 1,
   lastLoginDate: new Date().toISOString().split('T')[0],
 
-  referralCode: 'A84B2X-128',
-  referralCount: 156,
+  referralCode: '',
+  referralCount: 0,
   redeemedReferralCode: null,
 
-  username: 'cagara50',
-  userId: '2591866',
-  rankTitle: 'Garaj Madencisi',
+  username: '',
+  userId: '',
+  rankTitle: 'Yeni Madenci',
   isAdmin: false,
 
   // Prestige defaults
@@ -255,13 +254,8 @@ export const INITIAL_STATE: GameState = {
   },
 
   // Phase 2: Marketplace seed listings
-  marketListings: [
-    { id: 'ml-1', contractId: 'ext-1', contractName: 'Silver Madenci', tier: 'Silver' as const, hashRate: 800, daysRemaining: 18, sellerName: 'Ahmet_K', price: 2500, listedAt: Date.now() - 3600000 },
-    { id: 'ml-2', contractId: 'ext-2', contractName: 'Gold Madenci', tier: 'Gold' as const, hashRate: 2200, daysRemaining: 25, sellerName: 'CryptoWolf', price: 6800, listedAt: Date.now() - 7200000 },
-    { id: 'ml-3', contractId: 'ext-3', contractName: 'Baslangic', tier: 'Bronze' as const, hashRate: 105, daysRemaining: 12, sellerName: 'Miner99', price: 400, listedAt: Date.now() - 1800000 },
-    { id: 'ml-4', contractId: 'ext-4', contractName: 'Silver Madenci', tier: 'Silver' as const, hashRate: 850, daysRemaining: 29, sellerName: 'HashQueen', price: 2900, listedAt: Date.now() - 900000 },
-    { id: 'ml-5', contractId: 'ext-5', contractName: 'Flash Ozel', tier: 'Flash' as const, hashRate: 4500, daysRemaining: 7, sellerName: 'SpeedMiner', price: 12000, listedAt: Date.now() - 300000 },
-  ],
+  marketListings: [],
+  leaderboard: [],
 
   // Phase 2: VIP
   vip: { isActive: false, tier: 'none' as const, expiresAt: 0, perks: [] },
@@ -319,6 +313,7 @@ export const INITIAL_STATE: GameState = {
   globalMultiplier: 1.0,
   isMaintenance: false,
   announcement: '',
+  activeModal: null,
   globalSettings: {},
 };
 
@@ -353,6 +348,7 @@ type Action =
   | { type: 'SET_AUTH_USER'; user: any }
   | { type: 'SET_GAME_STATE'; state: Partial<GameState> }
   | { type: 'SET_MARKETPLACE'; listings: MarketListing[] }
+  | { type: 'SET_LEADERBOARD'; leaders: any[] }
   | { type: 'SET_GUILDS'; guilds: Guild[] }
   | { type: 'SET_GLOBAL_MULTIPLIER'; multiplier: number }
   | { type: 'SET_MAINTENANCE'; isMaintenance: boolean }
@@ -366,7 +362,9 @@ type Action =
   | { type: 'SET_TRANSACTIONS'; transactions: Transaction[] }
   | { type: 'BP_CLAIM_REWARD'; rewardId: string }
   | { type: 'BP_BUY_PREMIUM' }
-  | { type: 'ADMIN_RESET_GAME' };
+  | { type: 'APPLY_REFERRAL_CODE'; code: string }
+  | { type: 'ADMIN_RESET_GAME' }
+  | { type: 'SET_MODAL'; modal: string | null };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -461,7 +459,15 @@ function gameReducer(state: GameState, action: Action): GameState {
       return { ...state, activeMiningEvents: activeEvents };
     }
     case 'SET_AUTH_USER': return { ...state, user: action.user };
-    case 'SET_GAME_STATE': return { ...state, ...action.state, isLoading: false };
+    case 'SET_GAME_STATE': {
+      const { user: _u, isLoading: _l, ...safeState } = action.state as any;
+      return {
+        ...state,
+        ...safeState,
+        user: state.user,
+        isLoading: (action.state as any).isLoading ?? state.isLoading,
+      };
+    }
     case 'ADD_TP': return { ...state, tycoonPoints: state.tycoonPoints + action.amount };
     case 'REMOVE_ENERGY_CELLS': return { ...state, energyCells: Math.max(0, state.energyCells - action.amount) };
     case 'DISMISS_OFFLINE_EARNINGS': return { ...state, offlineEarningsShown: true, pendingOfflineEarnings: 0 };
@@ -470,8 +476,23 @@ function gameReducer(state: GameState, action: Action): GameState {
     case 'SET_MAINTENANCE': return { ...state, isMaintenance: action.isMaintenance };
     case 'SET_GUILDS': return { ...state, guilds: action.guilds };
     case 'SET_MARKETPLACE': return { ...state, marketListings: action.listings };
+    case 'SET_LEADERBOARD': return { ...state, leaderboard: action.leaders };
     case 'SET_USD_RATE': return { ...state, usdRate: action.rate };
     case 'SET_TRANSACTIONS': return { ...state, transactions: action.transactions };
+    case 'APPLY_REFERRAL_CODE': {
+      if (state.redeemedReferralCode) return state;
+      return {
+        ...state,
+        tycoonPoints: state.tycoonPoints + 1000,
+        redeemedReferralCode: action.code,
+        globalMultiplier: state.globalMultiplier * 1.05
+      };
+    }
+    case 'ADMIN_SET_BTC': return { ...state, btcBalance: action.amount };
+    case 'ADMIN_SET_TP': return { ...state, tycoonPoints: action.amount };
+    case 'ADMIN_SET_LEVEL': return { ...state, level: action.level };
+    case 'ADMIN_TOGGLE_INFINITE_ENERGY': return { ...state, isInfiniteEnergy: !state.isInfiniteEnergy };
+    case 'SET_MODAL': return { ...state, activeModal: action.modal };
     default: return state;
   }
 }
@@ -498,6 +519,12 @@ interface GameContextValue {
   joinGuildInFirestore: (guild: Guild) => Promise<void>;
   leaveGuildInFirestore: (guildId: string) => Promise<void>;
   donateToGuildInFirestore: (amount: number) => Promise<void>;
+  // Admin Helpers
+  adminSetBtc: (amount: number, userId?: string) => Promise<void>;
+  adminSetTp: (amount: number, userId?: string) => Promise<void>;
+  adminSetLevel: (level: number, userId?: string) => Promise<void>;
+  adminUpdateSettings: (updates: any) => Promise<void>;
+  adminTriggerEvent: (eventType: string) => Promise<void>;
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -507,12 +534,14 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchTransactions = async (userId: string) => {
     try {
-      const { data, error } = await supabase.from(TABLES.TRANSACTIONS)
+      const { data } = await supabase
+        .from(TABLES.TRANSACTIONS)
         .select('*')
         .eq('user_id', userId)
-        .order('timestamp', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(20);
-      if (!error && data) {
+
+      if (data) {
         const mapped = data.map((t: any) => ({
           id: t.id,
           type: t.type,
@@ -524,116 +553,225 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         dispatch({ type: 'SET_TRANSACTIONS', transactions: mapped });
       }
     } catch (e) {
-      console.error("Trans fetch error:", e);
+      console.error('Transactions error:', e);
     }
   };
 
-  const fetchProfile = async (uid: string, email?: string) => {
+  const fetchLeaderboard = async () => {
     try {
-      console.info("🔍 Fetching profile for:", uid);
-      const { data: profile, error } = await supabase.from(TABLES.PROFILES).select('*').eq('id', uid).single();
-      
-      if (profile && !error) {
-        console.info("✅ Profile found:", profile.username);
-        dispatch({ type: 'SET_GAME_STATE', state: { ...profile, isLoading: false } as any });
-      } else {
-        // Profil yoksa yeni oluştur - Çakışmaları önlemek için username'e random ekle
-        const baseUsername = email?.split('@')[0] || 'Madenci';
-        const finalUsername = `${baseUsername}_${Math.floor(1000 + Math.random() * 9000)}`;
-        
-        console.info("✨ Creating new profile:", finalUsername);
-        const { data: newProfile, error: upsertError } = await supabase.from(TABLES.PROFILES).upsert({
-          id: uid,
-          username: finalUsername
-        }).select().single();
-        
-        if (upsertError) console.error("❌ Upsert failed:", upsertError.message);
-        
-        dispatch({ 
-          type: 'SET_GAME_STATE', 
-          state: { ...(newProfile || {}), isLoading: false } as any 
-        });
+      const { data } = await supabase
+        .from(TABLES.PROFILES)
+        .select('id, username, btcBalance, totalHashRate, level')
+        .order('btcBalance', { ascending: false })
+        .limit(50);
+
+      if (data) {
+        const mapped = data.map((p: any, i: number) => ({
+          rank: i + 1,
+          id: p.id,
+          name: p.username || 'Madenci',
+          btcMined: p.btcBalance || 0,
+          hashRate: p.totalHashRate || 0,
+          level: p.level || 1,
+          avatar: p.username?.slice(0, 2).toUpperCase() || 'M',
+          change: 'same' as const
+        }));
+        dispatch({ type: 'SET_LEADERBOARD', leaders: mapped });
       }
-    } catch (err) {
-      console.error("❌ fetchProfile fatal error:", err);
-      dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
+    } catch (e) {
+      console.error('Leaderboard error:', e);
     }
   };
+
+  const generateReferralCode = () => {
+    return Math.random().toString(36).substring(2, 8).toUpperCase() + 
+           '-' + Math.floor(Math.random() * 1000);
+  };
+
+  const fetchProfile = async (uid: string, displayName?: string, email?: string) => {
+    try {
+      const { data: profile, error } = await supabase
+        .from(TABLES.PROFILES)
+        .select('*')
+        .eq('id', uid)
+        .single();
+
+      if (profile && !error) {
+        const { id, user: _u, isLoading: _l, ...rest } = profile as any;
+        const gameData = { ...rest, userId: id };
+        
+        // Referral code yoksa üret ve güncelle
+        if (!profile.referralCode) {
+          const newCode = generateReferralCode();
+          console.info('🎟️ Referans kodu üretiliyor:', newCode);
+          await supabase.from(TABLES.PROFILES).update({ referralCode: newCode }).eq('id', uid);
+          gameData.referralCode = newCode;
+        }
+
+        dispatch({ type: 'SET_GAME_STATE', state: gameData as any });
+      } else {
+        console.info('✨ Yeni profil oluşturuluyor...');
+        const newCode = generateReferralCode();
+        const { data: newProfile } = await supabase
+          .from(TABLES.PROFILES)
+          .upsert({
+            id: uid,
+            username: displayName || email?.split('@')[0] || 'Madenci',
+            email: email,
+            userId: uid.substring(0, 7),
+            referralCode: generateReferralCode(),
+            btcBalance: 0,
+            tycoonPoints: 1500,
+            level: 1,
+            xp: 0,
+            rankTitle: 'Garaj Madencisi',
+          })
+          .select()
+          .single();
+
+        if (newProfile) {
+          const { id, user: _u, isLoading: _l, ...rest } = newProfile as any;
+          const gameData = { ...rest, userId: id };
+          dispatch({ type: 'SET_GAME_STATE', state: gameData as any });
+        }
+      }
+    } catch (e) {
+      console.error('Profile error:', e);
+    }
+  };
+
 
   // Main Init & Auth Effect
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.info("🔔 Auth Event:", event, session?.user?.email ?? 'no user');
-      
-      const user = session?.user ?? null;
-      dispatch({ type: 'SET_AUTH_USER', user });
+    // ── Firebase Auth Listener ─────────────────────────────────
+    // onAuthStateChanged: popup kapanır kapanmaz user gelir, redirect yok
+    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+      console.info('🔥 Firebase Auth:', firebaseUser?.email ?? 'no user');
 
-      if (user) {
+      if (firebaseUser) {
+        // 1. User'ı hemen set et
+        dispatch({ type: 'SET_AUTH_USER', user: firebaseUser });
+        // 2. isLoading'i kapat
         dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
-        fetchProfile(user.id, user.email);
-        fetchTransactions(user.id);
-      } else if (event === 'INITIAL_SESSION') {
-        const hasAuthInUrl = 
-          window.location.hash.includes('access_token') || 
-          window.location.hash.includes('error') ||
-          window.location.search.includes('code=');
-          
-        if (!hasAuthInUrl) {
-          dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
-        }
+
+        // 3. Yardımcıları kullanarak veri çek
+        fetchProfile(firebaseUser.uid, firebaseUser.displayName || undefined, firebaseUser.email || undefined);
+        fetchTransactions(firebaseUser.uid);
+
+        // 4. Realtime profile subscription
+        const profileSub = supabase
+          .channel(`profiles:${firebaseUser.uid}`)
+          .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: TABLES.PROFILES,
+            filter: `id=eq.${firebaseUser.uid}`
+          }, (payload) => {
+            const { user: _u, isLoading: _i, ...gameData } = payload.new as any;
+            dispatch({ type: 'SET_GAME_STATE', state: gameData as any });
+          })
+          .subscribe();
+
+        return () => profileSub.unsubscribe();
+      } else {
+        // Kullanıcı çıkış yaptı
+        dispatch({ type: 'SET_AUTH_USER', user: null });
+        dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
       }
     });
 
-    // Global data
-    supabase.from(TABLES.SETTINGS).select('*').eq('id', 'v1').single()
-      .then(({ data }) => {
-        if (data) {
-          dispatch({ type: 'SET_GLOBAL_SETTINGS', settings: data });
-          dispatch({ type: 'SET_MAINTENANCE', isMaintenance: data.isMaintenance });
-          dispatch({ type: 'SET_ANNOUNCEMENT', announcement: data.announcement });
-          dispatch({ type: 'SET_GLOBAL_MULTIPLIER', multiplier: data.globalMultiplier || 1.0 });
+    // ── Global Data (auth gerektirmiyor) ────────────────────────
+    const loadGlobal = async () => {
+      try {
+        const { data: settings } = await supabase
+          .from(TABLES.SETTINGS)
+          .select('*')
+          .eq('id', 'v1')
+          .single();
+
+        if (settings) {
+          dispatch({ type: 'SET_GLOBAL_SETTINGS', settings });
+          dispatch({ type: 'SET_MAINTENANCE', isMaintenance: settings.isMaintenance });
+          if (settings.announcement) dispatch({ type: 'SET_ANNOUNCEMENT', announcement: settings.announcement });
+          dispatch({ type: 'SET_GLOBAL_MULTIPLIER', multiplier: settings.globalMultiplier || 1.0 });
         }
-      });
 
-    Promise.all([
-      supabase.from(TABLES.MARKETPLACE).select('*').order('created_at', { ascending: false }),
-      supabase.from(TABLES.GUILDS).select('*').order('rank', { ascending: true }),
-      supabase.auth.getSession()
-    ]).then(([{ data: market }, { data: guilds }, { data: { session } }]) => {
-      if (guilds) dispatch({ type: 'SET_GUILDS', guilds });
-      if (market) {
-        const currentUserId = session?.user?.id;
-        const mappedMarket: MarketListing[] = market.map(l => ({
-          id: l.id,
-          contractId: l.contractId,
-          contractName: l.label,
-          tier: l.rarity as any,
-          hashRate: l.hashRate,
-          daysRemaining: l.daysRemaining,
-          sellerName: l.sellerName,
-          sellerId: l.seller_id,
-          price: l.price,
-          listedAt: new Date(l.created_at).getTime(),
-          isOwn: currentUserId === l.seller_id
-        }));
-        dispatch({ type: 'SET_MARKETPLACE', listings: mappedMarket });
+        const [{ data: marketData }, { data: guilds }] = await Promise.all([
+          supabase.from(TABLES.MARKETPLACE).select('*').order('created_at', { ascending: false }),
+          supabase.from(TABLES.GUILDS).select('*').order('rank', { ascending: true }),
+        ]);
+
+        if (guilds) dispatch({ type: 'SET_GUILDS', guilds });
+        if (marketData) {
+          // Marketplace isOwn logic
+          const currentUserId = auth.currentUser?.uid;
+          const mappedMarket: MarketListing[] = marketData.map(l => ({
+            id: l.id,
+            contractId: l.contractId,
+            contractName: l.label,
+            tier: l.rarity as any,
+            hashRate: l.hashRate,
+            daysRemaining: l.daysRemaining,
+            sellerName: l.sellerName,
+            sellerId: l.seller_id,
+            price: l.price,
+            listedAt: new Date(l.created_at).getTime(),
+            isOwn: currentUserId === l.seller_id
+          }));
+          dispatch({ type: 'SET_MARKETPLACE', listings: mappedMarket });
+        }
+      } catch (e) {
+        console.error('Global data error:', e);
       }
-    });
+    };
 
-    return () => subscription.unsubscribe();
+    loadGlobal();
+    fetchLeaderboard();
+
+    // ── Global Realtime Subscriptions ──────────────────────────
+    const globalSub = supabase.channel('global-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.SETTINGS }, (payload) => {
+        if (payload.new) {
+          const s = payload.new as any;
+          dispatch({ type: 'SET_GLOBAL_SETTINGS', settings: s });
+          dispatch({ type: 'SET_MAINTENANCE', isMaintenance: s.isMaintenance });
+          if (s.announcement) dispatch({ type: 'SET_ANNOUNCEMENT', announcement: s.announcement });
+          dispatch({ type: 'SET_GLOBAL_MULTIPLIER', multiplier: s.globalMultiplier || 1.0 });
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.MARKETPLACE }, () => {
+        loadGlobal(); // Refresh marketplace listings
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.GUILDS }, () => {
+        loadGlobal(); // Refresh guilds
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: TABLES.PROFILES }, () => {
+        // Debounced or occasional fetch would be better, but for real-time requirement:
+        fetchLeaderboard();
+      })
+      .subscribe();
+
+    return () => {
+      unsubscribeAuth();
+      globalSub.unsubscribe();
+    };
   }, []);
 
   // User Data Subscriptions
   useEffect(() => {
-    if (!state.user?.id) return;
+    if (!state.user?.uid) return;
     
-    const pSub = supabase.channel(`public:profiles:${state.user.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.PROFILES, filter: `id=eq.${state.user.id}` },
-        payload => dispatch({ type: 'SET_GAME_STATE', state: payload.new as any }))
+    const pSub = supabase.channel(`public:profiles:${state.user.uid}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.PROFILES, filter: `id=eq.${state.user.uid}` },
+        payload => {
+          // Realtime payload içinden de user/isLoading temizliyoruz
+          const { user: _u, isLoading: _i, ...safePayload } = (payload.new || {}) as any;
+          dispatch({ type: 'SET_GAME_STATE', state: safePayload });
+        })
       .subscribe();
 
-    const tSub = supabase.channel(`public:transactions:${state.user.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.TRANSACTIONS, filter: `user_id=eq.${state.user.id}` }, () => {
+    const tSub = supabase.channel(`public:transactions:${state.user.uid}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.TRANSACTIONS, filter: `user_id=eq.${state.user.uid}` }, () => {
         fetchTransactions(state.user!.id);
       })
       .subscribe();
@@ -642,7 +780,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       pSub.unsubscribe();
       tSub.unsubscribe();
     };
-  }, [state.user?.id]);
+  }, [state.user?.uid]);
 
   const btcToUsd = (btc: number) => `$${(btc * state.usdRate).toFixed(2)}`;
   const formatBtc = (btc: number) => btc.toFixed(10);
@@ -659,7 +797,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       tier: contract.tier,
       hashRate: contract.hashRate,
       daysRemaining: Math.max(1, contract.durationDays - Math.floor((Date.now() - contract.purchasedAt) / 86400000)),
-      sellerId: state.user.id,
+      sellerId: state.user.uid,
       sellerName: state.username || state.user.email?.split('@')[0],
       price: price,
       listedAt: Date.now()
@@ -668,7 +806,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (error) throw error;
 
     const newOwned = state.ownedContracts.filter(c => c.id !== contract.id);
-    await supabase.from(TABLES.PROFILES).update({ ownedContracts: newOwned }).eq('id', state.user.id);
+    await supabase.from(TABLES.PROFILES).update({ ownedContracts: newOwned }).eq('id', state.user.uid);
   };
 
   const buyContractFromMarket = async (listing: MarketListing) => {
@@ -688,7 +826,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { error: profileError } = await supabase.from(TABLES.PROFILES).update({
       tycoonPoints: newTp,
       ownedContracts: newOwned
-    }).eq('id', state.user.id);
+    }).eq('id', state.user.uid);
 
     if (profileError) throw profileError;
 
@@ -702,7 +840,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // 2. Add Transactions for Buyer and Seller
     await supabase.from(TABLES.TRANSACTIONS).insert([
       {
-        user_id: state.user.id,
+        user_id: state.user.uid,
         amount: -listing.price,
         type: 'purchase',
         description: `${listing.contractName} Kontrat Alımı`,
@@ -734,7 +872,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       purchasedAt: Date.now()
     }];
 
-    await supabase.from(TABLES.PROFILES).update({ ownedContracts: newOwned }).eq('id', state.user.id);
+    await supabase.from(TABLES.PROFILES).update({ ownedContracts: newOwned }).eq('id', state.user.uid);
     await supabase.from(TABLES.MARKETPLACE).delete().eq('id', listingId);
   };
 
@@ -747,7 +885,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       name,
       description: desc,
       badge,
-      ownerId: state.user.id,
+      ownerId: state.user.uid,
       members: 1,
       totalHash: state.totalHashRate,
       level: 1,
@@ -760,14 +898,14 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await supabase.from(TABLES.PROFILES).update({
       tycoonPoints: state.tycoonPoints - cost,
       userGuildId: newGuild.id
-    }).eq('id', state.user.id);
+    }).eq('id', state.user.uid);
   };
 
   const joinGuildInFirestore = async (guild: Guild) => {
     if (!state.user) throw new Error("Auth required");
     if (state.userGuildId) throw new Error("Already in a guild");
 
-    await supabase.from(TABLES.PROFILES).update({ userGuildId: guild.id }).eq('id', state.user.id);
+    await supabase.from(TABLES.PROFILES).update({ userGuildId: guild.id }).eq('id', state.user.uid);
     await supabase.from(TABLES.GUILDS).update({
       members: guild.members + 1,
       totalHash: guild.totalHash + state.totalHashRate
@@ -779,7 +917,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: guild } = await supabase.from(TABLES.GUILDS).select('*').eq('id', guildId).single();
     if (!guild) return;
 
-    await supabase.from(TABLES.PROFILES).update({ userGuildId: null }).eq('id', state.user.id);
+    await supabase.from(TABLES.PROFILES).update({ userGuildId: null }).eq('id', state.user.uid);
     await supabase.from(TABLES.GUILDS).update({
       members: Math.max(0, guild.members - 1),
       totalHash: Math.max(0, guild.totalHash - state.totalHashRate)
@@ -802,7 +940,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       nextXp = Math.floor(nextXp * 1.5);
     }
 
-    await supabase.from(TABLES.PROFILES).update({ tycoonPoints: state.tycoonPoints - amount }).eq('id', state.user.id);
+    await supabase.from(TABLES.PROFILES).update({ tycoonPoints: state.tycoonPoints - amount }).eq('id', state.user.uid);
     await supabase.from(TABLES.GUILDS).update({
       xp: newXp,
       level: newLevel,
@@ -810,12 +948,51 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }).eq('id', state.userGuildId);
   };
 
+  // ─── Admin Helpers ────────────────────────────────────────────────────────
+  const adminSetBtc = async (amount: number, userId?: string) => {
+    const targetId = userId || state.user?.uid;
+    if (!targetId) return;
+    const { error } = await supabase.from(TABLES.PROFILES).update({ btcBalance: amount }).eq('id', targetId);
+    if (error) throw error;
+    if (!userId) dispatch({ type: 'ADMIN_SET_BTC', amount });
+  };
+
+  const adminSetTp = async (amount: number, userId?: string) => {
+    const targetId = userId || state.user?.uid;
+    if (!targetId) return;
+    const { error } = await supabase.from(TABLES.PROFILES).update({ tycoonPoints: amount }).eq('id', targetId);
+    if (error) throw error;
+    if (!userId) dispatch({ type: 'ADMIN_SET_TP', amount });
+  };
+
+  const adminSetLevel = async (level: number, userId?: string) => {
+    const targetId = userId || state.user?.uid;
+    if (!targetId) return;
+    const { error } = await supabase.from(TABLES.PROFILES).update({ level }).eq('id', targetId);
+    if (error) throw error;
+    if (!userId) dispatch({ type: 'ADMIN_SET_LEVEL', level });
+  };
+
+  const adminUpdateSettings = async (updates: any) => {
+    const { error } = await supabase.from(TABLES.SETTINGS).update(updates).eq('id', 'v1');
+    if (error) throw error;
+  };
+
+  const adminTriggerEvent = async (eventType: string) => {
+    const { error } = await supabase.from(TABLES.SETTINGS).update({ 
+      lastEventTrigger: eventType,
+      lastEventAt: Date.now()
+    }).eq('id', 'v1');
+    if (error) throw error;
+  };
+
   return (
     <GameContext.Provider value={{
       state, dispatch, btcToUsd, formatBtc, earnedTodayBtc, earnedTodayUsd: btcToUsd(earnedTodayBtc),
       effectiveHashRate: state.totalHashRate * energyScale, energyScale, currentBtcPerSecond, canPrestige: state.level >= 10, isVipActive: false, vipBtcBonus: 1.0,
       listContractOnMarket, buyContractFromMarket, cancelMarketListing,
-      createGuildInFirestore, joinGuildInFirestore, leaveGuildInFirestore, donateToGuildInFirestore
+      createGuildInFirestore, joinGuildInFirestore, leaveGuildInFirestore, donateToGuildInFirestore,
+      adminSetBtc, adminSetTp, adminSetLevel, adminUpdateSettings, adminTriggerEvent
     }}>
       {children}
     </GameContext.Provider>

@@ -6,6 +6,7 @@ import AdminPanel from './admin/AdminPortal';
 import AmbientBackground from './components/AmbientBackground';
 import { supabase, TABLES } from './lib/supabase';
 import { RefreshCw, ShieldAlert, Lock, LogIn, LogOut } from 'lucide-react';
+import { signInWithGoogle, firebaseSignOut } from './lib/firebase';
 
 function AdminAuthGuard({ children }: { children: React.ReactNode }) {
     const { state } = useGame();
@@ -39,12 +40,12 @@ function AdminAuthGuard({ children }: { children: React.ReactNode }) {
                         <div>
                             <p className="text-[8px] text-zinc-500 uppercase font-black tracking-widest">Aktif Hesap</p>
                             <p className="text-xs font-bold text-emerald-400">{currentUser.email}</p>
-                            <p className="text-[7px] text-zinc-600 font-mono mt-0.5">{currentUser.id}</p>
+                            <p className="text-[7px] text-zinc-600 font-mono mt-0.5">{currentUser.uid}</p>
                         </div>
                         <button
                             onClick={() => {
                                 localStorage.removeItem('admin_bypass');
-                                supabase.auth.signOut();
+                                firebaseSignOut();
                             }}
                             className="p-2 hover:bg-red-500/10 text-zinc-500 hover:text-red-500 rounded-lg transition-colors ml-auto"
                             title="Çıkış Yap"
@@ -56,10 +57,7 @@ function AdminAuthGuard({ children }: { children: React.ReactNode }) {
                     <button
                         onClick={async () => {
                             try {
-                                await supabase.auth.signInWithOAuth({
-                                    provider: 'google',
-                                    options: { redirectTo: window.location.origin + '/auth/callback' }
-                                });
+                                await signInWithGoogle();
                             } catch (e) {
                                 console.error("Login failed", e);
                             }
@@ -82,11 +80,11 @@ function AdminAuthGuard({ children }: { children: React.ReactNode }) {
                     {currentUser && !isAdmin && (
                         <div className="p-6 rounded-2xl bg-emerald-500/5 border border-emerald-500/10 text-emerald-500 text-[10px] uppercase font-black tracking-widest leading-relaxed max-w-xs">
                             Admin yetkiniz yoksa Supabase dashboard üzerinden <br /> "isAdmin" kolonunu TRUE yapın. <br />
-                            <span className="opacity-50 italic mt-2 block">ID: {currentUser.id}</span>
+                            <span className="opacity-50 italic mt-2 block">ID: {currentUser.uid}</span>
                             <button
                                 onClick={async () => {
                                     try {
-                                        const cleanId = currentUser.id.trim();
+                                        const cleanId = currentUser.uid.trim();
                                         await supabase.from(TABLES.PROFILES).update({ isAdmin: true }).eq('id', cleanId);
                                     } catch (e) {
                                         console.error("Soft fail on DB update:", e);

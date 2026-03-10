@@ -27,46 +27,6 @@ interface LeaderEntry {
   avatar: string;
 }
 
-const BOT_DATA = [
-  { name: 'Mehmet K.', rank: 'Siber Baron' },
-  { name: 'Ahmet Y.', rank: 'Blockchain Uzmanı' },
-  { name: 'Ayşe N.', rank: 'Kripto Şövalye' },
-  { name: 'Caner D.', rank: 'Kripto Çırağı' },
-  { name: 'Selin Y.', rank: 'Siber Baron' },
-  { name: 'Burak T.', rank: 'Blockchain Uzmanı' },
-  { name: 'Zeynep A.', rank: 'Kripto Şövalye' },
-  { name: 'Deniz S.', rank: 'Kripto Çırağı' },
-  { name: 'Emre B.', rank: 'Siber Baron' },
-  { name: 'Fatma G.', rank: 'Blockchain Uzmanı' }
-];
-
-function generateDynamicLeaders(state: any): (LeaderEntry & { rankTitle: string })[] {
-  const bots: (LeaderEntry & { rankTitle: string })[] = BOT_DATA.map((bot, i) => ({
-    rank: 0,
-    name: bot.name,
-    rankTitle: bot.rank,
-    btcMined: 0.05 + Math.random() * 0.1,
-    hashRate: 1500 + Math.random() * 3000,
-    level: 8 + Math.floor(Math.random() * 20),
-    change: Math.random() > 0.5 ? 'up' : 'down',
-    avatar: bot.name.split(' ').map(n => n[0]).join(''),
-  }));
-
-  const user: LeaderEntry & { rankTitle: string } = {
-    rank: 0,
-    name: state.username,
-    rankTitle: state.rankTitle,
-    btcMined: state.btcBalance,
-    hashRate: state.totalHashRate,
-    level: state.level,
-    change: 'same',
-    isCurrentUser: true,
-    avatar: state.username.slice(0, 2).toUpperCase(),
-  };
-
-  const all = [...bots, user].sort((a, b) => b.btcMined - a.btcMined);
-  return all.map((e, i) => ({ ...e, rank: i + 1 }));
-}
 
 function RankBadge({ rank }: { rank: number }) {
   if (rank === 1) return <Crown size={16} className="text-yellow-400" fill="currentColor" />;
@@ -126,9 +86,9 @@ export default function SocialScreen() {
     }
   };
 
-  const handleLeaveGuild = async (guildId: string, guildName: string) => {
+  const handleLeaveGuild = async (guildId: string) => {
     try {
-      await leaveGuildInFirestore(guildId, guildName);
+      await leaveGuildInFirestore(guildId);
       notify({ type: 'info', title: 'Loncadan Ayrıldın', message: 'Artık bir loncan yok.' });
       if (selectedGuild) setSelectedGuild(null);
     } catch (e) {
@@ -168,7 +128,9 @@ export default function SocialScreen() {
     setRedeemCode('');
   };
 
-  const leaders = React.useMemo(() => generateDynamicLeaders(state), [state.btcBalance, state.username]);
+  const leaders = state.leaderboard || [];
+  const topThree = leaders.slice(0, 3);
+  const others = leaders.slice(3);
   const myEntry = leaders.find(l => l.isCurrentUser) || leaders[0];
 
   const handleCopy = async () => {
@@ -374,30 +336,9 @@ export default function SocialScreen() {
                     <h4 className="text-xs font-bold text-zinc-400 uppercase">Üyeler ({selectedGuild.members})</h4>
                   </div>
                   <div className="space-y-2 max-h-40 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-white/10">
-                    {/* Mock Members List */}
-                    {Array.from({ length: Math.min(selectedGuild.members, 5) }).map((_, i) => (
-                      <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-white/5">
-                        <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-full bg-zinc-800 flex items-center justify-center text-[10px] font-bold">
-                            <User size={12} className="text-zinc-400" />
-                          </div>
-                          <div>
-                            <p className="text-xs font-bold text-zinc-300">
-                              {i === 0 && selectedGuild.ownerId === state.userId ? 'Sen (Lider)' : `Üye #${i + 1}`}
-                            </p>
-                            <p className="text-[9px] text-zinc-500">Lv.{Math.floor(Math.random() * 20) + 1}</p>
-                          </div>
-                        </div>
-                        <span className="text-[10px] font-mono text-emerald-400">
-                          {Math.floor(Math.random() * 5000 + 1000)} Gh/s
-                        </span>
-                      </div>
-                    ))}
-                    {selectedGuild.members > 5 && (
-                      <p className="text-[10px] text-center text-zinc-500 italic pt-1">
-                        + {selectedGuild.members - 5} diğer üye
-                      </p>
-                    )}
+                    <div className="text-center py-4 text-[10px] text-zinc-500 italic">
+                      Üye listesi yükleniyor...
+                    </div>
                   </div>
                 </div>
 
@@ -423,7 +364,7 @@ export default function SocialScreen() {
                   <button
                     onClick={() => {
                       if (state.userGuildId === selectedGuild.id) {
-                        handleLeaveGuild(selectedGuild.id, selectedGuild.name);
+                        handleLeaveGuild(selectedGuild.id);
                       } else {
                         handleJoinGuild(selectedGuild);
                       }
@@ -694,7 +635,7 @@ export default function SocialScreen() {
                 onClick={(e) => {
                   e.stopPropagation();
                   if (isJoined) {
-                    handleLeaveGuild(guild.id, guild.name);
+                    handleLeaveGuild(guild.id);
                   } else {
                     handleJoinGuild(guild);
                   }

@@ -177,7 +177,7 @@ function AppInner() {
           // Initialize FCM
           const token = await requestForToken();
           if (token) {
-            await setDoc(doc(db, 'users', state.user.id), { fcmToken: token }, { merge: true });
+            await setDoc(doc(db, 'users', state.user.uid), { fcmToken: token }, { merge: true });
           }
 
           // Listen for foreground messages

@@ -92,148 +92,106 @@ type AdminTab = 'overview' |
     'report_request' | 'subscribers' |
     'market' | 'guilds' | 'referrals' | 'bots' | 'webhooks' | 'security' | 'economy' | 'activities' | 'cheats' | 'settings' | 'logs';
 
-const MENU_CATEGORIES = [
-    {
-        title: 'Kontrol Paneli',
-        id: 'dashboard',
-        color: 'bg-indigo-600',
-        items: [
-            { id: 'overview', label: 'Kontrol Paneli', icon: <Home size={16} /> },
-        ]
-    },
-    {
-        title: 'Kullanıcıları Yönet',
-        id: 'manage_users',
-        color: 'bg-violet-600',
-        items: [
-            { id: 'players_active', label: 'Aktif Kullanıcılar', icon: <UserCheck size={16} /> },
-            { id: 'players_banned', label: 'Yasaklı Kullanıcılar', icon: <ShieldAlert size={16} />, badge: 2 },
-            { id: 'players_email_unverified', label: 'E-posta Doğrulanmadı', icon: <Mail size={16} />, badge: 776 },
-            { id: 'players_mobile_unverified', label: 'Mobil Doğrulanmamış', icon: <Smartphone size={16} />, badge: 275 },
-            { id: 'players_kyc_unverified', label: 'KYC Doğrulanmamış', icon: <Lock size={16} />, badge: 3359 },
-            { id: 'players_kyc_pending', label: 'KYC Beklemede', icon: <Clock size={16} />, badge: 8 },
-            { id: 'players_balance', label: 'Dengesiyle', icon: <Coins size={16} /> },
-            { id: 'players_all', label: 'Tüm Kullanıcılar', icon: <Users size={16} /> },
-            { id: 'players_notification', label: 'Bildirim Gönder', icon: <Send size={16} /> },
-        ]
-    },
-    {
-        title: 'Finansal Sistem',
-        id: 'finance',
-        color: 'bg-zinc-800',
-        items: [
-            { id: 'currencies', label: 'Para Birimleri', icon: <Coins size={16} /> },
-            { id: 'mining_plans', label: 'Madencilik Planları', icon: <Briefcase size={16} /> },
-            { id: 'mining_paths', label: 'Madencilik Yolları', icon: <Route size={16} /> },
-        ]
-    },
-    {
-        title: 'Mevduatlar',
-        id: 'deposits',
-        color: 'bg-indigo-700',
-        items: [
-            { id: 'deposits_initiated', label: 'Başlatılan Mevduatlar', icon: <Play size={16} /> },
-            { id: 'deposits_pending', label: 'Bekleyen Mevduatlar', icon: <Clock size={16} />, badge: 29 },
-            { id: 'deposits_approved', label: 'Onaylanmış Mevduatlar', icon: <CheckCircle2 size={16} /> },
-            { id: 'deposits_success', label: 'Başarılı Para Yatırma', icon: <Zap size={16} /> },
-            { id: 'deposits_rejected', label: 'Reddedilen Mevduatlar', icon: <XCircle size={16} /> },
-            { id: 'deposits_all', label: 'Tüm Mevduatlar', icon: <FileText size={16} /> },
-        ]
-    },
-    {
-        title: 'Para Çekme İşlemleri',
-        id: 'withdrawals_group',
-        color: 'bg-blue-600',
-        items: [
-            { id: 'withdrawals_pending', label: 'Bekleyen Para Çekme', icon: <Clock size={16} />, badge: 19 },
-            { id: 'withdrawals_approved', label: 'Onaylanmış Para Çekme', icon: <CheckCircle2 size={16} /> },
-            { id: 'withdrawals_rejected', label: 'Reddedilen Para Çekme', icon: <XCircle size={16} /> },
-            { id: 'withdrawals_all', label: 'Tüm Para Çekme', icon: <Banknote size={16} /> },
-        ]
-    },
-    {
-        title: 'Sistem Ayarları & Takip',
-        id: 'system_track',
-        color: 'bg-zinc-900',
-        items: [
-            { id: 'settings', label: 'Sistem Ayarları', icon: <SettingsIcon size={16} /> },
-            { id: 'orders', label: 'Siparişler', icon: <ShoppingCart size={16} /> },
-            { id: 'transactions_all', label: 'İşlem Geçmişi', icon: <History size={16} /> },
-            { id: 'referral_bonus', label: 'Referans Bonusu Kaydı', icon: <Award size={16} /> },
-        ]
-    },
-    {
-        title: 'Diğer Raporlar',
-        id: 'other_reports',
-        color: 'bg-purple-700',
-        items: [
-            { id: 'reports_login', label: 'Giriş Geçmişi', icon: <LogIn size={16} /> },
-            { id: 'reports_notifications', label: 'Bildirim Geçmişi', icon: <Bell size={16} /> },
-        ]
-    },
-    {
-        title: 'Destek Talebi',
-        id: 'support_group',
-        color: 'bg-violet-700',
-        items: [
-            { id: 'support_pending', label: 'Bekleyen Bilet', icon: <LifeBuoy size={16} />, badge: 87 },
-            { id: 'support_closed', label: 'Kapalı Bilet', icon: <Lock size={16} /> },
-            { id: 'support_answered', label: 'Yanıtlanan Bilet', icon: <MessageSquare size={16} /> },
-            { id: 'support_all', label: 'Tüm Biletler', icon: <FileText size={16} /> },
-        ]
-    },
-    {
-        title: 'Sistem Bilgileri',
-        id: 'system_info',
-        color: 'bg-indigo-600',
-        items: [
-            { id: 'info_app', label: 'Başvuru', icon: <Smartphone size={16} /> },
-            { id: 'info_server', label: 'Sunucu', icon: <Database size={16} /> },
-            { id: 'info_cache', label: 'Önbellek', icon: <RefreshCw size={16} /> },
-            { id: 'info_update', label: 'Güncelleme', icon: <Zap size={16} /> },
-        ]
-    },
-    {
-        title: 'Ekstra',
-        id: 'extra_group',
-        color: 'bg-zinc-800',
-        items: [
-            { id: 'report_request', label: 'Rapor ve Talep', icon: <Bug size={16} /> },
-            { id: 'subscribers', label: 'Aboneler', icon: <UserCheck size={16} /> },
-        ]
-    }
-];
+// Menu Categories structure is now handled inside the component for dynamic badges
 
 export default function AdminPortal({ onClose }: { onClose: () => void }) {
-    const { state, dispatch } = useGame();
+    const { 
+        state, 
+        dispatch,
+        adminSetBtc,
+        adminSetTp,
+        adminSetLevel,
+        adminUpdateSettings,
+        adminTriggerEvent
+    } = useGame();
     const { notify } = useNotify();
+
     const [activeTab, setActiveTab] = useState<AdminTab>('overview');
-    const [openCategories, setOpenCategories] = useState<string[]>(['dashboard', 'manage_users']);
-
-    const toggleCategory = (id: string) => {
-        setOpenCategories(prev =>
-            prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
-        );
-    };
-
-    // Global Admin Data State
+    const [selectedPlayer, setSelectedPlayer] = useState<any>(null);
     const [players, setPlayers] = useState<any[]>([]);
     const [withdrawals, setWithdrawals] = useState<any[]>([]);
-    const [allGuilds, setAllGuilds] = useState<any[]>([]);
     const [allMarket, setAllMarket] = useState<any[]>([]);
-    const [adminLogs, setAdminLogs] = useState<any[]>([]);
+    const [allGuilds, setAllGuilds] = useState<any[]>([]);
     const [allTransactions, setAllTransactions] = useState<any[]>([]);
-    const [liveNetworkData, setLiveNetworkData] = useState<{ time: string, load: number }[]>([]);
-    const [activeSessions, setActiveSessions] = useState(0);
-    const [loading, setLoading] = useState(true);
+    const [adminLogs, setAdminLogs] = useState<any[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
-    const [withdrawalFilter, setWithdrawalFilter] = useState<'all' | 'pending' | 'approved' | 'rejected' | 'on_hold'>('all');
-    const [logSearchQuery, setLogSearchQuery] = useState('');
-    const [marketSearchTerm, setMarketSearchTerm] = useState('');
-    const [selectedPlayer, setSelectedPlayer] = useState<any>(null);
+    const [loading, setLoading] = useState(false);
     const [modalTab, setModalTab] = useState<'profile' | 'miners' | 'transactions'>('profile');
     const [selectedPlayerMiners, setSelectedPlayerMiners] = useState<any[]>([]);
     const [selectedPlayerTransactions, setSelectedPlayerTransactions] = useState<any[]>([]);
+    const [activeSessions, setActiveSessions] = useState(0);
+    const [liveNetworkData, setLiveNetworkData] = useState<any[]>([]);
+    const [openCategories, setOpenCategories] = useState<string[]>(['dashboard', 'manage_users']);
+    const [logSearchQuery, setLogSearchQuery] = useState('');
+    const [marketSearchTerm, setMarketSearchTerm] = useState('');
+    const [withdrawalFilter, setWithdrawalFilter] = useState<'all' | 'pending' | 'approved' | 'rejected' | 'on_hold'>('all');
+
+    const toggleCategory = (id: string) => {
+        setOpenCategories(prev => prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]);
+    };
+
+    const MENU_CATEGORIES = [
+        {
+            title: 'Kontrol Paneli',
+            id: 'dashboard',
+            color: 'bg-indigo-600',
+            items: [
+                { id: 'overview' as AdminTab, label: 'Kontrol Paneli', icon: <Home size={16} /> },
+            ]
+        },
+        {
+            title: 'Kullanıcıları Yönet',
+            id: 'manage_users',
+            color: 'bg-violet-600',
+            items: [
+                { id: 'players_active' as AdminTab, label: 'Aktif Kullanıcılar', icon: <UserCheck size={16} /> },
+                { id: 'players_banned' as AdminTab, label: 'Yasaklı Kullanıcılar', icon: <ShieldAlert size={16} />, badge: players.filter(p => p.isBanned).length || undefined },
+                { id: 'players_kyc_pending' as AdminTab, label: 'KYC Beklemede', icon: <Clock size={16} />, badge: players.filter(p => (p.riskScore || 0) > 50).length || undefined },
+                { id: 'players_all' as AdminTab, label: 'Tüm Kullanıcılar', icon: <Users size={16} />, badge: players.length || undefined },
+                { id: 'players_notification' as AdminTab, label: 'Bildirim Gönder', icon: <Send size={16} /> },
+            ]
+        },
+        {
+            title: 'Mevduat & Çekim',
+            id: 'finance_ops',
+            color: 'bg-indigo-700',
+            items: [
+                { id: 'deposits_all' as AdminTab, label: 'Para Yatırma', icon: <Download size={16} />, badge: allTransactions.filter(t => t.type === 'deposit' && t.status === 'pending').length || undefined },
+                { id: 'withdrawals_all' as AdminTab, label: 'Para Çekme', icon: <Upload size={16} />, badge: withdrawals.filter(w => w.status === 'pending').length || undefined },
+            ]
+        },
+        {
+            title: 'Oyun Ekosistemi',
+            id: 'ecosystem',
+            color: 'bg-emerald-600',
+            items: [
+                { id: 'market' as AdminTab, label: 'Pazar Yeri', icon: <ShoppingCart size={16} />, badge: allMarket.length || undefined },
+                { id: 'guilds' as AdminTab, label: 'Loncalar', icon: <Users size={16} />, badge: allGuilds.length || undefined },
+                { id: 'bots' as AdminTab, label: 'Bot Yönetimi', icon: <Cpu size={16} /> },
+                { id: 'economy' as AdminTab, label: 'Ekonomi Ayarları', icon: <Coins size={16} /> },
+            ]
+        },
+        {
+            title: 'Sistem & Güvenlik',
+            id: 'system_security',
+            color: 'bg-zinc-900',
+            items: [
+                { id: 'settings' as AdminTab, label: 'Sistem Ayarları', icon: <SettingsIcon size={16} /> },
+                { id: 'logs' as AdminTab, label: 'İşlem Günlükleri', icon: <ShieldCheck size={16} /> },
+                { id: 'webhooks' as AdminTab, label: 'Webhook Ayarları', icon: <Link size={16} /> },
+            ]
+        },
+        {
+            title: 'Bilgi & Rapor',
+            id: 'system_info',
+            color: 'bg-indigo-600',
+            items: [
+                { id: 'info_server' as AdminTab, label: 'Sunucu Durumu', icon: <Database size={16} /> },
+                { id: 'info_app' as AdminTab, label: 'Uygulama Bilgisi', icon: <Smartphone size={16} /> },
+                { id: 'report_request' as AdminTab, label: 'Hata Raporları', icon: <Bug size={16} /> },
+            ]
+        }
+    ];
 
     // Fetch Selected Player Sub-collections
     useEffect(() => {
@@ -248,7 +206,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
             const { data: miners } = await supabase.from('miners').select('*').eq('user_id', selectedPlayer.id);
             if (miners) setSelectedPlayerMiners(miners);
 
-            const { data: txs } = await supabase.from(TABLES.TRANSACTIONS).select('*').eq('user_id', selectedPlayer.id).order('timestamp', { ascending: false }).limit(10);
+            const { data: txs } = await supabase.from(TABLES.TRANSACTIONS).select('*').eq('user_id', selectedPlayer.id).order('created_at', { ascending: false }).limit(10);
             if (txs) setSelectedPlayerTransactions(txs);
         };
 
@@ -384,7 +342,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
     const logAdminAction = async (action: string, targetId?: string, details?: any) => {
         try {
             await supabase.from(TABLES.LOGS).insert({
-                admin_id: state.user?.id,
+                admin_id: state.user?.uid,
                 admin_username: state.username,
                 action,
                 target_id: targetId || 'global',
@@ -570,10 +528,10 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                         <ArrowRight className="text-zinc-300" size={16} />
                                     </div>
                                     <div className="grid grid-cols-2 gap-6">
-                                        <MiniStat label="Toplam Yatırım" value={`$${(totalBtc * 0.4 * 65000).toLocaleString()}`} icon={<CheckCircle2 className="text-emerald-500" size={20} />} />
-                                        <MiniStat label="Bekleyen İşlemler" value="$12,450" icon={<Clock className="text-orange-500" size={20} />} />
-                                        <MiniStat label="Reddedilenler" value="$3,200" icon={<XCircle className="text-red-500" size={20} />} />
-                                        <MiniStat label="Sistem Masrafları" value="$1,580" icon={<Cpu className="text-blue-500" size={20} />} />
+                                        <MiniStat label="Toplam Yatırım" value={`${allTransactions.filter(t => t.type === 'deposit').reduce((acc, t) => acc + t.amount, 0).toFixed(4)} BTC`} icon={<CheckCircle2 className="text-emerald-500" size={20} />} />
+                                        <MiniStat label="Bekleyen İşlemler" value={`${allTransactions.filter(t => t.type === 'deposit' && t.status === 'pending').length}`} icon={<Clock className="text-orange-500" size={20} />} />
+                                        <MiniStat label="Reddedilenler" value={`${allTransactions.filter(t => t.type === 'deposit' && t.status === 'rejected').length}`} icon={<XCircle className="text-red-500" size={20} />} />
+                                        <MiniStat label="Madenci Alımları" value={`${allTransactions.filter(t => t.type === 'buy_item').length}`} icon={<Cpu className="text-blue-500" size={20} />} />
                                     </div>
                                 </div>
 
@@ -585,10 +543,10 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                         <ArrowRight className="text-zinc-300" size={16} />
                                     </div>
                                     <div className="grid grid-cols-2 gap-6">
-                                        <MiniStat label="Toplam Çekim" value={`$${(totalBtc * 0.2 * 65000).toLocaleString()}`} icon={<CheckCircle2 className="text-blue-500" size={20} />} />
+                                        <MiniStat label="Toplam Çekim" value={`${allTransactions.filter(t => t.type === 'withdrawal' && t.status === 'approved').reduce((acc, t) => acc + Math.abs(t.amount), 0).toFixed(4)} BTC`} icon={<CheckCircle2 className="text-blue-500" size={20} />} />
                                         <MiniStat label="Bekleyen Talepler" value={`${withdrawals.filter(w => w.status === 'pending').length}`} icon={<Clock className="text-orange-500" size={20} />} />
                                         <MiniStat label="Reddedilen Talepler" value={`${withdrawals.filter(w => w.status === 'rejected').length}`} icon={<XCircle className="text-red-500" size={20} />} />
-                                        <MiniStat label="İşlem Ücretleri" value="$450" icon={<Activity className="text-purple-500" size={20} />} />
+                                        <MiniStat label="Sistem Komisyonu" value="0.0000 BTC" icon={<Activity className="text-purple-500" size={20} />} />
                                     </div>
                                 </div>
                             </div>
@@ -858,8 +816,8 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                         <Bitcoin className="text-orange-500" size={18} /> Manuel Müdahale
                                     </h3>
                                     <div className="p-10 rounded-[2.5rem] bg-white border border-zinc-200 shadow-sm space-y-8">
-                                        <InputGroup label="BTC Bakiyesi" value={state.btcBalance.toString()} onChange={(v) => dispatch({ type: 'ADMIN_SET_BTC', amount: parseFloat(v) })} icon={<Bitcoin size={16} />} placeholder="0.00" light />
-                                        <InputGroup label="TP Rezervi" value={state.tycoonPoints.toString()} onChange={(v) => dispatch({ type: 'ADMIN_SET_TP', amount: parseInt(v) })} icon={<Database size={16} />} placeholder="0" light />
+                                        <InputGroup label="BTC Bakiyesi" value={state.btcBalance.toString()} onChange={(v) => adminSetBtc(parseFloat(v))} icon={<Bitcoin size={16} />} placeholder="0.00" light />
+                                        <InputGroup label="TP Rezervi" value={state.tycoonPoints.toString()} onChange={(v) => adminSetTp(parseInt(v))} icon={<Database size={16} />} placeholder="0" light />
                                         <InputGroup label="Deneyim Takviyesi" value="0" onChange={(v) => dispatch({ type: 'ADMIN_ADD_XP', amount: parseInt(v) || 0 })} icon={<TrendingUp size={16} />} placeholder="XP Ekle" light />
                                     </div>
                                 </div>
@@ -918,8 +876,8 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                         <TrendingUp className="text-indigo-500" size={18} /> İlerleme Hileleri
                                     </h3>
                                     <div className="grid gap-4">
-                                        <BigCheatButton label="Seviye Atlama" color="emerald" onClick={() => dispatch({ type: 'ADMIN_SET_LEVEL', level: state.level + 1 })} icon={<ArrowRight size={22} />} desc="Kimlik yetkilendirme seviyesini +1 birim artırır." />
-                                        <BigCheatButton label="Mega İlerleme" color="blue" onClick={() => dispatch({ type: 'ADMIN_SET_LEVEL', level: state.level + 10 })} icon={<ChevronRight size={22} />} desc="Sistem yetkilendirmesinde önemli bir atlama sağlar. +10 Seviye." />
+                                        <BigCheatButton label="Seviye Atlama" color="emerald" onClick={() => adminSetLevel(state.level + 1)} icon={<ArrowRight size={22} />} desc="Kimlik yetkilendirme seviyesini +1 birim artırır." />
+                                        <BigCheatButton label="Mega İlerleme" color="blue" onClick={() => adminSetLevel(state.level + 10)} icon={<ChevronRight size={22} />} desc="Sistem yetkilendirmesinde önemli bir atlama sağlar. +10 Seviye." />
                                     </div>
                                 </div>
                             </div>
@@ -1361,12 +1319,12 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                         />
                                         <div className="grid grid-cols-2 gap-6">
                                             <div className="p-6 rounded-2xl bg-zinc-50 border border-zinc-100 space-y-2">
-                                                <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest italic">Ortalama Hash Gücü</p>
-                                                <p className="text-zinc-800 font-black text-sm uppercase">450 GH/S</p>
+                                                <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest italic">Hesaplanan Güç</p>
+                                                <p className="text-zinc-800 font-black text-sm uppercase">{(state.globalSettings.botCount * 12).toLocaleString()} GH/S</p>
                                             </div>
                                             <div className="p-6 rounded-2xl bg-zinc-50 border border-zinc-100 space-y-2">
-                                                <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest italic">Pazar Aktivitesi</p>
-                                                <p className="text-zinc-800 font-black text-sm uppercase">12 İşlem / SA</p>
+                                                <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest italic">Tahmini Aktivite</p>
+                                                <p className="text-zinc-800 font-black text-sm uppercase">{Math.floor(state.globalSettings.botCount / 5)} İşlem / SA</p>
                                             </div>
                                         </div>
                                     </div>
@@ -1596,7 +1554,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                             </div>
                                         </div>
                                         <div className="pt-4 border-t border-zinc-100">
-                                            <button className="w-full h-12 rounded-xl bg-red-600/5 border border-red-600/10 text-red-600 font-black text-[9px] uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all">IP KARA LİSTESİNİ TEMİZLE</button>
+                                            <button onClick={() => adminUpdateSettings({ blacklist: [] })} className="w-full h-12 rounded-xl bg-red-600/5 border border-red-600/10 text-red-600 font-black text-[9px] uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all">IP KARA LİSTESİNİ TEMİZLE</button>
                                         </div>
                                     </div>
                                 </div>
@@ -1777,11 +1735,32 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                 </div>
                                 <div className="space-y-8">
                                     <h3 className="text-zinc-800 font-black text-sm uppercase italic tracking-widest flex items-center gap-3"><Flame className="text-orange-500" size={20} /> Küresel Etkinlikler</h3>
-                                    <div className="grid gap-6">
-                                        <BigCheatButton label="Madenci Bayramı" color="emerald" onClick={() => handleUpdateSettings({ eventMultiplier: 2.0 })} icon={<Cpu size={24} />} desc="Tüm kazım verimliliğini 24 saat boyunca %200 artırır." />
-                                        <BigCheatButton label="TP Yağmuru" color="blue" onClick={() => handleUpdateSettings({ eventMultiplier: 1.5 })} icon={<Database size={24} />} desc="Görevlerden gelen TP ödüllerini %50 artırır." />
-                                        <BigCheatButton label="VIP Haftası" color="purple" onClick={() => notify({ type: 'success', title: 'Planlandı', message: 'VIP haftası etkinliği kuyruğa alındı' })} icon={<Zap size={24} />} desc="VIP olmayan oyunculara sınırlı süreli özellikler tanımlar." />
-                                    </div>
+                                        <div className="grid gap-6">
+                                            <BigCheatButton 
+                                                label="Madenci Bayramı" 
+                                                color="emerald" 
+                                                onClick={() => adminUpdateSettings({ eventMultiplier: 2.0 })} 
+                                                icon={<Cpu size={24} />} 
+                                                desc="Tüm kazım verimliliğini 24 saat boyunca %200 artırır." 
+                                                active={state.globalSettings.eventMultiplier === 2.0}
+                                            />
+                                            <BigCheatButton 
+                                                label="TP Yağmuru" 
+                                                color="blue" 
+                                                onClick={() => adminUpdateSettings({ eventMultiplier: 1.5 })} 
+                                                icon={<Database size={24} />} 
+                                                desc="Görevlerden gelen TP ödüllerini %50 artırır." 
+                                                active={state.globalSettings.eventMultiplier === 1.5}
+                                            />
+                                            <BigCheatButton 
+                                                label="VIP Haftası" 
+                                                color="purple" 
+                                                onClick={() => adminUpdateSettings({ isVipEvent: !state.globalSettings.isVipEvent })} 
+                                                icon={<Zap size={24} />} 
+                                                desc="VIP olmayan oyunculara sınırlı süreli özellikler tanımlar." 
+                                                active={state.globalSettings.isVipEvent}
+                                            />
+                                        </div>
                                 </div>
                             </div>
 
@@ -2081,11 +2060,11 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                      </div>
                                      <div className="p-6 rounded-2xl bg-zinc-50 border border-zinc-100">
                                          <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-1">RAM (8GB)</p>
-                                         <p className="text-sm font-black text-zinc-800">2.4 GB</p>
+                                         <p className="text-sm font-black text-zinc-800">Dynamic allocation</p>
                                      </div>
                                      <div className="p-6 rounded-2xl bg-zinc-50 border border-zinc-100">
                                          <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-1">Uptime</p>
-                                         <p className="text-sm font-black text-zinc-800">14G 5S</p>
+                                         <p className="text-sm font-black text-zinc-800">Live service</p>
                                      </div>
                                  </div>
                              </div>
@@ -2139,27 +2118,6 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                         </div>
                     )}
 
-                    {activeTab === 'subscribers' && (
-                        <div className="space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                             <div className="p-20 bg-white border border-zinc-200 rounded-[3.5rem] shadow-sm flex flex-col items-center justify-center text-center">
-                                <div className="w-20 h-20 rounded-3xl bg-indigo-50 flex items-center justify-center text-indigo-500 mb-6">
-                                    <UserCheck size={40} />
-                                </div>
-                                <h3 className="text-xl font-black text-zinc-800 uppercase tracking-tight">E-Bülten Aboneleri</h3>
-                                <p className="text-zinc-500 text-sm max-w-sm mt-2 mb-8 uppercase font-bold tracking-widest text-[10px]">Pazarlama duyuruları için kayıt olan e-posta listesi.</p>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-lg">
-                                    <div className="p-6 rounded-2xl bg-zinc-50 border border-zinc-100 flex justify-between items-center group hover:bg-white transition-all">
-                                         <span className="text-[10px] font-bold text-zinc-500">cagri@example.com</span>
-                                         <span className="text-[8px] font-black text-emerald-500 uppercase py-1 px-2 bg-emerald-50 rounded-lg">AKTİF</span>
-                                    </div>
-                                    <div className="p-6 rounded-2xl bg-zinc-50 border border-zinc-100 flex justify-between items-center group hover:bg-white transition-all">
-                                         <span className="text-[10px] font-bold text-zinc-500">test@tycoon.com</span>
-                                         <span className="text-[8px] font-black text-emerald-500 uppercase py-1 px-2 bg-emerald-50 rounded-lg">AKTİF</span>
-                                    </div>
-                                </div>
-                             </div>
-                        </div>
-                    )}
                 </div>
             </main>
         </div>

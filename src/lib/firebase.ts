@@ -1,9 +1,8 @@
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore, collection, query, onSnapshot, doc, setDoc, getDoc, updateDoc, deleteDoc } from "firebase/firestore";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
 
-// TODO: Replace with user-provided configuration
 const firebaseConfig = {
     apiKey: "AIzaSyDAL6MM6rCU7W03V90-ypKDsYsXzK3_7M8",
     authDomain: "cryptotycoonmining.firebaseapp.com",
@@ -13,42 +12,56 @@ const firebaseConfig = {
     appId: "1:64861457497:android:fa4f56c141f788fd9e7548"
 };
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-export const messaging = getMessaging(app);
+export { onAuthStateChanged };
+
+// ── Google Auth ───────────────────────────────────────────────
+const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({ prompt: 'select_account' });
+
+export const signInWithGoogle = async () => {
+    const result = await signInWithPopup(auth, googleProvider);
+    return result.user;
+};
+
+export const firebaseSignOut = () => signOut(auth);
+
+// ── FCM ───────────────────────────────────────────────────────
+let messaging: any = null;
+try {
+    messaging = getMessaging(app);
+} catch (e) {
+    console.warn("FCM not available:", e);
+}
+export { messaging };
 
 export const requestForToken = async () => {
     try {
+        if (!messaging) return null;
         const permission = await Notification.requestPermission();
         if (permission === "granted") {
-            const currentToken = await getToken(messaging, {
+            const token = await getToken(messaging, {
                 vapidKey: "Di7SONRZmBp8NYU11lzPBtlJDMOdWW7M8TQhvG0OE6I",
             });
-            if (currentToken) {
-                console.log("FCM Token:", currentToken);
-                return currentToken;
-            } else {
-                console.log("No registration token available. Request permission to generate one.");
-            }
+            return token || null;
         }
     } catch (err) {
-        console.warn("FCM Token retrieval failed (likely invalid VAPID key):", err);
-        return null; // Return null instead of throwing to avoid blocking
+        console.warn("FCM Token hatası:", err);
+        return null;
     }
 };
 
-export const onMessageListener = (callback: (payload: any) => void) =>
-    onMessage(messaging, (payload) => {
-        callback(payload);
-    });
+export const onMessageListener = (callback: (payload: any) => void) => {
+    if (!messaging) return;
+    onMessage(messaging, callback);
+};
 
-// Firestore Collections
 export const COLLECTIONS = {
     USERS: 'users',
     MARKETPLACE: 'marketplace',
     GUILDS: 'guilds',
     SETTINGS: 'settings',
-    TRANSACTIONS: 'transactions' // Sub-collection under user
+    TRANSACTIONS: 'transactions'
 };

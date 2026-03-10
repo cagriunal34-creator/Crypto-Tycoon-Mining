@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { User, Zap, Star, Globe, TrendingUp } from 'lucide-react';
+import { User, Zap, Star, Globe, TrendingUp, History } from 'lucide-react';
+import { supabase, TABLES } from '../lib/supabase';
 
 interface Activity {
     id: string;
@@ -10,42 +11,50 @@ interface Activity {
     color: string;
 }
 
-const USERS = ["SiberKral", "CryptoMaster", "BTC_Ninja", "MoonWalker", "PixelMiner", "Satoshi_Fan"];
-const ACTIONS = [
-    "yeni bir kontrat satın aldı",
-    "seviye atladı!",
-    "çarktan 5000 TP kazandı",
-    "Prestige moduna geçti",
-    "VIP üyeliğini yeniledi",
-    "madencilik farmını genişletti"
-];
+const USERS: string[] = [];
+const ACTIONS: string[] = [];
 
 export default function SocialFeed() {
     const [activities, setActivities] = useState<Activity[]>([]);
 
     useEffect(() => {
-        // Initial data
-        const initial = Array.from({ length: 5 }, (_, i) => ({
-            id: `act-${i}`,
-            user: USERS[Math.floor(Math.random() * USERS.length)],
-            action: ACTIONS[Math.floor(Math.random() * ACTIONS.length)],
-            time: "Şimdi",
-            color: ["#10b981", "#3b82f6", "#f59e0b", "#a855f7"][Math.floor(Math.random() * 4)]
-        }));
-        setActivities(initial);
+        const fetchInitial = async () => {
+            const { data } = await supabase
+                .from(TABLES.TRANSACTIONS)
+                .select('*, profiles(username)')
+                .order('created_at', { ascending: false })
+                .limit(5);
 
-        const interval = setInterval(() => {
-            const newAct = {
-                id: `act-${Date.now()}`,
-                user: USERS[Math.floor(Math.random() * USERS.length)],
-                action: ACTIONS[Math.floor(Math.random() * ACTIONS.length)],
-                time: "Şimdi",
-                color: ["#10b981", "#3b82f6", "#f59e0b", "#a855f7"][Math.floor(Math.random() * 4)]
-            };
-            setActivities(prev => [newAct, ...prev.slice(0, 4)]);
-        }, 8000);
+            if (data) {
+                const mapped = data.map((t: any) => ({
+                    id: t.id,
+                    user: t.profiles?.username || 'Gizli Madenci',
+                    action: t.description || 'İşlem gerçekleştirdi',
+                    time: 'AZ ÖNCE',
+                    color: t.amount > 0 ? '#10b981' : '#6366f1'
+                }));
+                setActivities(mapped);
+            }
+        };
 
-        return () => clearInterval(interval);
+        fetchInitial();
+
+        const channel = supabase
+            .channel('social-feed')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: TABLES.TRANSACTIONS }, async (payload) => {
+                const { data: profile } = await supabase.from(TABLES.PROFILES).select('username').eq('id', payload.new.user_id).single();
+                const newAct: Activity = {
+                    id: payload.new.id,
+                    user: profile?.username || 'Gizli Madenci',
+                    action: payload.new.description || 'İşlem gerçekleştirdi',
+                    time: 'YENİ',
+                    color: payload.new.amount > 0 ? '#10b981' : '#6366f1'
+                };
+                setActivities(prev => [newAct, ...prev].slice(0, 5));
+            })
+            .subscribe();
+
+        return () => { supabase.removeChannel(channel); };
     }, []);
 
     return (
