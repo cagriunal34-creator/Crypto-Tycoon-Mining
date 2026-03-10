@@ -530,7 +530,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const fetchProfile = async (uid: string, email?: string) => {
+  const fetchProfile = async (uid: string, email?: string, skipLoader: boolean = false) => {
     try {
       console.info("🔍 Fetching profile for:", uid);
       const { data: profile, error } = await supabase.from(TABLES.PROFILES).select('*').eq('id', uid).single();
@@ -539,7 +539,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (profile && !error) {
         console.info("✅ Profile found:", profile.username);
-        dispatch({ type: 'SET_GAME_STATE', state: { ...profile, isLoading: false } as any });
+        dispatch({ type: 'SET_GAME_STATE', state: { ...profile, ...(skipLoader ? {} : { isLoading: false }) } as any });
       } else {
         console.info("✨ Creating new profile for:", email);
         const { data: newProfile, error: upsertError } = await supabase.from(TABLES.PROFILES).upsert({
@@ -548,23 +548,24 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }).select().single();
         
         console.info("🚀 New profile result:", newProfile, "Error:", upsertError);
-        dispatch({ type: 'SET_GAME_STATE', state: { ...(newProfile || {}), isLoading: false } as any });
+        dispatch({ type: 'SET_GAME_STATE', state: { ...(newProfile || {}), ...(skipLoader ? {} : { isLoading: false }) } as any });
       }
     } catch (err) {
       console.error("❌ fetchProfile crash:", err);
-      dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
+      if (!skipLoader) dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
     }
   };
 
-  const handleUserSession = async (session: any) => {
+  const handleUserSession = async (session: any, isInitial: boolean = false) => {
     const user = session?.user ?? null;
     console.info("👤 handleUserSession - User:", user?.email || "No Session", "URL:", window.location.pathname);
     
     dispatch({ type: 'SET_AUTH_USER', user });
 
     if (user) {
+      // Parallelize profile and transactions
       await Promise.all([
-        fetchProfile(user.id, user.email),
+        fetchProfile(user.id, user.email, isInitial), // Pass isInitial to handle loader release
         fetchTransactions(user.id)
       ]);
 
@@ -575,8 +576,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
     } else {
-      // Only release loader if not in callback
-      if (window.location.pathname !== '/auth/callback') {
+      // Only release loader if not in callback and not initial (initial handled by init finally)
+      if (window.location.pathname !== '/auth/callback' && !isInitial) {
         dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
       }
     }
@@ -599,21 +600,28 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
         }
 
-        console.info("🔑 Checking initial session...");
-        const { data: { session } } = await supabase.auth.getSession();
-        await handleUserSession(session);
+        console.info("🔑 Checking initial session and fetching global data...");
+        
+        // 🚀 MEGA PARALLEL FETCH
+        const sessionPromise = supabase.auth.getSession();
+        const settingsPromise = supabase.from(TABLES.SETTINGS).select('*').eq('id', 'v1').single();
+        const marketPromise = supabase.from(TABLES.MARKETPLACE).select('*').order('created_at', { ascending: false });
+        const guildsPromise = supabase.from(TABLES.GUILDS).select('*').order('rank', { ascending: true });
 
-        const { data: settings } = await supabase.from(TABLES.SETTINGS).select('*').eq('id', 'v1').single();
+        const [
+          { data: { session } },
+          { data: settings },
+          { data: marketData },
+          { data: guilds }
+        ] = await Promise.all([sessionPromise, settingsPromise, marketPromise, guildsPromise]);
+
+        // Process Settings
         if (settings) {
           dispatch({ type: 'SET_GLOBAL_SETTINGS', settings });
           dispatch({ type: 'SET_MAINTENANCE', isMaintenance: settings.isMaintenance });
         }
-        
-        const [{ data: marketData }, { data: guilds }] = await Promise.all([
-          supabase.from(TABLES.MARKETPLACE).select('*').order('created_at', { ascending: false }),
-          supabase.from(TABLES.GUILDS).select('*').order('rank', { ascending: true })
-        ]);
 
+        // Process Marketplace
         if (marketData) {
           const mappedMarket: MarketListing[] = marketData.map(l => ({
             id: l.id,
@@ -626,16 +634,23 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             sellerId: l.seller_id,
             price: l.price,
             listedAt: new Date(l.created_at).getTime(),
-            isOwn: state.user?.id === l.seller_id
+            isOwn: session?.user?.id === l.seller_id
           }));
           dispatch({ type: 'SET_MARKETPLACE', listings: mappedMarket });
         }
+
+        // Process Guilds
         if (guilds) dispatch({ type: 'SET_GUILDS', guilds: guilds });
+
+        // Process User Session & Profile (This will handle its own loading complete)
+        await handleUserSession(session, true);
+
       } catch (e) {
         console.error("❌ Init fatal error:", e);
-        dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
       } finally {
         clearTimeout(loadingTimeout);
+        // Ensure loader is closed if no session was found (handleUserSession with session:null wouldn't set loader:false in initial pass)
+        dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
       }
     };
 
