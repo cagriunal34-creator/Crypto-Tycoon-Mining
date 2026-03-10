@@ -34,7 +34,8 @@ export const requestForToken = async () => {
             }
         }
     } catch (err) {
-        console.log("An error occurred while retrieving token. ", err);
+        console.warn("FCM Token retrieval failed (likely invalid VAPID key):", err);
+        return null; // Return null instead of throwing to avoid blocking
     }
 };
 

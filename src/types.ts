@@ -36,7 +36,7 @@ export interface OwnedContract {
 
 export interface Transaction {
   id: string;
-  type: 'mining' | 'transfer_in' | 'transfer_out' | 'purchase' | 'bonus' | 'prestige' | 'offline';
+  type: 'mining' | 'transfer_in' | 'transfer_out' | 'purchase' | 'bonus' | 'prestige' | 'offline' | 'withdraw';
   amount: number;
   tpAmount?: number;
   label: string;
@@ -57,10 +57,12 @@ export interface Guild {
   name: string;
   description: string;
   members: number;
+  member_count?: number; // Supabase
   totalHash: number;
   rank: number;
   badge: string;
   ownerId?: string;
+  owner_id?: string; // Supabase
   level: number;
   xp: number;
   xpToNextLevel: number;
@@ -104,11 +106,15 @@ export interface MarketListing {
   id: string;
   contractId: string;
   contractName: string;
+  item_name?: string; // Supabase
   tier: 'Bronze' | 'Silver' | 'Gold' | 'Flash';
+  item_type?: string; // Supabase
   hashRate: number;
+  hashrate?: number;  // Supabase
   daysRemaining: number;
   sellerName: string;
   sellerId?: string;
+  seller_id?: string; // Supabase
   price: number;
   listedAt: number;
   isOwn?: boolean;
@@ -155,4 +161,15 @@ export interface LeaderboardUser {
   reward: number;
   isCurrentUser?: boolean;
   avatar: string;
+}
+
+export interface Withdrawal {
+  id: string;
+  userId: string;
+  username: string;
+  amount: number;
+  address: string;
+  status: 'pending' | 'approved' | 'rejected' | 'on_hold';
+  createdAt: number;
+  updatedAt: number;
 }

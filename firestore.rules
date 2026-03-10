@@ -3,64 +3,68 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Helper functions
+    // Temel Oturum Kontrolü
     function isSignedIn() {
       return request.auth != null;
     }
     
+    // Kesin Yönetici Yetkisi (UID Bazlı Sabitlenmiş)
     function isAdmin() {
-      return isSignedIn() && 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      return isSignedIn() && (
+        request.auth.uid == "Sp073O7nB0Qcc6p3FbcsfZSux1u2" ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true)
+      );
     }
 
+    // Sahip Kontrolü
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    function isValidNumber(val) {
-      return val is number && val >= 0;
-    }
-
-    // Global settings: Public read, Admin write
+    // Küresel Ayarlar: Herkese açık okuma, sadece Admin yazma
     match /settings/{settingId} {
       allow read: if true;
       allow write: if isAdmin(); 
     }
     
-    // Users: Private read/write by owner with validation, Admin full access
+    // Kullanıcılar: Sahibi okur/yazar, Admin her şeyi yapar
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
-      allow write: if isAdmin() || (isOwner(userId) 
-        && isValidNumber(request.resource.data.btcBalance)
-        && isValidNumber(request.resource.data.tycoonPoints)
-        && request.resource.data.level is int);
+      allow write: if isAdmin() || isOwner(userId);
       
-      match /transactions/{txId} {
-        allow read: if isOwner(userId) || isAdmin();
-        allow create: if isAdmin() || (isOwner(userId) 
-          && request.resource.data.date is int
-          && request.resource.data.amount is number);
+      // Alt koleksiyonlar için izinler
+      match /{allSubcollections=**} {
+        allow read, write: if isOwner(userId) || isAdmin();
       }
     }
     
-    // Guilds: Public read, Members/Owner write, Admin full access
+    // Loncalar: Herkese açık okuma, Admin tam yetki
     match /guilds/{guildId} {
       allow read: if true;
       allow create: if isSignedIn() || isAdmin();
-      allow update: if isAdmin() || (isSignedIn() 
-        && (resource.data.ownerId == request.auth.uid || request.resource.data.members == resource.data.members + 1));
+      allow update: if isAdmin() || (isSignedIn() && resource.data.ownerId == request.auth.uid);
       allow delete: if isAdmin() || (resource.data.ownerId == request.auth.uid);
     }
     
-    // Marketplace: Public read, Owners delete, Auth create, Admin full access
+    // Market: Herkese açık okuma, Admin tam yetki
     match /marketplace/{listingId} {
       allow read: if true;
-      allow create: if isAdmin() || (isSignedIn() 
-        && request.resource.data.sellerId == request.auth.uid
-        && isValidNumber(request.resource.data.price)
-        && request.resource.data.hashRate is number);
-      allow delete: if isAdmin() || (isSignedIn() && (resource.data.sellerId == request.auth.uid));
-      allow update: if isAdmin(); 
+      allow create: if isSignedIn() || isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.sellerId == request.auth.uid);
+    }
+
+    // Para Çekme Talepleri: Sadece Admin yönetir, Kullanıcı oluşturur
+    match /withdrawals/{withdrawalId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
+    }
+    
+    // Loglar: Sadece Admin
+    match /logs/{logId} {
+      allow read, write: if isAdmin();
     }
   }
 }

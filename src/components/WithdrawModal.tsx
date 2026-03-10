@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
-import { 
-  X, 
-  Wallet, 
-  QrCode, 
-  AlertTriangle, 
+import {
+  X,
+  Wallet,
+  QrCode,
+  AlertTriangle,
   ChevronRight,
   ArrowRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
+import { supabase, TABLES } from '../lib/supabase';
+import { useGame } from '../context/GameContext';
 
 interface WithdrawModalProps {
   isOpen: boolean;
@@ -18,7 +20,9 @@ interface WithdrawModalProps {
 }
 
 export default function WithdrawModal({ isOpen, onClose, onSuccess, balance }: WithdrawModalProps) {
+  const { state, dispatch } = useGame();
   const [amount, setAmount] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [address, setAddress] = useState('');
   const [errors, setErrors] = useState<{ amount?: string; address?: string }>({});
   const fee = 0.00005;
@@ -47,21 +51,60 @@ export default function WithdrawModal({ isOpen, onClose, onSuccess, balance }: W
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = () => {
-    if (validate()) onSuccess();
+  const handleSubmit = async () => {
+    if (!validate() || isSubmitting || !state.user) return;
+
+    setIsSubmitting(true);
+    try {
+      const numAmount = parseFloat(amount);
+
+      // 1. Create Withdrawal Request
+      await supabase.from(TABLES.WITHDRAWALS).insert({
+        user_id: state.user.id,
+        username: state.username,
+        amount: numAmount,
+        address: address.trim(),
+        status: 'pending',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      });
+
+      // 2. Add to User Transactions (for their history)
+      await supabase.from(TABLES.TRANSACTIONS).insert({
+        user_id: state.user.id,
+        amount: -numAmount,
+        type: 'transfer_out',
+        description: 'BTC Çekim Talebi',
+        timestamp: new Date().toISOString()
+      });
+
+      dispatch({
+        type: 'REMOVE_BTC',
+        amount: numAmount,
+        label: 'BTC Çekim Talebi',
+        txId: `wd-${Date.now()}`
+      });
+
+      onSuccess();
+    } catch (error) {
+      console.error("Çekim hatası:", error);
+      setErrors({ amount: 'İşlem sırasında bir hata oluştu.' });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!isOpen) return null;
 
   return (
     <AnimatePresence>
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         className="fixed inset-0 z-[100] flex items-end justify-center bg-black/80 backdrop-blur-sm p-4"
       >
-        <motion.div 
+        <motion.div
           initial={{ y: "100%" }}
           animate={{ y: 0 }}
           exit={{ y: "100%" }}
@@ -92,8 +135,8 @@ export default function WithdrawModal({ isOpen, onClose, onSuccess, balance }: W
                 <span className="text-[10px] text-zinc-500 font-mono">Min: {MIN_AMOUNT} BTC</span>
               </div>
               <div className="relative">
-                <input 
-                  type="number" 
+                <input
+                  type="number"
                   value={amount}
                   onChange={(e) => { setAmount(e.target.value); setErrors(prev => ({ ...prev, amount: undefined })); }}
                   placeholder="0.00"
@@ -102,7 +145,7 @@ export default function WithdrawModal({ isOpen, onClose, onSuccess, balance }: W
                     errors.amount ? "border-red-500/60 focus:border-red-500" : "border-white/10 focus:border-emerald-500/50"
                   )}
                 />
-                <button 
+                <button
                   onClick={() => setAmount(balance.toString())}
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-emerald-500 uppercase tracking-widest"
                 >
@@ -120,8 +163,8 @@ export default function WithdrawModal({ isOpen, onClose, onSuccess, balance }: W
                   <div className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500">
                     <Wallet size={18} />
                   </div>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={address}
                     onChange={(e) => { setAddress(e.target.value); setErrors(prev => ({ ...prev, address: undefined })); }}
                     placeholder="Adres yapıştırın veya taratın"
@@ -166,12 +209,22 @@ export default function WithdrawModal({ isOpen, onClose, onSuccess, balance }: W
             </div>
 
             {/* Submit */}
-            <button 
+            <button
               onClick={handleSubmit}
-              className="w-full py-4 rounded-2xl bg-emerald-500 text-black font-bold flex items-center justify-center gap-2 neon-glow hover:brightness-110 transition-all active:scale-[0.98]"
+              disabled={isSubmitting}
+              className={cn(
+                "w-full py-4 rounded-2xl text-black font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.98]",
+                isSubmitting ? "bg-emerald-500/50 cursor-not-allowed" : "bg-emerald-500 neon-glow hover:brightness-110"
+              )}
             >
-              <span>TRANSFERİ ONAYLA</span>
-              <ArrowRight size={18} />
+              {isSubmitting ? (
+                <div className="w-5 h-5 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+              ) : (
+                <>
+                  <span>TRANSFERİ ONAYLA</span>
+                  <ArrowRight size={18} />
+                </>
+              )}
             </button>
           </div>
         </motion.div>

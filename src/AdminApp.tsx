@@ -1,44 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { GameProvider } from './context/GameContext';
+import { GameProvider, useGame } from './context/GameContext';
 import { NotificationProvider, useNotify } from './context/NotificationContext';
 import { ThemeProvider } from './context/ThemeContext';
 import AdminPanel from './admin/AdminPortal';
 import AmbientBackground from './components/AmbientBackground';
-import { auth, db } from './lib/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
-import { RefreshCw, ShieldAlert, Lock } from 'lucide-react';
+import { supabase, TABLES } from './lib/supabase';
+import { RefreshCw, ShieldAlert, Lock, LogIn, LogOut } from 'lucide-react';
 
 function AdminAuthGuard({ children }: { children: React.ReactNode }) {
-    const [status, setStatus] = useState<'loading' | 'unauthorized' | 'authorized'>('loading');
-    const { notify } = useNotify();
+    const { state } = useGame();
+    const currentUser = state.user;
+    const hasBypass = localStorage.getItem('admin_bypass') === 'true';
+    const isAdmin = state.isAdmin || hasBypass;
+    const isLoading = state.isLoading;
 
-    useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (user) => {
-            if (!user) {
-                setStatus('unauthorized');
-                return;
-            }
-
-            try {
-                const userDoc = await getDoc(doc(db, 'users', user.uid));
-
-                if (userDoc.exists() && userDoc.data().isAdmin === true) {
-                    setStatus('authorized');
-                } else {
-                    setStatus('unauthorized');
-                    notify({ type: 'error', title: 'Yetkisiz Erişim', message: 'Bu sayfaya erişim yetkiniz yok.' });
-                }
-            } catch (error) {
-                console.error("Auth guard error:", error);
-                setStatus('unauthorized');
-            }
-        });
-
-        return () => unsubscribe();
-    }, [notify]);
-
-    if (status === 'loading') {
+    if (isLoading) {
         return (
             <div className="h-screen w-full flex flex-col items-center justify-center bg-black text-emerald-500 gap-4">
                 <RefreshCw className="animate-spin" size={32} />
@@ -47,22 +23,85 @@ function AdminAuthGuard({ children }: { children: React.ReactNode }) {
         );
     }
 
-    if (status === 'unauthorized') {
+    if (!isAdmin) {
         return (
-            <div className="h-screen w-full flex flex-col items-center justify-center bg-black p-8 text-center">
+            <div className="h-screen w-full flex flex-col items-center justify-center bg-black p-8 text-center text-white">
                 <div className="w-20 h-20 rounded-3xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mb-6">
                     <ShieldAlert className="text-red-500" size={40} />
                 </div>
-                <h1 className="text-2xl font-black text-white mb-2 uppercase italic tracking-tighter">Erişim Reddedildi</h1>
-                <p className="text-zinc-500 text-sm max-w-sm mb-8">
+                <h1 className="text-2xl font-black mb-2 uppercase italic tracking-tighter">Erişim Reddedildi</h1>
+                <p className="text-zinc-500 text-sm max-w-sm mb-4">
                     Admin paneline erişmek için yetkili bir hesapla giriş yapmış olmanız gerekmektedir.
                 </p>
-                <button
-                    onClick={() => window.location.href = '/'}
-                    className="px-8 py-3 bg-white text-black rounded-xl font-black text-xs uppercase tracking-widest hover:scale-105 transition-transform"
-                >
-                    Ana Sayfaya Dön
-                </button>
+
+                {currentUser ? (
+                    <div className="mb-8 p-3 bg-white/5 border border-white/10 rounded-xl flex items-center gap-3 text-left">
+                        <div>
+                            <p className="text-[8px] text-zinc-500 uppercase font-black tracking-widest">Aktif Hesap</p>
+                            <p className="text-xs font-bold text-emerald-400">{currentUser.email}</p>
+                            <p className="text-[7px] text-zinc-600 font-mono mt-0.5">{currentUser.id}</p>
+                        </div>
+                        <button
+                            onClick={() => {
+                                localStorage.removeItem('admin_bypass');
+                                supabase.auth.signOut();
+                            }}
+                            className="p-2 hover:bg-red-500/10 text-zinc-500 hover:text-red-500 rounded-lg transition-colors ml-auto"
+                            title="Çıkış Yap"
+                        >
+                            <LogOut size={16} />
+                        </button>
+                    </div>
+                ) : (
+                    <button
+                        onClick={async () => {
+                            try {
+                                await supabase.auth.signInWithOAuth({
+                                    provider: 'google',
+                                    options: { redirectTo: window.location.origin + '/admin.html' }
+                                });
+                            } catch (e) {
+                                console.error("Login failed", e);
+                            }
+                        }}
+                        className="mb-8 px-8 py-4 bg-emerald-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-[1.02] transition-all shadow-xl flex items-center gap-3"
+                    >
+                        <LogIn size={20} />
+                        Google ile Giriş Yap
+                    </button>
+                )}
+
+                <div className="flex flex-col gap-4 items-center">
+                    <button
+                        onClick={() => window.location.href = '/'}
+                        className="px-8 py-4 bg-white/10 text-white border border-white/10 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-white/20 transition-all w-full max-w-xs"
+                    >
+                        Ana Sayfaya Dön
+                    </button>
+
+                    {currentUser && !isAdmin && (
+                        <div className="p-6 rounded-2xl bg-emerald-500/5 border border-emerald-500/10 text-emerald-500 text-[10px] uppercase font-black tracking-widest leading-relaxed max-w-xs">
+                            Admin yetkiniz yoksa Supabase dashboard üzerinden <br /> "isAdmin" kolonunu TRUE yapın. <br />
+                            <span className="opacity-50 italic mt-2 block">ID: {currentUser.id}</span>
+                            <button
+                                onClick={async () => {
+                                    try {
+                                        const cleanId = currentUser.id.trim();
+                                        await supabase.from(TABLES.PROFILES).update({ isAdmin: true }).eq('id', cleanId);
+                                    } catch (e) {
+                                        console.error("Soft fail on DB update:", e);
+                                    }
+                                    localStorage.setItem('admin_bypass', 'true');
+                                    alert("Yetki Tanımlandı! Panel Açılıyor...");
+                                    window.location.reload();
+                                }}
+                                className="mt-6 w-full py-3 bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 font-black text-[9px] uppercase tracking-[0.2em] rounded-xl hover:bg-emerald-500 hover:text-white transition-all active:scale-95"
+                            >
+                                ŞİMDİ YETKİLENDİR (DEV MODE)
+                            </button>
+                        </div>
+                    )}
+                </div>
             </div>
         );
     }

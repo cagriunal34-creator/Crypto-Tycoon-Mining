@@ -64,7 +64,7 @@ function EmeraldAmbient() {
     }
   }, [state.isNight]);
   const ref = useCanvas(draw);
-  return <canvas ref={ref} style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: -1 }} />;
+  return <canvas ref={ref} style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: -50 }} />;
 }
 
 /* ── Plasma ── */
@@ -82,7 +82,7 @@ function PlasmaAmbient() {
     });
   }, []);
   const ref = useCanvas(draw);
-  return <canvas ref={ref} style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0, opacity: 0.8 }} />;
+  return <canvas ref={ref} style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: -50, opacity: 0.8 }} />;
 }
 
 /* ── Deep Sea ── */
@@ -108,7 +108,7 @@ function DeepSeaAmbient() {
     });
   }, []);
   const ref = useCanvas(draw);
-  return <canvas ref={ref} style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0, opacity: 0.75 }} />;
+  return <canvas ref={ref} style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: -50, opacity: 0.75 }} />;
 }
 
 /* ── Lava Forge ── */
@@ -138,7 +138,7 @@ function LavaForgeAmbient() {
     }
   }, []);
   const ref = useCanvas(draw);
-  return <canvas ref={ref} style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0, opacity: 0.85 }} />;
+  return <canvas ref={ref} style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: -50, opacity: 0.85 }} />;
 }
 
 /* ── Aurora ── */
@@ -172,7 +172,7 @@ function AuroraAmbient() {
     });
   }, []);
   const ref = useCanvas(draw);
-  return <canvas ref={ref} style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0, opacity: 0.9 }} />;
+  return <canvas ref={ref} style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: -50, opacity: 0.9 }} />;
 }
 
 export default function AmbientBackground() {

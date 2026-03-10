@@ -12,9 +12,8 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import AdRewardModal from './components/AdRewardModal';
 import { LoginScreen } from './components/LoginScreen';
-import { auth, db, requestForToken, onMessageListener, COLLECTIONS } from './lib/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
-import { doc, onSnapshot, getDoc, setDoc, collection, query, orderBy, limit } from 'firebase/firestore';
+import { db, requestForToken, onMessageListener } from './lib/firebase';
+import { doc, getDoc, setDoc, collection, query, orderBy, limit } from 'firebase/firestore';
 const NewsTicker = React.lazy(() => import('./components/NewsTicker'));
 import { Screen, MarketListing, Guild, Transaction } from './types';
 import { cn } from './lib/utils';
@@ -61,6 +60,8 @@ function AppInner() {
   const { notify } = useNotify();
   const { theme } = useTheme();
 
+  if (!state) return null; // Safety guard for context initialization
+
   const a1 = theme.vars['--ct-a1'];
   const a2 = theme.vars['--ct-a2'];
 
@@ -71,7 +72,6 @@ function AppInner() {
   const [isPrestigeOpen, setIsPrestigeOpen] = useState(false);
   const [successModal, setSuccessModal] = useState<{ isOpen: boolean; type: 'withdraw' | 'package' }>({ isOpen: false, type: 'withdraw' });
   const [showHackerAttack, setShowHackerAttack] = useState(false);
-  const [globalSettings, setGlobalSettings] = useState<any>({ isMaintenance: false, announcement: "", eventMultiplier: 1.0 });
 
   // Trigger Hacker Attack randomly
   useEffect(() => {
@@ -86,11 +86,10 @@ function AppInner() {
   // 🕒 Interstitial Ad Logic (Auto Popup)
   useEffect(() => {
     const checkInterval = setInterval(() => {
-      const now = Date.now();
-      const timeSinceLast = now - state.lastInterstitialAdAt;
-
       // Trigger if interval met AND not already watching/menu
-      if (timeSinceLast >= state.interstitialAdInterval && !isWatchingAd && !menuOpen) {
+      if (state && state.lastInterstitialAdAt !== undefined &&
+        Date.now() - state.lastInterstitialAdAt >= (state.interstitialAdInterval || 300000) &&
+        !isWatchingAd && !menuOpen) {
         setIsWatchingAd(true);
         dispatch({ type: 'RESET_INTERSTITIAL_TIMER' });
       }
@@ -111,11 +110,10 @@ function AppInner() {
     notify({ type: 'warning', title: 'SİSTEM ÇÖKTÜ!', message: 'Hacker içeri girdi. Enerji kaybı yaşandı.' });
   };
 
-
   const handleWithdrawSuccess = () => {
     setIsWithdrawOpen(false);
     setSuccessModal({ isOpen: true, type: 'withdraw' });
-    notify({ type: 'success', title: 'Çekim Başarılı!', message: 'İşlemin onay bekliyor.' });
+    notify({ type: 'success', title: 'Talep Alındı!', message: 'Çekim talebiniz işleme alınmıştır.' });
   };
 
   const handlePackageSuccess = () => {
@@ -171,96 +169,36 @@ function AppInner() {
 
   const navigate = (id: string) => { setActiveScreen(id as Screen); setMenuOpen(false); };
 
-  // 🔐 Firebase Auth Listener
+  // 🔐 Auth logic moved to GameContext (Supabase)
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      dispatch({ type: 'SET_AUTH_USER', user });
-
-      if (user) {
-        // Load or create user document in Firestore
-        const userDocRef = doc(db, 'users', user.uid);
-        const userSnap = await getDoc(userDocRef);
-
-        if (userSnap.exists()) {
-          dispatch({ type: 'SET_GAME_STATE', state: userSnap.data() as any });
-        } else {
-          // Initialize new user data in firestore
-          await setDoc(userDocRef, {
-            ...INITIAL_STATE,
-            user: null, // Don't store user object itself
-            isLoading: false,
-            lastMiningTick: Date.now()
-          });
-          dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
-        }
-
-        // Listen for Global Settings
-        const globalRef = doc(db, 'settings', 'v1');
-        onSnapshot(globalRef, (snapshot) => {
-          if (snapshot.exists()) {
-            const data = snapshot.data();
-            setGlobalSettings(data);
-            // Update rewards/prices in state
-            dispatch({ type: 'ADMIN_UPDATE_AD_SETTINGS', updates: data.ads || {} });
-            dispatch({ type: 'ADMIN_UPDATE_INTERSTITIAL_SETTINGS', updates: data.interstitials || {} });
-            dispatch({ type: 'SET_GLOBAL_MULTIPLIER', multiplier: data.eventMultiplier || 1.0 });
-          }
-        });
-
-        // 🛒 Listen for Marketplace
-        const marketRef = collection(db, COLLECTIONS.MARKETPLACE);
-        const marketQuery = query(marketRef, orderBy('listedAt', 'desc'));
-        onSnapshot(marketQuery, (snapshot) => {
-          const listings = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as MarketListing));
-          dispatch({ type: 'SET_MARKETPLACE', listings });
-        });
-
-        // 🏰 Listen for Guilds
-        const guildsRef = collection(db, COLLECTIONS.GUILDS);
-        onSnapshot(guildsRef, (snapshot) => {
-          const guilds = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Guild));
-          dispatch({ type: 'SET_GUILDS', guilds });
-        });
-
-        // 💸 Listen for Transactions (Sub-collection)
-        const txRef = collection(db, COLLECTIONS.USERS, user.uid, COLLECTIONS.TRANSACTIONS);
-        const txQuery = query(txRef, orderBy('date', 'desc'), limit(100));
-        onSnapshot(txQuery, (snapshot) => {
-          const transactions = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Transaction));
-          dispatch({ type: 'SET_GAME_STATE', state: { transactions } as any });
-        });
-        // Initialize FCM
-        requestForToken().then((token) => {
+    if (state.user) {
+      const initFirebaseExtras = async () => {
+        try {
+          // Initialize FCM
+          const token = await requestForToken();
           if (token) {
-            // Optionally save token to user profile
-            setDoc(doc(db, 'users', user.uid), { fcmToken: token }, { merge: true });
+            await setDoc(doc(db, 'users', state.user.id), { fcmToken: token }, { merge: true });
           }
-        });
 
-        // Listen for foreground messages
-        onMessageListener((payload: any) => {
-          notify({
-            type: 'info',
-            title: payload.notification?.title || 'Bildirim',
-            message: payload.notification?.body || 'Yeni bir mesajınız var.'
+          // Listen for foreground messages
+          onMessageListener((payload: any) => {
+            notify({
+              type: 'info',
+              title: payload.notification?.title || 'Bildirim',
+              message: payload.notification?.body || 'Yeni bir mesajınız var.'
+            });
           });
-        });
-      }
-    });
-    return () => unsubscribe();
-  }, [dispatch]);
+        } catch (error) {
+          console.warn("FCM or Firebase sync failed, but continuing app:", error);
+        }
+      };
 
-  // 💾 Sync User State to Firestore (Debounced)
-  useEffect(() => {
-    if (!state.user || state.isLoading) return;
+      initFirebaseExtras();
+    }
+  }, [state.user, notify]);
 
-    const timeout = setTimeout(async () => {
-      const { user, isLoading, ...serializableState } = state;
-      await setDoc(doc(db, 'users', state.user.uid), serializableState, { merge: true });
-    }, 5000); // Sync every 5s if changed
-
-    return () => clearTimeout(timeout);
-  }, [state, state.user, state.isLoading]);
+  // 💾 User state is now managed by Supabase (GameContext)
+  // Firebase syncing removed to prevent data conflicts
 
   // 🕒 5s Tick (for earnings and effects)
 
@@ -282,11 +220,13 @@ function AppInner() {
       style={{ background: 'var(--ct-bg, #030303)' }}>
 
       <AmbientBackground />
-      <NewsTicker announcement={globalSettings.announcement} />
+      <Suspense fallback={null}>
+        {state.announcement && <NewsTicker announcement={state.announcement} />}
+      </Suspense>
 
       {/* 🛠️ Maintenance Overlay */}
       <AnimatePresence>
-        {globalSettings.isMaintenance && (
+        {state.isMaintenance && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-[1000] bg-zinc-950 flex flex-col items-center justify-center p-8 text-center"

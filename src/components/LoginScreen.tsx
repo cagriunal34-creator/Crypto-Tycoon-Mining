@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { auth } from '../lib/firebase';
-import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { supabase } from '../lib/supabase';
 import { LogIn, Loader2, ShieldCheck, Sparkles } from 'lucide-react';
 
 export const LoginScreen: React.FC = () => {
@@ -12,12 +11,16 @@ export const LoginScreen: React.FC = () => {
         setIsLoggingIn(true);
         setError(null);
         try {
-            const provider = new GoogleAuthProvider();
-            await signInWithPopup(auth, provider);
+            const { error: authError } = await supabase.auth.signInWithOAuth({
+                provider: 'google',
+                options: {
+                    redirectTo: window.location.origin
+                }
+            });
+            if (authError) throw authError;
         } catch (err: any) {
             console.error("Login Error:", err);
             setError(err.message || "Giriş yapılamadı.");
-        } finally {
             setIsLoggingIn(false);
         }
     };
@@ -103,7 +106,7 @@ export const LoginScreen: React.FC = () => {
                     </div>
                     <div className="flex items-center gap-2 opacity-30 grayscale hover:grayscale-0 transition-all cursor-crosshair">
                         <div className="w-2 h-2 rounded-full bg-blue-500" />
-                        <span className="text-[8px] font-black text-white uppercase tracking-tighter">Secured by Firebase</span>
+                        <span className="text-[8px] font-black text-white uppercase tracking-tighter">Secured by Supabase</span>
                     </div>
                 </div>
             </motion.div>
