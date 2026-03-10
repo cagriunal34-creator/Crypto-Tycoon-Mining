@@ -535,48 +535,55 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.info("🔍 Fetching profile for:", uid);
       const { data: profile, error } = await supabase.from(TABLES.PROFILES).select('*').eq('id', uid).single();
       
-      console.info("📦 Profile result:", profile, "Error:", error);
-
       if (profile && !error) {
         console.info("✅ Profile found:", profile.username);
         dispatch({ type: 'SET_GAME_STATE', state: { ...profile, ...(skipLoader ? {} : { isLoading: false }) } as any });
       } else {
-        console.info("✨ Creating new profile for:", email);
+        // Profil yoksa yeni oluştur - Çakışmaları önlemek için username'e random ekle
+        const baseUsername = email?.split('@')[0] || 'Madenci';
+        const finalUsername = `${baseUsername}_${Math.floor(1000 + Math.random() * 9000)}`;
+        
+        console.info("✨ Creating new profile:", finalUsername);
         const { data: newProfile, error: upsertError } = await supabase.from(TABLES.PROFILES).upsert({
           id: uid,
-          username: email?.split('@')[0] || 'Madenci'
+          username: finalUsername
         }).select().single();
         
-        console.info("🚀 New profile result:", newProfile, "Error:", upsertError);
-        dispatch({ type: 'SET_GAME_STATE', state: { ...(newProfile || {}), ...(skipLoader ? {} : { isLoading: false }) } as any });
+        if (upsertError) console.error("❌ Upsert failed:", upsertError.message);
+        
+        dispatch({ 
+          type: 'SET_GAME_STATE', 
+          state: { ...(newProfile || {}), ...(skipLoader ? {} : { isLoading: false }) } as any 
+        });
       }
     } catch (err) {
-      console.error("❌ fetchProfile crash:", err);
+      console.error("❌ fetchProfile fatal error:", err);
       if (!skipLoader) dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
     }
   };
 
   const handleUserSession = async (session: any, isInitial: boolean = false) => {
     const user = session?.user ?? null;
-    console.info("👤 handleUserSession - User:", user?.email || "No Session", "URL:", window.location.pathname);
+    console.info("👤 handleUserSession - Event:", user?.email || "No Session", "Initial:", isInitial);
     
     dispatch({ type: 'SET_AUTH_USER', user });
 
     if (user) {
-      // Parallelize profile and transactions
+      // Önce profil verilerini çek
       await Promise.all([
-        fetchProfile(user.id, user.email, isInitial), // Pass isInitial to handle loader release
+        fetchProfile(user.id, user.email, isInitial),
         fetchTransactions(user.id)
       ]);
 
-      // ✅ Redirect after profile is loaded
+      // ✅ BURASI KRİTİK: location.href YERİNE replaceState kullanıyoruz.
+      // Sayfa yenilenmezse oturum (session) bellekte kalmaya devam eder, reload riski biter.
       if (window.location.pathname === '/auth/callback') {
-        console.info("🚀 Profile loaded, performing final redirect...");
-        window.location.href = '/';
-        return;
+        console.info("🧹 URL cleaning (no reload)...");
+        window.history.replaceState({}, '', '/');
+        // Manuel re-render tetikle (eğer state değişmediyse diye)
+        dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
       }
     } else {
-      // Only release loader if not in callback and not initial (initial handled by init finally)
       if (window.location.pathname !== '/auth/callback' && !isInitial) {
         dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
       }
