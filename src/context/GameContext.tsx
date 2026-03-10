@@ -602,24 +602,32 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // snake_case veya camelCase kolon isimlerini normalize et
         const gameData: any = {
           ...rest,
-          userId: rest.userId || rest.user_id || id,
-          referralCode: rest.referralCode || rest.referral_code || '',
+          // DB'den btcBalance gelmiyorsa btc_balance'a bak, o da yoksa 0
           btcBalance: rest.btcBalance ?? rest.btc_balance ?? 0,
           tycoonPoints: rest.tycoonPoints ?? rest.tycoon_points ?? 0,
           totalHashRate: rest.totalHashRate ?? rest.total_hash_rate ?? 50,
+          // Kimlik No: DB'de yoksa UID'nin ilk 7 hanesi
+          userId: rest.userId || rest.user_id || uid.substring(0, 7),
+          referralCode: rest.referralCode || rest.referral_code || '',
           rankTitle: rest.rankTitle || rest.rank_title || 'Garaj Madencisi',
-          userGuildId: rest.userGuildId || rest.user_guild_id || null,
-          loginStreak: rest.loginStreak ?? rest.login_streak ?? 0,
+          // MiningTick vs lastMiningTick uyumu
+          lastMiningTick: rest.lastMiningTick || rest.MiningTick || Date.now(),
         };
 
         // Referral code yoksa uret ve kaydet
         if (!gameData.referralCode) {
           const newCode = generateReferralCode();
-          console.info('Referans kodu uretiliyor:', newCode);
-          await supabase.from(TABLES.PROFILES).update({
+          console.info('🎟️ Referans kodu uretiliyor:', newCode);
+          const { error: updateErr } = await supabase.from(TABLES.PROFILES).update({
             referralCode: newCode,
           }).eq('id', uid);
-          gameData.referralCode = newCode;
+          
+          if (updateErr) {
+            console.error('❌ Referans kodu kaydedilemedi:', updateErr);
+          } else {
+            console.info('✅ Referans kodu basariyla kaydedildi.');
+            gameData.referralCode = newCode;
+          }
         }
 
         dispatch({ type: 'SET_GAME_STATE', state: gameData as any });
