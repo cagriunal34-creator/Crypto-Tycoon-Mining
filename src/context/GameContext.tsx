@@ -634,14 +634,14 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             sellerId: l.seller_id,
             price: l.price,
             listedAt: new Date(l.created_at).getTime(),
-            isOwn: currentSession?.user?.id === l.seller_id
+            isOwn: session?.user?.id === l.seller_id
           }));
           dispatch({ type: 'SET_MARKETPLACE', listings: mappedMarket });
         }
         if (guilds) dispatch({ type: 'SET_GUILDS', guilds });
 
         // 3. Process Session
-        if (isMounted) await handleUserSession(currentSession);
+        if (isMounted) await handleUserSession(session);
 
       } catch (e) {
         console.error("❌ Init failed:", e);
