@@ -508,123 +508,129 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [state, dispatch] = useReducer(gameReducer, INITIAL_STATE);
 
   useEffect(() => {
-    let unsubscribeUser: any = null;
-    let unsubscribeGlobal: any = null;
-    let unsubscribeMarket: any = null;
-    let unsubscribeGuilds: any = null;
-    let unsubscribeTransactions: any = null;
-    let authUnsubscribeRef: { unsubscribe: () => void } | null = null;
+    let profilesSub: any = null;
+    let transSub: any = null;
 
     const fetchTransactions = async (userId: string) => {
-      const { data, error } = await supabase.from(TABLES.TRANSACTIONS)
-        .select('*')
-        .eq('user_id', userId)
-        .order('timestamp', { ascending: false })
-        .limit(20);
-      if (!error && data) {
-        const mapped = data.map((t: any) => ({
-          id: t.id,
-          type: t.type,
-          amount: t.amount,
-          label: t.description || 'İşlem',
-          date: new Date(t.created_at || t.timestamp).getTime(),
-          status: t.status || 'completed'
-        }));
-        dispatch({ type: 'SET_TRANSACTIONS', transactions: mapped });
+      try {
+        const { data, error } = await supabase.from(TABLES.TRANSACTIONS)
+          .select('*')
+          .eq('user_id', userId)
+          .order('timestamp', { ascending: false })
+          .limit(20);
+        if (!error && data) {
+          const mapped = data.map((t: any) => ({
+            id: t.id,
+            type: t.type,
+            amount: t.amount,
+            label: t.description || 'İşlem',
+            date: new Date(t.created_at || t.timestamp).getTime(),
+            status: t.status || 'completed'
+          }));
+          dispatch({ type: 'SET_TRANSACTIONS', transactions: mapped });
+        }
+      } catch (e) {
+        console.error("Trans fetch error:", e);
       }
     };
 
     const fetchProfile = async (uid: string, email?: string) => {
       try {
+        console.info("Fetching profile for:", uid);
         const { data: profile, error } = await supabase.from(TABLES.PROFILES).select('*').eq('id', uid).single();
+        
         if (profile && !error) {
+          console.info("Profile found:", profile.username);
           dispatch({ type: 'SET_GAME_STATE', state: profile as any });
-        } else if (!error || error.code === 'PGRST116') {
-          const { data: newProfile } = await supabase.from(TABLES.PROFILES).upsert({
+        } else if (!error || (error && error.code === 'PGRST116')) {
+          console.info("Profile not found, creating new...");
+          const { data: newProfile, error: upsertError } = await supabase.from(TABLES.PROFILES).upsert({
             id: uid,
             username: email?.split('@')[0] || 'Madenci'
           }).select().single();
-          if (newProfile) dispatch({ type: 'SET_GAME_STATE', state: newProfile as any });
-          else dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
+          
+          if (newProfile) {
+            console.info("New profile created:", newProfile.username);
+            dispatch({ type: 'SET_GAME_STATE', state: newProfile as any });
+          } else {
+            console.error("Profile creation failed:", upsertError);
+            dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
+          }
         } else {
+          console.error("Profile fetch DB error:", error);
           dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
         }
       } catch (err) {
-        console.error("Profile fetch error:", err);
+        console.error("Profile fetch fatal error:", err);
         dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
       }
     };
 
-    const initAuth = async () => {
-      // 1. Check initial session immediately
-      const { data: { session } } = await supabase.auth.getSession();
-      const initialUser = session?.user ?? null;
-      dispatch({ type: 'SET_AUTH_USER', user: initialUser });
+    // 1. Setup Auth Listener
+    console.info("Initializing Auth Listener...");
+    const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.info("Auth Event Detected:", event, "User:", session?.user?.email);
+      const user = session?.user ?? null;
+      
+      // Always update user state first
+      dispatch({ type: 'SET_AUTH_USER', user });
 
-      if (initialUser) {
-        await fetchProfile(initialUser.id, initialUser.email);
-        await fetchTransactions(initialUser.id);
-        
-        // Setup real-time listeners for the user
-        unsubscribeUser = supabase.channel(`public:profiles:${initialUser.id}`)
-          .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.PROFILES, filter: `id=eq.${initialUser.id}` },
-            payload => dispatch({ type: 'SET_GAME_STATE', state: payload.new as any }))
+      if (user) {
+        // Initialize user data
+        await Promise.all([
+          fetchProfile(user.id, user.email),
+          fetchTransactions(user.id)
+        ]);
+
+        // Real-time user updates
+        if (profilesSub) profilesSub.unsubscribe();
+        profilesSub = supabase.channel(`public:profiles:${user.id}`)
+          .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.PROFILES, filter: `id=eq.${user.id}` },
+            payload => {
+              console.info("Live Profile Update:", payload.new);
+              dispatch({ type: 'SET_GAME_STATE', state: payload.new as any });
+            })
           .subscribe();
 
-        unsubscribeTransactions = supabase.channel(`public:transactions:${initialUser.id}`)
-          .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.TRANSACTIONS, filter: `user_id=eq.${initialUser.id}` }, () => {
-            fetchTransactions(initialUser.id);
+        if (transSub) transSub.unsubscribe();
+        transSub = supabase.channel(`public:transactions:${user.id}`)
+          .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.TRANSACTIONS, filter: `user_id=eq.${user.id}` }, () => {
+            fetchTransactions(user.id);
           })
           .subscribe();
       } else {
+        // No user found, stop loading
+        console.info("No active session found.");
         dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
       }
+    });
 
-      // 2. Listen for auth changes
-      const { data: { subscription: sub } } = supabase.auth.onAuthStateChange(async (event, session) => {
-        const user = session?.user ?? null;
-        
-        if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'USER_UPDATED') {
-          dispatch({ type: 'SET_AUTH_USER', user });
-          if (user) {
-            await fetchProfile(user.id, user.email);
-            await fetchTransactions(user.id);
-          } else {
-            dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
-          }
+    // 2. Global Static Data (Async)
+    const initGlobal = async () => {
+      try {
+        const { data: settings } = await supabase.from(TABLES.SETTINGS).select('*').eq('id', 'v1').single();
+        if (settings) {
+          dispatch({ type: 'SET_GLOBAL_SETTINGS', settings });
+          dispatch({ type: 'SET_MAINTENANCE', isMaintenance: settings.isMaintenance });
+          dispatch({ type: 'SET_ANNOUNCEMENT', announcement: settings.announcement });
+          dispatch({ type: 'SET_GLOBAL_MULTIPLIER', multiplier: settings.globalMultiplier || 1.0 });
         }
-      });
-      authUnsubscribeRef = sub;
-    };
-
-    // Global Listeners
-    const fetchSettings = async () => {
-      const { data } = await supabase.from(TABLES.SETTINGS).select('*').eq('id', 'v1').single();
-      if (data) {
-        dispatch({ type: 'SET_GLOBAL_SETTINGS', settings: data });
-        dispatch({ type: 'SET_MAINTENANCE', isMaintenance: data.isMaintenance });
-        dispatch({ type: 'SET_ANNOUNCEMENT', announcement: data.announcement });
-        dispatch({ type: 'SET_GLOBAL_MULTIPLIER', multiplier: data.globalMultiplier || 1.0 });
+        
+        const [{ data: market }, { data: guilds }] = await Promise.all([
+          supabase.from(TABLES.MARKETPLACE).select('*').order('listedAt', { ascending: false }),
+          supabase.from(TABLES.GUILDS).select('*').order('rank', { ascending: true })
+        ]);
+        
+        if (market) dispatch({ type: 'SET_MARKETPLACE', listings: market });
+        if (guilds) dispatch({ type: 'SET_GUILDS', guilds: guilds });
+      } catch (e) {
+        console.error("Global init error:", e);
       }
     };
+    initGlobal();
 
-    const fetchMarketplace = async () => {
-      const { data, error } = await supabase.from(TABLES.MARKETPLACE).select('*').order('listedAt', { ascending: false });
-      if (!error && data) dispatch({ type: 'SET_MARKETPLACE', listings: data });
-    };
-
-    const fetchGuilds = async () => {
-      const { data, error } = await supabase.from(TABLES.GUILDS).select('*').order('rank', { ascending: true });
-      if (!error && data) dispatch({ type: 'SET_GUILDS', guilds: data });
-    };
-
-    // Initial Data Fetch
-    initAuth();
-    fetchSettings();
-    fetchMarketplace();
-    fetchGuilds();
-
-    unsubscribeGlobal = supabase.channel('public:settings')
+    // 3. Global Real-time Channels
+    const settingsSub = supabase.channel('public:settings')
       .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.SETTINGS, filter: 'id=eq.v1' }, (payload) => {
         const data = payload.new as any;
         dispatch({ type: 'SET_GLOBAL_SETTINGS', settings: data });
@@ -634,25 +640,27 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       })
       .subscribe();
 
-    unsubscribeMarket = supabase.channel('public:marketplace')
+    const marketSub = supabase.channel('public:marketplace')
       .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.MARKETPLACE }, () => {
-        fetchMarketplace();
+        supabase.from(TABLES.MARKETPLACE).select('*').order('listedAt', { ascending: false })
+          .then(({ data }) => data && dispatch({ type: 'SET_MARKETPLACE', listings: data }));
       })
       .subscribe();
 
-    unsubscribeGuilds = supabase.channel('public:guilds')
+    const guildsSub = supabase.channel('public:guilds')
       .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.GUILDS }, () => {
-        fetchGuilds();
+        supabase.from(TABLES.GUILDS).select('*').order('rank', { ascending: true })
+          .then(({ data }) => data && dispatch({ type: 'SET_GUILDS', guilds: data }));
       })
       .subscribe();
 
     return () => {
-      if (authUnsubscribeRef) authUnsubscribeRef.unsubscribe();
-      if (unsubscribeUser) unsubscribeUser.unsubscribe();
-      if (unsubscribeGlobal) unsubscribeGlobal.unsubscribe();
-      if (unsubscribeMarket) unsubscribeMarket.unsubscribe();
-      if (unsubscribeGuilds) unsubscribeGuilds.unsubscribe();
-      if (unsubscribeTransactions) unsubscribeTransactions.unsubscribe();
+      authSub.unsubscribe();
+      settingsSub.unsubscribe();
+      marketSub.unsubscribe();
+      guildsSub.unsubscribe();
+      if (profilesSub) profilesSub.unsubscribe();
+      if (transSub) transSub.unsubscribe();
     };
   }, []);
 
