@@ -507,129 +507,95 @@ const GameContext = createContext<GameContextValue | null>(null);
 export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(gameReducer, INITIAL_STATE);
 
-  useEffect(() => {
-    let profilesSub: any = null;
-    let transSub: any = null;
-    let isInitialized = false;
-
-    const fetchTransactions = async (userId: string) => {
-      try {
-        const { data, error } = await supabase.from(TABLES.TRANSACTIONS)
-          .select('*')
-          .eq('user_id', userId)
-          .order('timestamp', { ascending: false })
-          .limit(20);
-        if (!error && data) {
-          const mapped = data.map((t: any) => ({
-            id: t.id,
-            type: t.type,
-            amount: t.amount,
-            label: t.description || 'İşlem',
-            date: new Date(t.created_at || t.timestamp).getTime(),
-            status: t.status || 'completed'
-          }));
-          dispatch({ type: 'SET_TRANSACTIONS', transactions: mapped });
-        }
-      } catch (e) {
-        console.error("Trans fetch error:", e);
+  const fetchTransactions = async (userId: string) => {
+    try {
+      const { data, error } = await supabase.from(TABLES.TRANSACTIONS)
+        .select('*')
+        .eq('user_id', userId)
+        .order('timestamp', { ascending: false })
+        .limit(20);
+      if (!error && data) {
+        const mapped = data.map((t: any) => ({
+          id: t.id,
+          type: t.type,
+          amount: t.amount,
+          label: t.description || 'İşlem',
+          date: new Date(t.created_at || t.timestamp).getTime(),
+          status: t.status || 'completed'
+        }));
+        dispatch({ type: 'SET_TRANSACTIONS', transactions: mapped });
       }
-    };
+    } catch (e) {
+      console.error("Trans fetch error:", e);
+    }
+  };
 
-    const fetchProfile = async (uid: string, email?: string) => {
-      try {
-        console.info("🔍 Fetching profile for:", uid);
-        const { data: profile, error } = await supabase.from(TABLES.PROFILES).select('*').eq('id', uid).single();
+  const fetchProfile = async (uid: string, email?: string) => {
+    try {
+      console.info("🔍 Fetching profile for:", uid);
+      const { data: profile, error } = await supabase.from(TABLES.PROFILES).select('*').eq('id', uid).single();
+      
+      if (profile && !error) {
+        console.info("✅ Profile found:", profile.username);
+        dispatch({ type: 'SET_GAME_STATE', state: profile as any });
+      } else if (!error || (error && error.code === 'PGRST116')) {
+        console.info("✨ Profile not found, creating new for:", email);
+        const { data: newProfile, error: upsertError } = await supabase.from(TABLES.PROFILES).upsert({
+          id: uid,
+          username: email?.split('@')[0] || 'Madenci'
+        }).select().single();
         
-        if (profile && !error) {
-          console.info("✅ Profile found:", profile.username);
-          dispatch({ type: 'SET_GAME_STATE', state: profile as any });
-        } else if (!error || (error && error.code === 'PGRST116')) {
-          console.info("✨ Profile not found, creating new for:", email);
-          const { data: newProfile, error: upsertError } = await supabase.from(TABLES.PROFILES).upsert({
-            id: uid,
-            username: email?.split('@')[0] || 'Madenci'
-          }).select().single();
-          
-          if (newProfile) {
-            console.info("🚀 New profile created:", newProfile.username);
-            dispatch({ type: 'SET_GAME_STATE', state: newProfile as any });
-          } else {
-            console.error("❌ Profile creation failed:", upsertError);
-            dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
-          }
+        if (newProfile) {
+          console.info("🚀 New profile created:", newProfile.username);
+          dispatch({ type: 'SET_GAME_STATE', state: newProfile as any });
         } else {
-          console.error("❌ Profile fetch DB error:", error);
+          console.error("❌ Profile creation failed:", upsertError);
           dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
         }
-      } catch (err) {
-        console.error("❌ Profile fetch fatal error:", err);
-        dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
-      }
-    };
-
-    const handleUserSession = async (session: any) => {
-      const user = session?.user ?? null;
-      console.info("👤 Session check - User:", user?.email || "No Session");
-      
-      dispatch({ type: 'SET_AUTH_USER', user });
-
-      if (user) {
-        // Clear auth callback from URL if present
-        if (window.location.pathname === '/auth/callback') {
-          console.info("🧹 Redirecting from auth callback to home...");
-          window.location.href = '/';
-          return; // Stop execution as page is redirecting
-        }
-
-        await Promise.all([
-          fetchProfile(user.id, user.email),
-          fetchTransactions(user.id)
-        ]);
-
-        if (profilesSub) profilesSub.unsubscribe();
-        profilesSub = supabase.channel(`public:profiles:${user.id}`)
-          .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.PROFILES, filter: `id=eq.${user.id}` },
-            payload => dispatch({ type: 'SET_GAME_STATE', state: payload.new as any }))
-          .subscribe();
-
-        if (transSub) transSub.unsubscribe();
-        transSub = supabase.channel(`public:transactions:${user.id}`)
-          .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.TRANSACTIONS, filter: `user_id=eq.${user.id}` }, () => {
-            fetchTransactions(user.id);
-          })
-          .subscribe();
       } else {
+        console.error("❌ Profile fetch DB error:", error);
         dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
       }
-    };
+    } catch (err) {
+      console.error("❌ Profile fetch fatal error:", err);
+      dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
+    }
+  };
 
-    // 1. Initial State Check (LocalStorage & Static Init)
+  const handleUserSession = async (session: any) => {
+    const user = session?.user ?? null;
+    console.info("👤 handleUserSession - User:", user?.email || "No Session", "URL:", window.location.pathname);
+    
+    dispatch({ type: 'SET_AUTH_USER', user });
+
+    if (user) {
+      if (window.location.pathname === '/auth/callback') {
+        console.info("🧹 Auth callback detected, cleaning URL...");
+        window.history.replaceState({}, '', '/');
+      }
+
+      await Promise.all([
+        fetchProfile(user.id, user.email),
+        fetchTransactions(user.id)
+      ]);
+    } else {
+      if (window.location.pathname !== '/auth/callback') {
+        dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
+      }
+    }
+  };
+
+  // Main Init & Auth Effect
+  useEffect(() => {
     const init = async () => {
       try {
-        // Check if localStorage is available (Safari/Brave privacy check)
-        try {
-          localStorage.setItem('ct_test', '1');
-          localStorage.removeItem('ct_test');
-          console.info("💾 LocalStorage check passed.");
-        } catch (e) {
-          console.error("🛑 LocalStorage BLOCKED. Sessions will not persist.");
-        }
+        const { data: { session } } = await supabase.auth.getSession();
+        await handleUserSession(session);
 
-        // Fetch session immediately
-        console.info("🔑 Checking initial Supabase session...");
-        const { data: { session: initialSession }, error: sessionError } = await supabase.auth.getSession();
-        if (sessionError) console.error("❌ Session fetch error:", sessionError);
-        
-        await handleUserSession(initialSession);
-        isInitialized = true;
-
-        // Global Static Data
         const { data: settings } = await supabase.from(TABLES.SETTINGS).select('*').eq('id', 'v1').single();
         if (settings) {
           dispatch({ type: 'SET_GLOBAL_SETTINGS', settings });
           dispatch({ type: 'SET_MAINTENANCE', isMaintenance: settings.isMaintenance });
-          dispatch({ type: 'SET_ANNOUNCEMENT', announcement: settings.announcement });
-          dispatch({ type: 'SET_GLOBAL_MULTIPLIER', multiplier: settings.globalMultiplier || 1.0 });
         }
         
         const [{ data: marketData }, { data: guilds }] = await Promise.all([
@@ -641,8 +607,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const mappedMarket: MarketListing[] = marketData.map(l => ({
             id: l.id,
             contractId: l.contractId,
-            contractName: l.label, // database uses 'label'
-            tier: l.rarity as any, // database uses 'rarity'
+            contractName: l.label,
+            tier: l.rarity as any,
             hashRate: l.hashRate,
             daysRemaining: l.daysRemaining,
             sellerName: l.sellerName,
@@ -659,52 +625,48 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
       }
     };
+
     init();
 
-    // 2. Setup Auth Listener for future changes
     const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.info("🔔 Auth Event Detected:", event);
-      // We process SIGNED_IN regardless of isInitialized to avoid race conditions during PKCE
-      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'USER_UPDATED' || event === 'TOKEN_REFRESHED') {
-        console.info("👤 Processing Auth Event for user:", session?.user?.email);
+      if (['SIGNED_IN', 'SIGNED_OUT', 'USER_UPDATED', 'TOKEN_REFRESHED'].includes(event)) {
         await handleUserSession(session);
       }
     });
 
-    // 3. Global Real-time Channels
     const settingsSub = supabase.channel('public:settings')
       .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.SETTINGS, filter: 'id=eq.v1' }, (payload) => {
         const data = payload.new as any;
-        dispatch({ type: 'SET_GLOBAL_SETTINGS', settings: data });
         dispatch({ type: 'SET_MAINTENANCE', isMaintenance: data.isMaintenance });
-        dispatch({ type: 'SET_ANNOUNCEMENT', announcement: data.announcement });
-        dispatch({ type: 'SET_GLOBAL_MULTIPLIER', multiplier: data.globalMultiplier || 1.0 });
-      })
-      .subscribe();
-
-    const marketSub = supabase.channel('public:marketplace')
-      .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.MARKETPLACE }, () => {
-        supabase.from(TABLES.MARKETPLACE).select('*').order('listedAt', { ascending: false })
-          .then(({ data }) => data && dispatch({ type: 'SET_MARKETPLACE', listings: data }));
-      })
-      .subscribe();
-
-    const guildsSub = supabase.channel('public:guilds')
-      .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.GUILDS }, () => {
-        supabase.from(TABLES.GUILDS).select('*').order('rank', { ascending: true })
-          .then(({ data }) => data && dispatch({ type: 'SET_GUILDS', guilds: data }));
-      })
-      .subscribe();
+      }).subscribe();
 
     return () => {
       authSub.unsubscribe();
       settingsSub.unsubscribe();
-      marketSub.unsubscribe();
-      guildsSub.unsubscribe();
-      if (profilesSub) profilesSub.unsubscribe();
-      if (transSub) transSub.unsubscribe();
     };
   }, []);
+
+  // User Data Subscriptions
+  useEffect(() => {
+    if (!state.user?.id) return;
+    
+    const pSub = supabase.channel(`public:profiles:${state.user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.PROFILES, filter: `id=eq.${state.user.id}` },
+        payload => dispatch({ type: 'SET_GAME_STATE', state: payload.new as any }))
+      .subscribe();
+
+    const tSub = supabase.channel(`public:transactions:${state.user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.TRANSACTIONS, filter: `user_id=eq.${state.user.id}` }, () => {
+        fetchTransactions(state.user!.id);
+      })
+      .subscribe();
+
+    return () => {
+      pSub.unsubscribe();
+      tSub.unsubscribe();
+    };
+  }, [state.user?.id]);
 
   const btcToUsd = (btc: number) => `$${(btc * state.usdRate).toFixed(2)}`;
   const formatBtc = (btc: number) => btc.toFixed(10);
