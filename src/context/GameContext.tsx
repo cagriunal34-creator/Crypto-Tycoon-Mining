@@ -636,14 +636,15 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
 
-    init();
-
+    // 2. Setup Auth Listener (Set this BEFORE init so we don't miss events)
     const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.info("🔔 Auth Event Detected:", event);
-      if (['SIGNED_IN', 'SIGNED_OUT', 'USER_UPDATED', 'TOKEN_REFRESHED'].includes(event)) {
+      if (['SIGNED_IN', 'SIGNED_OUT', 'USER_UPDATED', 'TOKEN_REFRESHED', 'INITIAL_SESSION'].includes(event)) {
         await handleUserSession(session);
       }
     });
+
+    init();
 
     const settingsSub = supabase.channel('public:settings')
       .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.SETTINGS, filter: 'id=eq.v1' }, (payload) => {
