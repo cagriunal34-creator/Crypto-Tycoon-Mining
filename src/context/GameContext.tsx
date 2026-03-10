@@ -600,36 +600,49 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }, 10000);
 
       try {
-        // ✅ Early return on callback to prevent race with getSession()
-        // Implicit flow handles code exchange automatically via detectSessionInUrl
-        if (window.location.pathname === '/auth/callback') {
-          console.info("⏳ Callback detect edidi, Supabase implicit exchange bekleniyor...");
-          clearTimeout(loadingTimeout);
-          return;
+        console.info("🏁 Initialization started...");
+        
+        // 1. Manually exchange code if present (PKCE)
+        const params = new URLSearchParams(window.location.search);
+        const code = params.get('code');
+        const isCallback = window.location.pathname === '/auth/callback';
+
+        let activeSession = null;
+
+        if (code && isCallback) {
+          console.info("⚡ PKCE Code detected. Exchanging manually...");
+          const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+          if (exchangeError) {
+            console.error("❌ Exchange error:", exchangeError.message);
+          } else {
+            activeSession = data.session;
+            console.info("✅ Exchange successful. User:", activeSession?.user?.email);
+          }
         }
 
-        console.info("🔑 Checking session and fetching global data...");
-        
-        // 🚀 MEGA PARALLEL FETCH
-        const sessionPromise = supabase.auth.getSession();
+        // 2. Fallback to global session check
+        if (!activeSession) {
+          const { data: { session: existingSession } } = await supabase.auth.getSession();
+          activeSession = existingSession;
+        }
+
+        // 🚀 3. MEGA PARALLEL FETCH (Now with session)
         const settingsPromise = supabase.from(TABLES.SETTINGS).select('*').eq('id', 'v1').single();
         const marketPromise = supabase.from(TABLES.MARKETPLACE).select('*').order('created_at', { ascending: false });
         const guildsPromise = supabase.from(TABLES.GUILDS).select('*').order('rank', { ascending: true });
 
         const [
-          { data: { session: initialSession } },
           { data: settings },
           { data: marketData },
           { data: guilds }
-        ] = await Promise.all([sessionPromise, settingsPromise, marketPromise, guildsPromise]);
+        ] = await Promise.all([settingsPromise, marketPromise, guildsPromise]);
 
-        // Process Settings
+        // Process Settings, Market, Guilds
         if (settings) {
           dispatch({ type: 'SET_GLOBAL_SETTINGS', settings });
           dispatch({ type: 'SET_MAINTENANCE', isMaintenance: settings.isMaintenance });
         }
 
-        // Process Marketplace
         if (marketData) {
           const mappedMarket: MarketListing[] = marketData.map(l => ({
             id: l.id,
@@ -642,28 +655,22 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             sellerId: l.seller_id,
             price: l.price,
             listedAt: new Date(l.created_at).getTime(),
-            isOwn: initialSession?.user?.id === l.seller_id
+            isOwn: activeSession?.user?.id === l.seller_id
           }));
           dispatch({ type: 'SET_MARKETPLACE', listings: mappedMarket });
         }
-
-        // Process Guilds
         if (guilds) dispatch({ type: 'SET_GUILDS', guilds: guilds });
 
-        // Process User Session & Profile
-        await handleUserSession(initialSession, true);
+        // 4. Handle User State (Profile, Transactions)
+        await handleUserSession(activeSession, true);
 
       } catch (e) {
         console.error("❌ Init fatal error:", e);
       } finally {
         clearTimeout(loadingTimeout);
-        // ✅ CRITICAL FIX: Only release loader if we are NOT in a callback flow
-        // The handleUserSession inside init or auth listener will handle redirection/cleanup
+        // Release loader locally if not handled by handleUserSession redirect
         if (window.location.pathname !== '/auth/callback') {
-          console.info("🏁 Init complete. Releasing loader.");
           dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
-        } else {
-          console.info("⏳ Still in callback flow, keeping loader active...");
         }
       }
     };
