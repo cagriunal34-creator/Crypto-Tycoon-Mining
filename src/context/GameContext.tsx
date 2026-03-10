@@ -587,13 +587,34 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const init = async () => {
       // Security Net
       const loadingTimeout = setTimeout(() => {
-        if (isMounted) dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
+        if (isMounted) {
+          console.warn("⏰ Global Loading Timeout - Releasing UI");
+          dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
+        }
       }, 10000);
 
       try {
-        console.info("🏁 Starting simplified initialization...");
+        const searchParams = new URLSearchParams(window.location.search);
+        const code = searchParams.get('code');
+        console.info("🏁 Simplified Init. URL:", window.location.href, "Code in URL:", !!code);
 
-        // 1. Fetch Global Data (Parallel)
+        let activeSession = null;
+
+        // 1. Manual PKCE Exchange (Path agnostic)
+        if (code) {
+          console.info("⚡ Code found in URL. Attempting manual exchange...");
+          const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+          if (exchangeError) {
+            console.error("❌ Manual exchange failed:", exchangeError.message);
+          } else if (data.session) {
+            activeSession = data.session;
+            console.info("✅ Manual exchange SUCCESS. User:", activeSession.user.email);
+            // Clean URL after success
+            window.history.replaceState({}, '', window.location.origin);
+          }
+        }
+
+        // 2. Fetch Global Data & Session
         const [
           { data: { session: currentSession } },
           { data: settings },
@@ -606,7 +627,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           supabase.from(TABLES.GUILDS).select('*').order('rank', { ascending: true })
         ]);
 
-        // 2. Process Data
+        // Use exchanged session or fetched session
+        activeSession = activeSession || currentSession;
+
+        // 3. Process Data
         if (settings) {
           dispatch({ type: 'SET_GLOBAL_SETTINGS', settings });
           dispatch({ type: 'SET_MAINTENANCE', isMaintenance: settings.isMaintenance });
