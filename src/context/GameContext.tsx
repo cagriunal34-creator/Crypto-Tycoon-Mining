@@ -535,29 +535,23 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.info("🔍 Fetching profile for:", uid);
       const { data: profile, error } = await supabase.from(TABLES.PROFILES).select('*').eq('id', uid).single();
       
+      console.info("📦 Profile result:", profile, "Error:", error);
+
       if (profile && !error) {
         console.info("✅ Profile found:", profile.username);
-        dispatch({ type: 'SET_GAME_STATE', state: profile as any });
-      } else if (!error || (error && error.code === 'PGRST116')) {
-        console.info("✨ Profile not found, creating new for:", email);
+        dispatch({ type: 'SET_GAME_STATE', state: { ...profile, isLoading: false } as any });
+      } else {
+        console.info("✨ Creating new profile for:", email);
         const { data: newProfile, error: upsertError } = await supabase.from(TABLES.PROFILES).upsert({
           id: uid,
           username: email?.split('@')[0] || 'Madenci'
         }).select().single();
         
-        if (newProfile) {
-          console.info("🚀 New profile created:", newProfile.username);
-          dispatch({ type: 'SET_GAME_STATE', state: newProfile as any });
-        } else {
-          console.error("❌ Profile creation failed:", upsertError);
-          dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
-        }
-      } else {
-        console.error("❌ Profile fetch DB error:", error);
-        dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
+        console.info("🚀 New profile result:", newProfile, "Error:", upsertError);
+        dispatch({ type: 'SET_GAME_STATE', state: { ...(newProfile || {}), isLoading: false } as any });
       }
     } catch (err) {
-      console.error("❌ Profile fetch fatal error:", err);
+      console.error("❌ fetchProfile crash:", err);
       dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
     }
   };
@@ -591,10 +585,17 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Main Init & Auth Effect
   useEffect(() => {
     const init = async () => {
+      // ✅ 10 saniye sonra hâlâ loading varsa zorla kapat (Güvenlik ağı)
+      const loadingTimeout = setTimeout(() => {
+        console.warn("⏰ Loading timeout — zorla kapatılıyor");
+        dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
+      }, 10000);
+
       try {
         // ✅ Early return on callback to prevent race with getSession()
         if (window.location.pathname === '/auth/callback') {
           console.info("⏳ Callback detect edidi, Supabase exchange bekleniyor...");
+          clearTimeout(loadingTimeout);
           return;
         }
 
@@ -633,6 +634,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch (e) {
         console.error("❌ Init fatal error:", e);
         dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
+      } finally {
+        clearTimeout(loadingTimeout);
       }
     };
 
