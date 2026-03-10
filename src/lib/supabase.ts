@@ -4,13 +4,12 @@ const supabaseUrl = 'https://odzicthzwlbnwlepxzda.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9kemljdGh6d2xibndsZXB4emRhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNjk1NDIsImV4cCI6MjA4ODY0NTU0Mn0.FzwJqtqvp_lTTIARKbEESKdTyPmmKg9VPZkGu0vwfEk';
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-        flowType: 'implicit',
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-        storage: window.localStorage,
-    }
+    flowType: 'pkce',
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    storage: window.localStorage,
+  }
 });
 
 export const TABLES = {

@@ -562,78 +562,65 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Main Init & Auth Effect
   useEffect(() => {
-    // 1. Manage Auth with a SINGLE listener
-    const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.info("🔔 Auth Event:", event, session?.user?.email ?? 'no user');
       
       const user = session?.user ?? null;
       dispatch({ type: 'SET_AUTH_USER', user });
 
       if (user) {
-        // User logged in: load their specific data
         dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
         fetchProfile(user.id, user.email);
         fetchTransactions(user.id);
-      } else if (event === 'INITIAL_SESSION' || event === 'SIGNED_OUT') {
-        // No session on startup or logged out
-        dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
+      } else if (event === 'INITIAL_SESSION') {
+        const hasAuthInUrl = 
+          window.location.hash.includes('access_token') || 
+          window.location.hash.includes('error') ||
+          window.location.search.includes('code=');
+          
+        if (!hasAuthInUrl) {
+          dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
+        }
       }
     });
 
-    // 2. Load Global Data (Independent of Auth)
-    const loadGlobalData = async () => {
-      try {
-        const { data: settings } = await supabase.from(TABLES.SETTINGS).select('*').eq('id', 'v1').single();
-        if (settings) {
-          dispatch({ type: 'SET_GLOBAL_SETTINGS', settings });
-          dispatch({ type: 'SET_MAINTENANCE', isMaintenance: settings.isMaintenance });
-          dispatch({ type: 'SET_ANNOUNCEMENT', announcement: settings.announcement });
-          dispatch({ type: 'SET_GLOBAL_MULTIPLIER', multiplier: settings.globalMultiplier || 1.0 });
+    // Global data
+    supabase.from(TABLES.SETTINGS).select('*').eq('id', 'v1').single()
+      .then(({ data }) => {
+        if (data) {
+          dispatch({ type: 'SET_GLOBAL_SETTINGS', settings: data });
+          dispatch({ type: 'SET_MAINTENANCE', isMaintenance: data.isMaintenance });
+          dispatch({ type: 'SET_ANNOUNCEMENT', announcement: data.announcement });
+          dispatch({ type: 'SET_GLOBAL_MULTIPLIER', multiplier: data.globalMultiplier || 1.0 });
         }
+      });
 
-        const [{ data: marketData }, { data: guilds }] = await Promise.all([
-          supabase.from(TABLES.MARKETPLACE).select('*').order('created_at', { ascending: false }),
-          supabase.from(TABLES.GUILDS).select('*').order('rank', { ascending: true })
-        ]);
-
-        const { data: { session } } = await supabase.auth.getSession();
+    Promise.all([
+      supabase.from(TABLES.MARKETPLACE).select('*').order('created_at', { ascending: false }),
+      supabase.from(TABLES.GUILDS).select('*').order('rank', { ascending: true }),
+      supabase.auth.getSession()
+    ]).then(([{ data: market }, { data: guilds }, { data: { session } }]) => {
+      if (guilds) dispatch({ type: 'SET_GUILDS', guilds });
+      if (market) {
         const currentUserId = session?.user?.id;
-
-        if (marketData) {
-          const mappedMarket: MarketListing[] = marketData.map(l => ({
-            id: l.id,
-            contractId: l.contractId,
-            contractName: l.label,
-            tier: l.rarity as any,
-            hashRate: l.hashRate,
-            daysRemaining: l.daysRemaining,
-            sellerName: l.sellerName,
-            sellerId: l.seller_id,
-            price: l.price,
-            listedAt: new Date(l.created_at).getTime(),
-            isOwn: currentUserId === l.seller_id
-          }));
-          dispatch({ type: 'SET_MARKETPLACE', listings: mappedMarket });
-        }
-        if (guilds) dispatch({ type: 'SET_GUILDS', guilds });
-      } catch (e) {
-        console.error("❌ Global data fetch failed:", e);
+        const mappedMarket: MarketListing[] = market.map(l => ({
+          id: l.id,
+          contractId: l.contractId,
+          contractName: l.label,
+          tier: l.rarity as any,
+          hashRate: l.hashRate,
+          daysRemaining: l.daysRemaining,
+          sellerName: l.sellerName,
+          sellerId: l.seller_id,
+          price: l.price,
+          listedAt: new Date(l.created_at).getTime(),
+          isOwn: currentUserId === l.seller_id
+        }));
+        dispatch({ type: 'SET_MARKETPLACE', listings: mappedMarket });
       }
-    };
+    });
 
-    loadGlobalData();
-
-    // 3. Keep real-time settings sub
-    const settingsSub = supabase.channel('public:settings')
-      .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.SETTINGS, filter: 'id=eq.v1' }, (payload) => {
-        const data = payload.new as any;
-        dispatch({ type: 'SET_MAINTENANCE', isMaintenance: data.isMaintenance });
-      }).subscribe();
-
-    return () => {
-      authSub.unsubscribe();
-      settingsSub.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, []);
 
   // User Data Subscriptions
