@@ -510,6 +510,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     let profilesSub: any = null;
     let transSub: any = null;
+    let isInitialized = false;
 
     const fetchTransactions = async (userId: string) => {
       try {
@@ -536,60 +537,52 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const fetchProfile = async (uid: string, email?: string) => {
       try {
-        console.info("Fetching profile for:", uid);
+        console.info("🔍 Fetching profile for:", uid);
         const { data: profile, error } = await supabase.from(TABLES.PROFILES).select('*').eq('id', uid).single();
         
         if (profile && !error) {
-          console.info("Profile found:", profile.username);
+          console.info("✅ Profile found:", profile.username);
           dispatch({ type: 'SET_GAME_STATE', state: profile as any });
         } else if (!error || (error && error.code === 'PGRST116')) {
-          console.info("Profile not found, creating new...");
+          console.info("✨ Profile not found, creating new for:", email);
           const { data: newProfile, error: upsertError } = await supabase.from(TABLES.PROFILES).upsert({
             id: uid,
             username: email?.split('@')[0] || 'Madenci'
           }).select().single();
           
           if (newProfile) {
-            console.info("New profile created:", newProfile.username);
+            console.info("🚀 New profile created:", newProfile.username);
             dispatch({ type: 'SET_GAME_STATE', state: newProfile as any });
           } else {
-            console.error("Profile creation failed:", upsertError);
+            console.error("❌ Profile creation failed:", upsertError);
             dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
           }
         } else {
-          console.error("Profile fetch DB error:", error);
+          console.error("❌ Profile fetch DB error:", error);
           dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
         }
       } catch (err) {
-        console.error("Profile fetch fatal error:", err);
+        console.error("❌ Profile fetch fatal error:", err);
         dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
       }
     };
 
-    // 1. Setup Auth Listener
-    console.info("Initializing Auth Listener...");
-    const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.info("Auth Event Detected:", event, "User:", session?.user?.email);
+    const handleUserSession = async (session: any) => {
       const user = session?.user ?? null;
+      console.info("👤 Session check - User:", user?.email || "No Session");
       
-      // Always update user state first
       dispatch({ type: 'SET_AUTH_USER', user });
 
       if (user) {
-        // Initialize user data
         await Promise.all([
           fetchProfile(user.id, user.email),
           fetchTransactions(user.id)
         ]);
 
-        // Real-time user updates
         if (profilesSub) profilesSub.unsubscribe();
         profilesSub = supabase.channel(`public:profiles:${user.id}`)
           .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.PROFILES, filter: `id=eq.${user.id}` },
-            payload => {
-              console.info("Live Profile Update:", payload.new);
-              dispatch({ type: 'SET_GAME_STATE', state: payload.new as any });
-            })
+            payload => dispatch({ type: 'SET_GAME_STATE', state: payload.new as any }))
           .subscribe();
 
         if (transSub) transSub.unsubscribe();
@@ -599,15 +592,29 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           })
           .subscribe();
       } else {
-        // No user found, stop loading
-        console.info("No active session found.");
         dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
       }
-    });
+    };
 
-    // 2. Global Static Data (Async)
-    const initGlobal = async () => {
+    // 1. Initial State Check (LocalStorage & Static Init)
+    const init = async () => {
       try {
+        // Check if localStorage is available (Safari/Brave privacy check)
+        try {
+          localStorage.setItem('ct_test', '1');
+          localStorage.removeItem('ct_test');
+          console.info("💾 LocalStorage check passed.");
+        } catch (e) {
+          console.error("🛑 LocalStorage BLOCKED. Sessions will not persist.");
+        }
+
+        // Fetch session immediately
+        console.info("🔑 Checking initial Supabase session...");
+        const { data: { session } } = await supabase.auth.getSession();
+        await handleUserSession(session);
+        isInitialized = true;
+
+        // Global Static Data
         const { data: settings } = await supabase.from(TABLES.SETTINGS).select('*').eq('id', 'v1').single();
         if (settings) {
           dispatch({ type: 'SET_GLOBAL_SETTINGS', settings });
@@ -620,14 +627,22 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           supabase.from(TABLES.MARKETPLACE).select('*').order('listedAt', { ascending: false }),
           supabase.from(TABLES.GUILDS).select('*').order('rank', { ascending: true })
         ]);
-        
         if (market) dispatch({ type: 'SET_MARKETPLACE', listings: market });
         if (guilds) dispatch({ type: 'SET_GUILDS', guilds: guilds });
       } catch (e) {
-        console.error("Global init error:", e);
+        console.error("Init fatal error:", e);
+        dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
       }
     };
-    initGlobal();
+    init();
+
+    // 2. Setup Auth Listener for future changes
+    const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.info("🔔 Auth Event:", event);
+      if (isInitialized && (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'USER_UPDATED')) {
+        await handleUserSession(session);
+      }
+    });
 
     // 3. Global Real-time Channels
     const settingsSub = supabase.channel('public:settings')

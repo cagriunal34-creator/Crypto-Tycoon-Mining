@@ -11,15 +11,22 @@ export const LoginScreen: React.FC = () => {
         setIsLoggingIn(true);
         setError(null);
         try {
+            const redirectUrl = window.location.origin + window.location.pathname;
+            console.info("🚀 Starting Google Login. Redirect URL:", redirectUrl);
+            
             const { error: authError } = await supabase.auth.signInWithOAuth({
                 provider: 'google',
                 options: {
-                    redirectTo: window.location.origin
+                    redirectTo: redirectUrl,
+                    queryParams: {
+                        prompt: 'select_account', // Force account selection to avoid auto-login issues
+                        access_type: 'offline',
+                    }
                 }
             });
             if (authError) throw authError;
         } catch (err: any) {
-            console.error("Login Error:", err);
+            console.error("❌ Login Error:", err);
             setError(err.message || "Giriş yapılamadı.");
             setIsLoggingIn(false);
         }
