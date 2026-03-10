@@ -616,8 +616,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // Fetch session immediately
         console.info("🔑 Checking initial Supabase session...");
-        const { data: { session } } = await supabase.auth.getSession();
-        await handleUserSession(session);
+        const { data: { session: initialSession }, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) console.error("❌ Session fetch error:", sessionError);
+        
+        await handleUserSession(initialSession);
         isInitialized = true;
 
         // Global Static Data
@@ -629,14 +631,30 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           dispatch({ type: 'SET_GLOBAL_MULTIPLIER', multiplier: settings.globalMultiplier || 1.0 });
         }
         
-        const [{ data: market }, { data: guilds }] = await Promise.all([
-          supabase.from(TABLES.MARKETPLACE).select('*').order('listedAt', { ascending: false }),
+        const [{ data: marketData }, { data: guilds }] = await Promise.all([
+          supabase.from(TABLES.MARKETPLACE).select('*').order('created_at', { ascending: false }),
           supabase.from(TABLES.GUILDS).select('*').order('rank', { ascending: true })
         ]);
-        if (market) dispatch({ type: 'SET_MARKETPLACE', listings: market });
+
+        if (marketData) {
+          const mappedMarket: MarketListing[] = marketData.map(l => ({
+            id: l.id,
+            contractId: l.contractId,
+            contractName: l.label, // database uses 'label'
+            tier: l.rarity as any, // database uses 'rarity'
+            hashRate: l.hashRate,
+            daysRemaining: l.daysRemaining,
+            sellerName: l.sellerName,
+            sellerId: l.seller_id,
+            price: l.price,
+            listedAt: new Date(l.created_at).getTime(),
+            isOwn: state.user?.id === l.seller_id
+          }));
+          dispatch({ type: 'SET_MARKETPLACE', listings: mappedMarket });
+        }
         if (guilds) dispatch({ type: 'SET_GUILDS', guilds: guilds });
       } catch (e) {
-        console.error("Init fatal error:", e);
+        console.error("❌ Init fatal error:", e);
         dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
       }
     };
@@ -644,8 +662,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // 2. Setup Auth Listener for future changes
     const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.info("🔔 Auth Event:", event);
-      if (isInitialized && (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'USER_UPDATED')) {
+      console.info("🔔 Auth Event Detected:", event);
+      // We process SIGNED_IN regardless of isInitialized to avoid race conditions during PKCE
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'USER_UPDATED' || event === 'TOKEN_REFRESHED') {
+        console.info("👤 Processing Auth Event for user:", session?.user?.email);
         await handleUserSession(session);
       }
     });
