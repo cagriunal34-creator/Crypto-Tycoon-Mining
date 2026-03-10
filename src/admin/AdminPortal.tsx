@@ -206,7 +206,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
             const { data: miners } = await supabase.from('miners').select('*').eq('user_id', selectedPlayer.id);
             if (miners) setSelectedPlayerMiners(miners);
 
-            const { data: txs, error: txErr } = await supabase.from(TABLES.TRANSACTIONS).select('*').eq('user_id', selectedPlayer.id).order('createdAt', { ascending: false }).limit(10);
+            const { data: txs, error: txErr } = await supabase.from(TABLES.TRANSACTIONS).select('*').eq('user_id', selectedPlayer.id).order('created_at', { ascending: false }).limit(10);
             if (txErr) console.error('AdminPortal Individual Tx Error:', txErr);
             if (txs) setSelectedPlayerTransactions(txs);
         };
@@ -239,7 +239,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                 const { data: profiles } = await supabase.from(TABLES.PROFILES).select('*');
                 if (profiles) setPlayers(profiles);
 
-                const { data: withdraws, error: wErr } = await supabase.from(TABLES.WITHDRAWALS).select('*, profiles(username)').order('createdAt', { ascending: false });
+                const { data: withdraws, error: wErr } = await supabase.from(TABLES.WITHDRAWALS).select('*, profiles(username)').order('created_at', { ascending: false });
                 if (wErr) console.error('AdminPortal Withdrawals Error:', wErr);
                 if (withdraws) setWithdrawals(withdraws.map(w => ({ ...w, username: w.profiles?.username || 'Bilinmiyor' })));
 
@@ -249,11 +249,11 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                 const { data: market } = await supabase.from(TABLES.MARKETPLACE).select('*');
                 if (market) setAllMarket(market);
 
-                const { data: logs, error: lErr } = await supabase.from(TABLES.LOGS).select('*').order('createdAt', { ascending: false }).limit(50);
+                const { data: logs, error: lErr } = await supabase.from(TABLES.LOGS).select('*').order('created_at', { ascending: false }).limit(50);
                 if (lErr) console.error('AdminPortal Logs Error:', lErr);
                 if (logs) setAdminLogs(logs);
 
-                const { data: txs, error: gtErr } = await supabase.from(TABLES.TRANSACTIONS).select('*, profiles(username)').order('createdAt', { ascending: false }).limit(100);
+                const { data: txs, error: gtErr } = await supabase.from(TABLES.TRANSACTIONS).select('*, profiles(username)').order('created_at', { ascending: false }).limit(100);
                 if (gtErr) console.error('AdminPortal Global Tx Error:', gtErr);
                 if (txs) setAllTransactions(txs.map(t => ({ ...t, username: t.profiles?.username || 'Bilinmiyor' })));
             } catch (err) {

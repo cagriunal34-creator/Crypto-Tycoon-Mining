@@ -538,7 +538,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .from(TABLES.TRANSACTIONS)
         .select('*')
         .eq('user_id', userId)
-        .order('createdAt', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(20);
 
       if (error) {
@@ -610,11 +610,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           btcBalance: rest.btcBalance ?? rest.btc_balance ?? 0,
           tycoonPoints: rest.tycoonPoints ?? rest.tycoon_points ?? 0,
           totalHashRate: rest.totalHashRate ?? rest.total_hash_rate ?? 50,
-          // Kimlik No: DB'de yoksa UID'nin ilk 7 hanesi
+          // Kimlik No ve RankTitle DB'de yok, state'e manuel ekliyoruz
           userId: rest.userId || rest.user_id || uid.substring(0, 7),
           referralCode: rest.referralCode || rest.referral_code || '',
           rankTitle: rest.rankTitle || rest.rank_title || 'Garaj Madencisi',
-          // MiningTick vs lastMiningTick uyumu
           lastMiningTick: rest.lastMiningTick || rest.MiningTick || Date.now(),
         };
 
@@ -644,14 +643,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .upsert({
             id: uid,
             username: displayName || email?.split('@')[0] || 'Madenci',
-            email: email,
-            userId: shortId,
             referralCode: newCode,
             btcBalance: 0,
             tycoonPoints: 1500,
             level: 1,
             xp: 0,
-            rankTitle: 'Garaj Madencisi',
           })
           .select()
           .single();
@@ -730,7 +726,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         const [{ data: marketData, error: marketErr }, { data: guilds, error: guildsErr }] = await Promise.all([
-          supabase.from(TABLES.MARKETPLACE).select('*').order('createdAt', { ascending: false }),
+          supabase.from(TABLES.MARKETPLACE).select('*').order('created_at', { ascending: false }),
           supabase.from(TABLES.GUILDS).select('*').order('rank', { ascending: true }),
         ]);
 
