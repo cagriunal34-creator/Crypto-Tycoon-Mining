@@ -576,8 +576,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (user) {
         // Clear auth callback from URL if present
         if (window.location.pathname === '/auth/callback') {
-          console.info("🧹 Cleaning up auth callback from URL...");
-          window.history.replaceState({}, '', '/');
+          console.info("🧹 Redirecting from auth callback to home...");
+          window.location.href = '/';
+          return; // Stop execution as page is redirecting
         }
 
         await Promise.all([
