@@ -10,6 +10,7 @@
  */
 
 import React, { createContext, useContext, useReducer, useEffect, useRef } from 'react';
+import { BP_REWARDS } from '../constants/gameData';
 import {
   LightingColor,
   RigTier,
@@ -559,68 +560,41 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const handleUserSession = async (session: any) => {
-    const user = session?.user ?? null;
-    console.info("👤 handleUserSession - User:", user?.email || "No Session");
-    
-    dispatch({ type: 'SET_AUTH_USER', user });
-
-    if (user) {
-      // Parallelize profile and transactions
-      await Promise.all([
-        fetchProfile(user.id, user.email),
-        fetchTransactions(user.id)
-      ]);
-    }
-    
-    // Always finalize loader here (unless handled by individual fetches - but better here for global consistency)
-    dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
-  };
-
   // Main Init & Auth Effect
   useEffect(() => {
-    let isMounted = true;
+    // 1. Manage Auth with a SINGLE listener
+    const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.info("🔔 Auth Event:", event, session?.user?.email ?? 'no user');
+      
+      const user = session?.user ?? null;
+      dispatch({ type: 'SET_AUTH_USER', user });
 
-    const init = async () => {
-      // Security Net
-      const loadingTimeout = setTimeout(() => {
-        if (isMounted) {
-          console.warn("⏰ Global Loading Timeout - Releasing UI");
-          dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
-        }
-      }, 10000);
+      if (user) {
+        // User logged in: load their specific data
+        dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
+        fetchProfile(user.id, user.email);
+        fetchTransactions(user.id);
+      } else if (event === 'INITIAL_SESSION' || event === 'SIGNED_OUT') {
+        // No session on startup or logged out
+        dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
+      }
+    });
 
+    // 2. Load Global Data (Independent of Auth)
+    const loadGlobalData = async () => {
       try {
-        // ✅ URL'de auth parametresi var mı kontrol et (Implicit/PKCE)
-        const hasAuthInUrl = 
-          window.location.hash.includes('access_token') || 
-          window.location.hash.includes('error') ||
-          window.location.search.includes('code=');
-
-        if (hasAuthInUrl) {
-          console.info("⏳ Auth parametresi bulundu, Supabase işlemesi bekleniyor...");
-          return; // getSession() çağırma - Race condition önlemi
-        }
-
-        console.info("🔑 Checking initial Supabase session...");
-        const { data: { session } } = await supabase.auth.getSession();
-
-        // 1. Fetch Global Data (Parallel)
-        const [
-          { data: settings },
-          { data: marketData },
-          { data: guilds }
-        ] = await Promise.all([
-          supabase.from(TABLES.SETTINGS).select('*').eq('id', 'v1').single(),
-          supabase.from(TABLES.MARKETPLACE).select('*').order('created_at', { ascending: false }),
-          supabase.from(TABLES.GUILDS).select('*').order('rank', { ascending: true })
-        ]);
-
-        // 3. Process Data
+        const { data: settings } = await supabase.from(TABLES.SETTINGS).select('*').eq('id', 'v1').single();
         if (settings) {
           dispatch({ type: 'SET_GLOBAL_SETTINGS', settings });
           dispatch({ type: 'SET_MAINTENANCE', isMaintenance: settings.isMaintenance });
+          dispatch({ type: 'SET_ANNOUNCEMENT', announcement: settings.announcement });
+          dispatch({ type: 'SET_GLOBAL_MULTIPLIER', multiplier: settings.globalMultiplier || 1.0 });
         }
+
+        const [{ data: marketData }, { data: guilds }] = await Promise.all([
+          supabase.from(TABLES.MARKETPLACE).select('*').order('created_at', { ascending: false }),
+          supabase.from(TABLES.GUILDS).select('*').order('rank', { ascending: true })
+        ]);
 
         if (marketData) {
           const mappedMarket: MarketListing[] = marketData.map(l => ({
@@ -634,33 +608,18 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             sellerId: l.seller_id,
             price: l.price,
             listedAt: new Date(l.created_at).getTime(),
-            isOwn: session?.user?.id === l.seller_id
           }));
           dispatch({ type: 'SET_MARKETPLACE', listings: mappedMarket });
         }
         if (guilds) dispatch({ type: 'SET_GUILDS', guilds });
-
-        // 3. Process Session
-        if (isMounted) await handleUserSession(session);
-
       } catch (e) {
-        console.error("❌ Init failed:", e);
-        if (isMounted) dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
-      } finally {
-        clearTimeout(loadingTimeout);
+        console.error("❌ Global data fetch failed:", e);
       }
     };
 
-    // 2. Setup Auth Listener (Set this BEFORE init so we don't miss events)
-    const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.info("🔔 Auth Event Detected:", event);
-      if (['SIGNED_IN', 'SIGNED_OUT', 'USER_UPDATED', 'TOKEN_REFRESHED', 'INITIAL_SESSION'].includes(event)) {
-        await handleUserSession(session);
-      }
-    });
+    loadGlobalData();
 
-    init();
-
+    // 3. Keep real-time settings sub
     const settingsSub = supabase.channel('public:settings')
       .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.SETTINGS, filter: 'id=eq.v1' }, (payload) => {
         const data = payload.new as any;
@@ -668,7 +627,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }).subscribe();
 
     return () => {
-      isMounted = false;
       authSub.unsubscribe();
       settingsSub.unsubscribe();
     };
