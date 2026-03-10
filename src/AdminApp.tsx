@@ -58,7 +58,7 @@ function AdminAuthGuard({ children }: { children: React.ReactNode }) {
                             try {
                                 await supabase.auth.signInWithOAuth({
                                     provider: 'google',
-                                    options: { redirectTo: window.location.origin + '/admin.html' }
+                                    options: { redirectTo: window.location.origin + '/auth/callback' }
                                 });
                             } catch (e) {
                                 console.error("Login failed", e);
