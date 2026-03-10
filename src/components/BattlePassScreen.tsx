@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Star, Zap, Gift, Crown, Lock, Check, ChevronRight, Clock } from 'lucide-react';
-import { useGame, BP_REWARDS } from '../context/GameContext';
+import { useGame } from '../context/GameContext';
+import { BP_REWARDS } from '../constants/gameData';
 import { BattlePassReward } from '../types';
 import { useTheme } from '../context/ThemeContext';
 import { useNotify } from '../context/NotificationContext';

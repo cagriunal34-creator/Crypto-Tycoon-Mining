@@ -363,6 +363,8 @@ type Action =
   | { type: 'REMOVE_ENERGY_CELLS'; amount: number }
   | { type: 'DISMISS_OFFLINE_EARNINGS' }
   | { type: 'SET_TRANSACTIONS'; transactions: Transaction[] }
+  | { type: 'BP_CLAIM_REWARD'; rewardId: string }
+  | { type: 'BP_BUY_PREMIUM' }
   | { type: 'ADMIN_RESET_GAME' };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -429,11 +431,6 @@ const VIP_PERKS: Record<string, string[]> = {
   gold: ["Reklam yok", "%50 bonus BTC", "Altin avatar cercevesi", "Ozel lonca rozeti", "2x Battle Pass XP", "Marketplace 0 komisyon"],
 };
 
-export const BP_REWARDS: BattlePassReward[] = [
-  { id: 'bp-1-f', level: 1, type: 'tp' as const, label: 'TycoonPoints', emoji: '🎯', value: 100, isPremium: false },
-  { id: 'bp-10-f', level: 10, type: 'btc' as const, label: 'BTC Ödülü', emoji: '₿', value: 0.0005, isPremium: false },
-  // ... (Kısaltıldı, orijinal BP_REWARDS listesi buraya gelecek)
-];
 
 // ─── Reducer ─────────────────────────────────────────────────────────────────
 
@@ -594,49 +591,30 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }, 10000);
 
       try {
-        const urlObj = new URL(window.location.href);
-        const code = urlObj.searchParams.get('code');
-        
-        console.info("🏁 DEBUG - Origin:", window.location.origin);
-        console.info("🏁 DEBUG - Full URL:", window.location.href);
-        console.info("🏁 DEBUG - Has Code:", !!code);
+        // ✅ URL'de auth parametresi var mı kontrol et (Implicit/PKCE)
+        const hasAuthInUrl = 
+          window.location.hash.includes('access_token') || 
+          window.location.hash.includes('error') ||
+          window.location.search.includes('code=');
 
-        let sessionToUse = null;
-
-        // 1. Force Manual PKCE Exchange if code exists
-        if (code) {
-          console.info("⚡ Code detected. Forcing manual exchange...");
-          try {
-            const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-            if (exchangeError) {
-              console.error("❌ MANUAL EXCHANGE ERROR:", exchangeError.message, exchangeError);
-            } else if (data.session) {
-              console.info("✅ MANUAL EXCHANGE SUCCESS. Email:", data.session.user.email);
-              sessionToUse = data.session;
-              // Clean URL immediately
-              window.history.replaceState({}, '', window.location.origin);
-            }
-          } catch (err) {
-            console.error("❌ Exchange crash:", err);
-          }
+        if (hasAuthInUrl) {
+          console.info("⏳ Auth parametresi bulundu, Supabase işlemesi bekleniyor...");
+          return; // getSession() çağırma - Race condition önlemi
         }
 
-        // 2. Fetch Global Data & Session (Parallel)
+        console.info("🔑 Checking initial Supabase session...");
+        const { data: { session } } = await supabase.auth.getSession();
+
+        // 1. Fetch Global Data (Parallel)
         const [
-          { data: { session: currentSession } },
           { data: settings },
           { data: marketData },
           { data: guilds }
         ] = await Promise.all([
-          supabase.auth.getSession(),
           supabase.from(TABLES.SETTINGS).select('*').eq('id', 'v1').single(),
           supabase.from(TABLES.MARKETPLACE).select('*').order('created_at', { ascending: false }),
           supabase.from(TABLES.GUILDS).select('*').order('rank', { ascending: true })
         ]);
-
-        // Priority to manually exchanged session
-        sessionToUse = sessionToUse || currentSession;
-        console.info("🔑 Final Session Check - User:", sessionToUse?.user?.email || "No Session");
 
         // 3. Process Data
         if (settings) {
