@@ -27,7 +27,7 @@ export default function WalletScreen({ onOpenWithdraw }: { onOpenWithdraw: () =>
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const filteredTransactions = state.transactions.filter(tx => {
+  const filteredTransactions = (state.transactions || []).filter(tx => {
     if (activeFilter === 'all') return true;
     if (activeFilter === 'incoming') return tx.type === 'transfer_in';
     if (activeFilter === 'outgoing') return tx.type === 'transfer_out' || tx.type === 'purchase';
@@ -122,7 +122,7 @@ export default function WalletScreen({ onOpenWithdraw }: { onOpenWithdraw: () =>
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-bold tracking-tight">Son İşlemler</h3>
-          <span className="text-[9px] text-zinc-500">{state.transactions.length} işlem</span>
+          <span className="text-[9px] text-zinc-500">{(state.transactions || []).length} işlem</span>
         </div>
 
         {/* Filter Tabs */}

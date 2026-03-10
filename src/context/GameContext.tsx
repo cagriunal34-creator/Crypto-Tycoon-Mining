@@ -607,7 +607,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const gameData: any = {
           ...INITIAL_STATE,
           ...rest,
-          isLoading: false, // Yüklemeyi bitir
+          isLoading: false, 
           btcBalance: rest.btcBalance ?? rest.btc_balance ?? 0,
           tycoonPoints: rest.tycoonPoints ?? rest.tycoon_points ?? 0,
           totalHashRate: rest.totalHashRate ?? rest.total_hash_rate ?? 50,

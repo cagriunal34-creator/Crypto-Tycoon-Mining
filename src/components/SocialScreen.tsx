@@ -129,9 +129,9 @@ export default function SocialScreen() {
   };
 
   const leaders = state.leaderboard || [];
-  const topThree = leaders.slice(0, 3);
-  const others = leaders.slice(3);
-  const myEntry = leaders.find(l => l.isCurrentUser) || leaders[0];
+  const topThree = (leaders || []).slice(0, 3);
+  const others = (leaders || []).slice(3);
+  const myEntry = (leaders || []).find(l => l.isCurrentUser) || leaders[0] || { rank: '?', avatar: '👤', name: 'Madenci', rankTitle: 'Yeni', level: 1, hashRate: 0, btcMined: 0 };
 
   const handleCopy = async () => {
     try {
@@ -610,7 +610,7 @@ export default function SocialScreen() {
             Lonca Kur
           </button>
         </div>
-        {state.guilds.map(guild => {
+        {(state.guilds || []).map(guild => {
           const isJoined = state.userGuildId === guild.id;
           return (
             <div

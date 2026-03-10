@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Star, Zap, Gift, Crown, Lock, Check, ChevronRight, Clock } from 'lucide-react';
-import { useGame } from '../context/GameContext';
+import { useGame, INITIAL_STATE } from '../context/GameContext';
 import { BP_REWARDS } from '../constants/gameData';
 import { BattlePassReward } from '../types';
 import { useTheme } from '../context/ThemeContext';
@@ -88,7 +88,7 @@ export default function BattlePassScreen() {
   const a3 = theme.vars['--ct-a3'];
   const gold = '#FFD700';
 
-  const bp = state.battlePass;
+  const bp = state.battlePass || INITIAL_STATE.battlePass;
   const xpPercent = bp.xpPerLevel > 0 ? (bp.currentXP / bp.xpPerLevel) * 100 : 0;
   const PREMIUM_COST = 3000;
 
@@ -187,7 +187,7 @@ export default function BattlePassScreen() {
         {/* Quick stats */}
         <div className="grid grid-cols-3 gap-2">
           {[
-            { label: 'Alınan Ödül', val: `${bp.claimedRewardIds.length}/${BP_REWARDS.length}` },
+            { label: 'Alınan Ödül', val: `${bp.claimedRewardIds?.length || 0}/${BP_REWARDS.length}` },
             { label: 'TP Bakiyesi', val: `${state.tycoonPoints.toLocaleString()}` },
             { label: 'VIP', val: isVipActive ? '2× XP' : 'Pasif' },
           ].map(s => (
@@ -243,7 +243,7 @@ export default function BattlePassScreen() {
                   {rewards.free && (
                     <RewardPill
                       reward={rewards.free}
-                      isClaimed={bp.claimedRewardIds.includes(rewards.free.id)}
+                      isClaimed={bp.claimedRewardIds?.includes(rewards.free.id)}
                       isUnlocked={isLevelUnlocked}
                       onClaim={() => handleClaim(rewards.free!)}
                     />
@@ -255,7 +255,7 @@ export default function BattlePassScreen() {
                   {rewards.premium && (
                     <RewardPill
                       reward={rewards.premium}
-                      isClaimed={bp.claimedRewardIds.includes(rewards.premium.id)}
+                      isClaimed={bp.claimedRewardIds?.includes(rewards.premium.id)}
                       isUnlocked={isLevelUnlocked && bp.isPremium}
                       onClaim={() => handleClaim(rewards.premium!)}
                     />
