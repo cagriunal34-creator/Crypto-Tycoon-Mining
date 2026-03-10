@@ -600,14 +600,22 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }, 10000);
 
       try {
-        // ✅ Early return on callback to prevent race with getSession()
-        if (window.location.pathname === '/auth/callback') {
-          console.info("⏳ Callback detect edidi, Supabase exchange bekleniyor...");
-          clearTimeout(loadingTimeout);
-          return;
+        // 1. Capture code from URL for manual exchange (more reliable than auto-detect)
+        const params = new URLSearchParams(window.location.search);
+        const code = params.get('code');
+        const isCallback = window.location.pathname === '/auth/callback';
+
+        if (code && isCallback) {
+          console.info("⚡ PKCE Code detected in URL. Exchanging manually...");
+          const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+          if (exchangeError) {
+            console.error("❌ Exchange error:", exchangeError.message);
+          } else if (data.session) {
+            console.info("✅ Manual exchange successful. Proceeding with session.");
+          }
         }
 
-        console.info("🔑 Checking initial session and fetching global data...");
+        console.info("🔑 Checking session and fetching global data...");
         
         // 🚀 MEGA PARALLEL FETCH
         const sessionPromise = supabase.auth.getSession();
@@ -616,7 +624,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const guildsPromise = supabase.from(TABLES.GUILDS).select('*').order('rank', { ascending: true });
 
         const [
-          { data: { session } },
+          { data: { session: initialSession } },
           { data: settings },
           { data: marketData },
           { data: guilds }
@@ -641,7 +649,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             sellerId: l.seller_id,
             price: l.price,
             listedAt: new Date(l.created_at).getTime(),
-            isOwn: session?.user?.id === l.seller_id
+            isOwn: initialSession?.user?.id === l.seller_id
           }));
           dispatch({ type: 'SET_MARKETPLACE', listings: mappedMarket });
         }
@@ -649,15 +657,21 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Process Guilds
         if (guilds) dispatch({ type: 'SET_GUILDS', guilds: guilds });
 
-        // Process User Session & Profile (This will handle its own loading complete)
-        await handleUserSession(session, true);
+        // Process User Session & Profile
+        await handleUserSession(initialSession, true);
 
       } catch (e) {
         console.error("❌ Init fatal error:", e);
       } finally {
         clearTimeout(loadingTimeout);
-        // Ensure loader is closed if no session was found (handleUserSession with session:null wouldn't set loader:false in initial pass)
-        dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
+        // ✅ CRITICAL FIX: Only release loader if we are NOT in a callback flow
+        // The handleUserSession inside init or auth listener will handle redirection/cleanup
+        if (window.location.pathname !== '/auth/callback') {
+          console.info("🏁 Init complete. Releasing loader.");
+          dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
+        } else {
+          console.info("⏳ Still in callback flow, keeping loader active...");
+        }
       }
     };
 
