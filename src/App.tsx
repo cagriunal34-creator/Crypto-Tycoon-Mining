@@ -211,6 +211,16 @@ function AppInner() {
     );
   }
 
+  // Dedicated Callback Screen (No state check needed)
+  if (window.location.pathname === '/auth/callback') {
+    return (
+      <div className="flex flex-col h-screen max-w-md mx-auto items-center justify-center text-blue-400 bg-zinc-950">
+        <RefreshCw className="animate-spin text-blue-400" size={40} />
+        <p className="mt-4 text-zinc-500 text-xs uppercase tracking-widest font-black italic">Giriş tamamlanıyor...</p>
+      </div>
+    );
+  }
+
   if (!state.user) {
     return <LoginScreen />;
   }
