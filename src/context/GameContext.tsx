@@ -605,8 +605,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // snake_case veya camelCase kolon isimlerini normalize et
         const gameData: any = {
-          ...INITIAL_STATE, // Varsayılan değerleri koru
+          ...INITIAL_STATE,
           ...rest,
+          isLoading: false, // Yüklemeyi bitir
           btcBalance: rest.btcBalance ?? rest.btc_balance ?? 0,
           tycoonPoints: rest.tycoonPoints ?? rest.tycoon_points ?? 0,
           totalHashRate: rest.totalHashRate ?? rest.total_hash_rate ?? 50,
@@ -641,7 +642,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.info('Yeni profil olusturuluyor...');
         const newCode = generateReferralCode();
         const shortId = uid.substring(0, 7);
-        const { data: newProfile } = await supabase
+        const { data: newProfile, error: upsertError } = await supabase
           .from(TABLES.PROFILES)
           .upsert({
             id: uid,
@@ -655,16 +656,27 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .select()
           .single();
 
+        if (upsertError) {
+          console.error('❌ Profil olusturma hatasi:', upsertError.message);
+          dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
+          return;
+        }
+
         if (newProfile) {
           const { id, user: _u, isLoading: _l, ...rest } = newProfile as any;
           const gameData: any = {
+            ...INITIAL_STATE,
             ...rest,
+            isLoading: false,
             userId: rest.userId || rest.user_id || id,
             referralCode: rest.referralCode || rest.referral_code || newCode,
             btcBalance: rest.btcBalance ?? rest.btc_balance ?? 0,
             tycoonPoints: rest.tycoonPoints ?? rest.tycoon_points ?? 1500,
           };
           dispatch({ type: 'SET_GAME_STATE', state: gameData as any });
+        } else {
+            // Veri gelmediyse bile yuklemeyi kapat
+            dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
         }
       }
     } catch (e) {
