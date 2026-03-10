@@ -594,27 +594,34 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }, 10000);
 
       try {
-        const searchParams = new URLSearchParams(window.location.search);
-        const code = searchParams.get('code');
-        console.info("🏁 Simplified Init. URL:", window.location.href, "Code in URL:", !!code);
+        const urlObj = new URL(window.location.href);
+        const code = urlObj.searchParams.get('code');
+        
+        console.info("🏁 DEBUG - Origin:", window.location.origin);
+        console.info("🏁 DEBUG - Full URL:", window.location.href);
+        console.info("🏁 DEBUG - Has Code:", !!code);
 
-        let activeSession = null;
+        let sessionToUse = null;
 
-        // 1. Manual PKCE Exchange (Path agnostic)
+        // 1. Force Manual PKCE Exchange if code exists
         if (code) {
-          console.info("⚡ Code found in URL. Attempting manual exchange...");
-          const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-          if (exchangeError) {
-            console.error("❌ Manual exchange failed:", exchangeError.message);
-          } else if (data.session) {
-            activeSession = data.session;
-            console.info("✅ Manual exchange SUCCESS. User:", activeSession.user.email);
-            // Clean URL after success
-            window.history.replaceState({}, '', window.location.origin);
+          console.info("⚡ Code detected. Forcing manual exchange...");
+          try {
+            const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+            if (exchangeError) {
+              console.error("❌ MANUAL EXCHANGE ERROR:", exchangeError.message, exchangeError);
+            } else if (data.session) {
+              console.info("✅ MANUAL EXCHANGE SUCCESS. Email:", data.session.user.email);
+              sessionToUse = data.session;
+              // Clean URL immediately
+              window.history.replaceState({}, '', window.location.origin);
+            }
+          } catch (err) {
+            console.error("❌ Exchange crash:", err);
           }
         }
 
-        // 2. Fetch Global Data & Session
+        // 2. Fetch Global Data & Session (Parallel)
         const [
           { data: { session: currentSession } },
           { data: settings },
@@ -627,8 +634,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           supabase.from(TABLES.GUILDS).select('*').order('rank', { ascending: true })
         ]);
 
-        // Use exchanged session or fetched session
-        activeSession = activeSession || currentSession;
+        // Priority to manually exchanged session
+        sessionToUse = sessionToUse || currentSession;
+        console.info("🔑 Final Session Check - User:", sessionToUse?.user?.email || "No Session");
 
         // 3. Process Data
         if (settings) {
