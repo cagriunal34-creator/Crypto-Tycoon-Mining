@@ -212,7 +212,7 @@ function AppInner() {
   }
 
   // Handle OAuth Callback Route Manually
-  if (window.location.pathname === '/auth/callback') {
+  if (window.location.pathname === '/auth/callback' && !state.user) {
     return (
       <div className="flex flex-col h-screen max-w-md mx-auto items-center justify-center text-blue-400 bg-zinc-950">
         <div className="relative w-24 h-24 mb-6">
