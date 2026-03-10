@@ -211,22 +211,6 @@ function AppInner() {
     );
   }
 
-  // Handle OAuth Callback Route Manually
-  if (window.location.pathname === '/auth/callback' && !state.user) {
-    return (
-      <div className="flex flex-col h-screen max-w-md mx-auto items-center justify-center text-blue-400 bg-zinc-950">
-        <div className="relative w-24 h-24 mb-6">
-          <div className="absolute inset-0 bg-blue-500/20 blur-2xl rounded-full animate-pulse" />
-          <div className="relative w-full h-full rounded-3xl bg-zinc-900 border border-blue-500/20 flex items-center justify-center">
-            <RefreshCw className="animate-spin text-blue-400" size={40} />
-          </div>
-        </div>
-        <h2 className="text-xl font-black text-white italic tracking-tighter uppercase mb-2">Giriş Onaylanıyor</h2>
-        <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest">Lütfen bekleyin, yönlendiriliyorsunuz...</p>
-      </div>
-    );
-  }
-
   if (!state.user) {
     return <LoginScreen />;
   }
