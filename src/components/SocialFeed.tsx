@@ -21,14 +21,14 @@ export default function SocialFeed() {
         const fetchInitial = async () => {
             const { data } = await supabase
                 .from(TABLES.TRANSACTIONS)
-                .select('*, profiles(username)')
+                .select('*')
                 .order('created_at', { ascending: false })
                 .limit(5);
 
             if (data) {
                 const mapped = data.map((t: any) => ({
                     id: t.id,
-                    user: t.profiles?.username || 'Gizli Madenci',
+                    user: 'Bir Madenci',
                     action: t.description || 'İşlem gerçekleştirdi',
                     time: 'AZ ÖNCE',
                     color: t.amount > 0 ? '#10b981' : '#6366f1'

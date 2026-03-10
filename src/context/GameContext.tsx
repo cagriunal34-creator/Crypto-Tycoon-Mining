@@ -551,7 +551,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           type: t.type,
           amount: t.amount,
           label: t.description || 'İşlem',
-          date: new Date(t.createdAt || t.created_at || t.timestamp).getTime(),
+          date: new Date(t.created_at || t.timestamp || Date.now()).getTime(),
           status: t.status || 'completed'
         }));
         dispatch({ type: 'SET_TRANSACTIONS', transactions: mapped });
@@ -605,16 +605,19 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // snake_case veya camelCase kolon isimlerini normalize et
         const gameData: any = {
+          ...INITIAL_STATE, // Varsayılan değerleri koru
           ...rest,
-          // DB'den btcBalance gelmiyorsa btc_balance'a bak, o da yoksa 0
           btcBalance: rest.btcBalance ?? rest.btc_balance ?? 0,
           tycoonPoints: rest.tycoonPoints ?? rest.tycoon_points ?? 0,
           totalHashRate: rest.totalHashRate ?? rest.total_hash_rate ?? 50,
-          // Kimlik No ve RankTitle DB'de yok, state'e manuel ekliyoruz
           userId: rest.userId || rest.user_id || uid.substring(0, 7),
           referralCode: rest.referralCode || rest.referral_code || '',
           rankTitle: rest.rankTitle || rest.rank_title || 'Garaj Madencisi',
           lastMiningTick: rest.lastMiningTick || rest.MiningTick || Date.now(),
+          battlePass: rest.battlePass || INITIAL_STATE.battlePass,
+          questProgress: rest.questProgress || INITIAL_STATE.questProgress,
+          vip: rest.vip || INITIAL_STATE.vip,
+          farmSettings: rest.farmSettings || INITIAL_STATE.farmSettings,
         };
 
         // Referral code yoksa uret ve kaydet
@@ -747,7 +750,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             sellerName: l.sellerName,
             sellerId: l.seller_id,
             price: l.price,
-            listedAt: new Date(l.createdAt || l.created_at).getTime(),
+            listedAt: new Date(l.created_at || Date.now()).getTime(),
             isOwn: currentUserId === l.seller_id
           }));
           dispatch({ type: 'SET_MARKETPLACE', listings: mappedMarket });

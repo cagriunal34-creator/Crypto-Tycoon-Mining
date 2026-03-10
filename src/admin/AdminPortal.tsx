@@ -239,9 +239,9 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                 const { data: profiles } = await supabase.from(TABLES.PROFILES).select('*');
                 if (profiles) setPlayers(profiles);
 
-                const { data: withdraws, error: wErr } = await supabase.from(TABLES.WITHDRAWALS).select('*, profiles(username)').order('created_at', { ascending: false });
+                const { data: withdraws, error: wErr } = await supabase.from(TABLES.WITHDRAWALS).select('*').order('created_at', { ascending: false });
                 if (wErr) console.error('AdminPortal Withdrawals Error:', wErr);
-                if (withdraws) setWithdrawals(withdraws.map(w => ({ ...w, username: w.profiles?.username || 'Bilinmiyor' })));
+                if (withdraws) setWithdrawals(withdraws.map(w => ({ ...w, username: 'Kullanıcı' })));
 
                 const { data: guilds } = await supabase.from(TABLES.GUILDS).select('*');
                 if (guilds) setAllGuilds(guilds);
@@ -253,9 +253,9 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                 if (lErr) console.error('AdminPortal Logs Error:', lErr);
                 if (logs) setAdminLogs(logs);
 
-                const { data: txs, error: gtErr } = await supabase.from(TABLES.TRANSACTIONS).select('*, profiles(username)').order('created_at', { ascending: false }).limit(100);
+                const { data: txs, error: gtErr } = await supabase.from(TABLES.TRANSACTIONS).select('*').order('created_at', { ascending: false }).limit(100);
                 if (gtErr) console.error('AdminPortal Global Tx Error:', gtErr);
-                if (txs) setAllTransactions(txs.map(t => ({ ...t, username: t.profiles?.username || 'Bilinmiyor' })));
+                if (txs) setAllTransactions(txs.map(t => ({ ...t, username: 'Kullanıcı' })));
             } catch (err) {
                 console.error("Fetch all data error:", err);
             } finally {
