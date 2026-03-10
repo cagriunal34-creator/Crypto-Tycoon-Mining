@@ -589,6 +589,21 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const init = async () => {
       try {
+        // 1. PKCE Code Exchange (Crucial for manual callback flow)
+        const params = new URLSearchParams(window.location.search);
+        const code = params.get('code');
+        if (code && window.location.pathname === '/auth/callback') {
+          console.info("🔑 PKCE code found, exchanging for session...");
+          const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+          if (error) {
+            console.error("❌ Code exchange error:", error);
+          } else if (data.session) {
+            console.info("✅ Session established via PKCE:", data.session.user.email);
+            window.location.href = '/'; // Full reload to start fresh
+            return; // Stop init
+          }
+        }
+
         const { data: { session } } = await supabase.auth.getSession();
         await handleUserSession(session);
 
