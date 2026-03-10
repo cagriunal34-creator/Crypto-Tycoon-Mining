@@ -569,17 +569,21 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     dispatch({ type: 'SET_AUTH_USER', user });
 
     if (user) {
-      if (window.location.pathname === '/auth/callback') {
-        console.info("🧹 Auth callback detected, cleaning URL...");
-        window.history.replaceState({}, '', '/');
-      }
-
+      // Clean up URL internally if we are on callback page (but don't reload yet)
+      const isCallback = window.location.pathname === '/auth/callback';
+      
       await Promise.all([
         fetchProfile(user.id, user.email),
         fetchTransactions(user.id)
       ]);
+
+      if (isCallback) {
+        console.info("🧹 Auth complete. Cleaning URL path...");
+        window.history.replaceState({}, '', '/');
+      }
     } else {
-      if (window.location.pathname !== '/auth/callback') {
+      // Only release loader if not waiting for a PKCE exchange in init
+      if (window.location.search.indexOf('code=') === -1) {
         dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
       }
     }
@@ -589,24 +593,40 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const init = async () => {
       try {
-        // 1. PKCE Code Exchange (Crucial for manual callback flow)
+        console.info("🏁 Initialization started...");
+        
+        // 1. Capture code from URL
         const params = new URLSearchParams(window.location.search);
         const code = params.get('code');
-        if (code && window.location.pathname === '/auth/callback') {
-          console.info("🔑 PKCE code found, exchanging for session...");
+        const isCallback = window.location.pathname === '/auth/callback';
+
+        let activeSession = null;
+        
+        // 2. PKCE Code Exchange (ONE-PASS: Load user and profile immediately)
+        if (code && isCallback) {
+          console.info("⚡ PKCE Code detected. Exchanging for session...");
           const { data, error } = await supabase.auth.exchangeCodeForSession(code);
           if (error) {
-            console.error("❌ Code exchange error:", error);
-          } else if (data.session) {
-            console.info("✅ Session established via PKCE:", data.session.user.email);
-            window.location.href = '/'; // Full reload to start fresh
-            return; // Stop init
+            console.error("❌ Exchange error:", error.message);
+            dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
+            return;
+          } else {
+            activeSession = data.session;
+            console.info("✅ Exchange successful. User:", activeSession?.user?.email);
           }
         }
 
-        const { data: { session } } = await supabase.auth.getSession();
-        await handleUserSession(session);
+        // 3. Fallback to getSession if no code or exchange failed
+        if (!activeSession) {
+          console.info("🔍 Checking existing regular session...");
+          const { data: { session } } = await supabase.auth.getSession();
+          activeSession = session;
+        }
 
+        // 4. Process the found session (this will fetch profile if user exists)
+        await handleUserSession(activeSession);
+
+        // 5. Load global static data
         const { data: settings } = await supabase.from(TABLES.SETTINGS).select('*').eq('id', 'v1').single();
         if (settings) {
           dispatch({ type: 'SET_GLOBAL_SETTINGS', settings });
@@ -630,7 +650,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             sellerId: l.seller_id,
             price: l.price,
             listedAt: new Date(l.created_at).getTime(),
-            isOwn: state.user?.id === l.seller_id
+            isOwn: activeSession?.user?.id === l.seller_id
           }));
           dispatch({ type: 'SET_MARKETPLACE', listings: mappedMarket });
         }
