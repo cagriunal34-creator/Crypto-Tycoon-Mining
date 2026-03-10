@@ -534,12 +534,16 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchTransactions = async (userId: string) => {
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from(TABLES.TRANSACTIONS)
         .select('*')
         .eq('user_id', userId)
-        .order('created_at', { ascending: false })
+        .order('createdAt', { ascending: false })
         .limit(20);
+
+      if (error) {
+        console.error('❌ Transactions fetch error:', error.message, error.details);
+      }
 
       if (data) {
         const mapped = data.map((t: any) => ({
@@ -547,7 +551,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           type: t.type,
           amount: t.amount,
           label: t.description || 'İşlem',
-          date: new Date(t.created_at || t.timestamp).getTime(),
+          date: new Date(t.createdAt || t.created_at || t.timestamp).getTime(),
           status: t.status || 'completed'
         }));
         dispatch({ type: 'SET_TRANSACTIONS', transactions: mapped });
@@ -725,10 +729,13 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           dispatch({ type: 'SET_GLOBAL_MULTIPLIER', multiplier: settings.globalMultiplier || 1.0 });
         }
 
-        const [{ data: marketData }, { data: guilds }] = await Promise.all([
-          supabase.from(TABLES.MARKETPLACE).select('*').order('created_at', { ascending: false }),
+        const [{ data: marketData, error: marketErr }, { data: guilds, error: guildsErr }] = await Promise.all([
+          supabase.from(TABLES.MARKETPLACE).select('*').order('createdAt', { ascending: false }),
           supabase.from(TABLES.GUILDS).select('*').order('rank', { ascending: true }),
         ]);
+
+        if (marketErr) console.error('❌ Marketplace fetch error:', marketErr.message);
+        if (guildsErr) console.error('❌ Guilds fetch error:', guildsErr.message);
 
         if (guilds) dispatch({ type: 'SET_GUILDS', guilds });
         if (marketData) {
@@ -744,7 +751,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             sellerName: l.sellerName,
             sellerId: l.seller_id,
             price: l.price,
-            listedAt: new Date(l.created_at).getTime(),
+            listedAt: new Date(l.createdAt || l.created_at).getTime(),
             isOwn: currentUserId === l.seller_id
           }));
           dispatch({ type: 'SET_MARKETPLACE', listings: mappedMarket });
