@@ -11,7 +11,7 @@ export const LoginScreen: React.FC = () => {
         setIsLoggingIn(true);
         setError(null);
         try {
-            const redirectUrl = window.location.origin + window.location.pathname;
+            const redirectUrl = window.location.origin + '/auth/callback';
             console.info("🚀 Starting Google Login. Redirect URL:", redirectUrl);
             
             const { error: authError } = await supabase.auth.signInWithOAuth({
@@ -19,7 +19,7 @@ export const LoginScreen: React.FC = () => {
                 options: {
                     redirectTo: redirectUrl,
                     queryParams: {
-                        prompt: 'select_account', // Force account selection to avoid auto-login issues
+                        prompt: 'select_account',
                         access_type: 'offline',
                     }
                 }

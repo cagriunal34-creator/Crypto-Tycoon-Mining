@@ -574,6 +574,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       dispatch({ type: 'SET_AUTH_USER', user });
 
       if (user) {
+        // Clear auth callback from URL if present
+        if (window.location.pathname === '/auth/callback') {
+          console.info("🧹 Cleaning up auth callback from URL...");
+          window.history.replaceState({}, '', '/');
+        }
+
         await Promise.all([
           fetchProfile(user.id, user.email),
           fetchTransactions(user.id)
