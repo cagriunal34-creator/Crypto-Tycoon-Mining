@@ -600,19 +600,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }, 10000);
 
       try {
-        // 1. Capture code from URL for manual exchange (more reliable than auto-detect)
-        const params = new URLSearchParams(window.location.search);
-        const code = params.get('code');
-        const isCallback = window.location.pathname === '/auth/callback';
-
-        if (code && isCallback) {
-          console.info("⚡ PKCE Code detected in URL. Exchanging manually...");
-          const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-          if (exchangeError) {
-            console.error("❌ Exchange error:", exchangeError.message);
-          } else if (data.session) {
-            console.info("✅ Manual exchange successful. Proceeding with session.");
-          }
+        // ✅ Early return on callback to prevent race with getSession()
+        // Implicit flow handles code exchange automatically via detectSessionInUrl
+        if (window.location.pathname === '/auth/callback') {
+          console.info("⏳ Callback detect edidi, Supabase implicit exchange bekleniyor...");
+          clearTimeout(loadingTimeout);
+          return;
         }
 
         console.info("🔑 Checking session and fetching global data...");
