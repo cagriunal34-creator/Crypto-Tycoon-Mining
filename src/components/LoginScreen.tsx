@@ -11,7 +11,7 @@ export const LoginScreen: React.FC = () => {
         setIsLoggingIn(true);
         setError(null);
         try {
-            const redirectUrl = window.location.origin + '/auth/callback';
+            const redirectUrl = window.location.origin;
             console.info("🚀 Starting Google Login. Redirect URL:", redirectUrl);
             
             const { error: authError } = await supabase.auth.signInWithOAuth({

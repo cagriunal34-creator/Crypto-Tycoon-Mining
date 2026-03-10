@@ -530,14 +530,14 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const fetchProfile = async (uid: string, email?: string, skipLoader: boolean = false) => {
+  const fetchProfile = async (uid: string, email?: string) => {
     try {
       console.info("🔍 Fetching profile for:", uid);
       const { data: profile, error } = await supabase.from(TABLES.PROFILES).select('*').eq('id', uid).single();
       
       if (profile && !error) {
         console.info("✅ Profile found:", profile.username);
-        dispatch({ type: 'SET_GAME_STATE', state: { ...profile, ...(skipLoader ? {} : { isLoading: false }) } as any });
+        dispatch({ type: 'SET_GAME_STATE', state: { ...profile, isLoading: false } as any });
       } else {
         // Profil yoksa yeni oluştur - Çakışmaları önlemek için username'e random ekle
         const baseUsername = email?.split('@')[0] || 'Madenci';
@@ -553,91 +553,60 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         dispatch({ 
           type: 'SET_GAME_STATE', 
-          state: { ...(newProfile || {}), ...(skipLoader ? {} : { isLoading: false }) } as any 
+          state: { ...(newProfile || {}), isLoading: false } as any 
         });
       }
     } catch (err) {
       console.error("❌ fetchProfile fatal error:", err);
-      if (!skipLoader) dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
+      dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
     }
   };
 
-  const handleUserSession = async (session: any, isInitial: boolean = false) => {
+  const handleUserSession = async (session: any) => {
     const user = session?.user ?? null;
-    console.info("👤 handleUserSession - Event:", user?.email || "No Session", "Initial:", isInitial);
+    console.info("👤 handleUserSession - User:", user?.email || "No Session");
     
     dispatch({ type: 'SET_AUTH_USER', user });
 
     if (user) {
-      // Önce profil verilerini çek
+      // Parallelize profile and transactions
       await Promise.all([
-        fetchProfile(user.id, user.email, isInitial),
+        fetchProfile(user.id, user.email),
         fetchTransactions(user.id)
       ]);
-
-      // ✅ BURASI KRİTİK: location.href YERİNE replaceState kullanıyoruz.
-      // Sayfa yenilenmezse oturum (session) bellekte kalmaya devam eder, reload riski biter.
-      if (window.location.pathname === '/auth/callback') {
-        console.info("🧹 URL cleaning (no reload)...");
-        window.history.replaceState({}, '', '/');
-        // Manuel re-render tetikle (eğer state değişmediyse diye)
-        dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
-      }
-    } else {
-      if (window.location.pathname !== '/auth/callback' && !isInitial) {
-        dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
-      }
     }
+    
+    // Always finalize loader here (unless handled by individual fetches - but better here for global consistency)
+    dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
   };
 
   // Main Init & Auth Effect
   useEffect(() => {
+    let isMounted = true;
+
     const init = async () => {
-      // ✅ 10 saniye sonra hâlâ loading varsa zorla kapat (Güvenlik ağı)
+      // Security Net
       const loadingTimeout = setTimeout(() => {
-        console.warn("⏰ Loading timeout — zorla kapatılıyor");
-        dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
+        if (isMounted) dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
       }, 10000);
 
       try {
-        console.info("🏁 Initialization started...");
-        
-        // 1. Manually exchange code if present (PKCE)
-        const params = new URLSearchParams(window.location.search);
-        const code = params.get('code');
-        const isCallback = window.location.pathname === '/auth/callback';
+        console.info("🏁 Starting simplified initialization...");
 
-        let activeSession = null;
-
-        if (code && isCallback) {
-          console.info("⚡ PKCE Code detected. Exchanging manually...");
-          const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-          if (exchangeError) {
-            console.error("❌ Exchange error:", exchangeError.message);
-          } else {
-            activeSession = data.session;
-            console.info("✅ Exchange successful. User:", activeSession?.user?.email);
-          }
-        }
-
-        // 2. Fallback to global session check
-        if (!activeSession) {
-          const { data: { session: existingSession } } = await supabase.auth.getSession();
-          activeSession = existingSession;
-        }
-
-        // 🚀 3. MEGA PARALLEL FETCH (Now with session)
-        const settingsPromise = supabase.from(TABLES.SETTINGS).select('*').eq('id', 'v1').single();
-        const marketPromise = supabase.from(TABLES.MARKETPLACE).select('*').order('created_at', { ascending: false });
-        const guildsPromise = supabase.from(TABLES.GUILDS).select('*').order('rank', { ascending: true });
-
+        // 1. Fetch Global Data (Parallel)
         const [
+          { data: { session: currentSession } },
           { data: settings },
           { data: marketData },
           { data: guilds }
-        ] = await Promise.all([settingsPromise, marketPromise, guildsPromise]);
+        ] = await Promise.all([
+          supabase.auth.getSession(),
+          supabase.from(TABLES.SETTINGS).select('*').eq('id', 'v1').single(),
+          supabase.from(TABLES.MARKETPLACE).select('*').order('created_at', { ascending: false }),
+          supabase.from(TABLES.GUILDS).select('*').order('rank', { ascending: true })
+        ]);
 
-        // Process Settings, Market, Guilds
+        // 2. Process Data
         if (settings) {
           dispatch({ type: 'SET_GLOBAL_SETTINGS', settings });
           dispatch({ type: 'SET_MAINTENANCE', isMaintenance: settings.isMaintenance });
@@ -655,23 +624,20 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             sellerId: l.seller_id,
             price: l.price,
             listedAt: new Date(l.created_at).getTime(),
-            isOwn: activeSession?.user?.id === l.seller_id
+            isOwn: currentSession?.user?.id === l.seller_id
           }));
           dispatch({ type: 'SET_MARKETPLACE', listings: mappedMarket });
         }
-        if (guilds) dispatch({ type: 'SET_GUILDS', guilds: guilds });
+        if (guilds) dispatch({ type: 'SET_GUILDS', guilds });
 
-        // 4. Handle User State (Profile, Transactions)
-        await handleUserSession(activeSession, true);
+        // 3. Process Session
+        if (isMounted) await handleUserSession(currentSession);
 
       } catch (e) {
-        console.error("❌ Init fatal error:", e);
+        console.error("❌ Init failed:", e);
+        if (isMounted) dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
       } finally {
         clearTimeout(loadingTimeout);
-        // Release loader locally if not handled by handleUserSession redirect
-        if (window.location.pathname !== '/auth/callback') {
-          dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
-        }
       }
     };
 
@@ -692,6 +658,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }).subscribe();
 
     return () => {
+      isMounted = false;
       authSub.unsubscribe();
       settingsSub.unsubscribe();
     };
