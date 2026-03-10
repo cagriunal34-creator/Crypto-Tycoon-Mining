@@ -596,6 +596,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           supabase.from(TABLES.GUILDS).select('*').order('rank', { ascending: true })
         ]);
 
+        const { data: { session } } = await supabase.auth.getSession();
+        const currentUserId = session?.user?.id;
+
         if (marketData) {
           const mappedMarket: MarketListing[] = marketData.map(l => ({
             id: l.id,
@@ -608,6 +611,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             sellerId: l.seller_id,
             price: l.price,
             listedAt: new Date(l.created_at).getTime(),
+            isOwn: currentUserId === l.seller_id
           }));
           dispatch({ type: 'SET_MARKETPLACE', listings: mappedMarket });
         }
