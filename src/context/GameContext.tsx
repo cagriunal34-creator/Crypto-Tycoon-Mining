@@ -170,6 +170,9 @@ export interface GameState {
   lastAdWatchTime: number;
   adRewardBtc: number;
   adRewardTp: number;
+  adRewardDailyLimit: number;
+  adRewardDuration: number;
+  adRewardEnabled: boolean;
   adCooldown: number; // ms
   // ── NEW: Interstitial Ads ──────────────────────────────────────────────────
   interstitialAdInterval: number; // ms
@@ -305,6 +308,9 @@ export const INITIAL_STATE: GameState = {
   lastAdWatchTime: 0,
   adRewardBtc: 0,
   adRewardTp: 0,
+  adRewardDailyLimit: 10,
+  adRewardDuration: 30,
+  adRewardEnabled: true,
   adCooldown: 0,
   interstitialAdInterval: 0,
   lastInterstitialAdAt: 0,
@@ -350,6 +356,7 @@ type Action =
   | { type: 'SET_MARKETPLACE'; listings: MarketListing[] }
   | { type: 'SET_LEADERBOARD'; leaders: any[] }
   | { type: 'SET_GUILDS'; guilds: Guild[] }
+  | { type: 'SET_AD_REWARD'; btc: number; tp: number; dailyLimit: number; duration: number; enabled: boolean }
   | { type: 'SET_GLOBAL_MULTIPLIER'; multiplier: number }
   | { type: 'SET_MAINTENANCE'; isMaintenance: boolean }
   | { type: 'SET_GLOBAL_SETTINGS'; settings: any }
@@ -364,6 +371,15 @@ type Action =
   | { type: 'BP_BUY_PREMIUM' }
   | { type: 'APPLY_REFERRAL_CODE'; code: string }
   | { type: 'ADMIN_RESET_GAME' }
+  | { type: 'PRESTIGE' }
+  | { type: 'CLAIM_QUEST'; questId: string; reward: { tp?: number; speedBoost?: number } }
+  | { type: 'VIP_ACTIVATE'; tier: 'silver' | 'gold'; days: number; cost: number }
+  | { type: 'UPDATE_FARM'; settings: Partial<FarmSettings> }
+  | { type: 'PURCHASE_CONTRACT'; contract: OwnedContract; cost: number }
+  | { type: 'CALC_OFFLINE_EARNINGS'; secondsAway: number }
+  | { type: 'LUCKY_WHEEL_SPIN'; cost: number }
+  | { type: 'CLAIM_WHEEL_REWARD'; reward: { type: string; value: number | string; label: string } }
+  | { type: 'WATCH_AD' }
   | { type: 'SET_MODAL'; modal: string | null };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -473,6 +489,14 @@ function gameReducer(state: GameState, action: Action): GameState {
     case 'DISMISS_OFFLINE_EARNINGS': return { ...state, offlineEarningsShown: true, pendingOfflineEarnings: 0 };
     case 'RESET_INTERSTITIAL_TIMER': return { ...state, lastInterstitialAdAt: Date.now() };
     case 'SET_GLOBAL_SETTINGS': return { ...state, globalSettings: action.settings };
+    case 'SET_AD_REWARD': return {
+      ...state,
+      adRewardBtc: action.btc,
+      adRewardTp: action.tp,
+      adRewardDailyLimit: action.dailyLimit,
+      adRewardDuration: action.duration,
+      adRewardEnabled: action.enabled,
+    };
     case 'SET_MAINTENANCE': return { ...state, isMaintenance: action.isMaintenance };
     case 'SET_GUILDS': return { ...state, guilds: action.guilds };
     case 'SET_MARKETPLACE': return { ...state, marketListings: action.listings };
@@ -492,6 +516,92 @@ function gameReducer(state: GameState, action: Action): GameState {
     case 'ADMIN_SET_TP': return { ...state, tycoonPoints: action.amount };
     case 'ADMIN_SET_LEVEL': return { ...state, level: action.level };
     case 'ADMIN_TOGGLE_INFINITE_ENERGY': return { ...state, isInfiniteEnergy: !state.isInfiniteEnergy };
+    case 'PRESTIGE': {
+      const nextLevel = state.prestigeLevel + 1;
+      const nextMult = 1.0 + nextLevel * 0.25;
+      return {
+        ...state,
+        prestigeLevel: nextLevel,
+        prestigeMultiplier: nextMult,
+        btcBalance: state.btcBalance * 0.20,
+        level: 1,
+        xp: 0,
+        xpToNextLevel: 500,
+        energyCells: state.maxEnergyCells,
+        ownedContracts: [],
+        activeMiningEvents: [],
+        activeContracts: [],
+      };
+    }
+    case 'CLAIM_QUEST': return {
+      ...state,
+      tycoonPoints: state.tycoonPoints + (action.reward.tp || 0),
+      questProgress: {
+        ...state.questProgress,
+        claimedQuestIds: [...state.questProgress.claimedQuestIds, action.questId]
+      }
+    };
+    case 'VIP_ACTIVATE': return {
+      ...state,
+      tycoonPoints: state.tycoonPoints - action.cost,
+      vip: {
+        isActive: true,
+        tier: action.tier,
+        expiresAt: Date.now() + action.days * 86400000,
+        perks: VIP_PERKS[action.tier] || []
+      }
+    };
+    case 'UPDATE_FARM': return {
+      ...state,
+      farmSettings: { ...state.farmSettings, ...action.settings }
+    };
+    case 'PURCHASE_CONTRACT': return {
+      ...state,
+      btcBalance: state.btcBalance - action.cost,
+      ownedContracts: [...state.ownedContracts, action.contract]
+    };
+    case 'CALC_OFFLINE_EARNINGS': {
+      // Very simple offline calc for now
+      const energyScale = energyToHashScale(state.energyCells, state.maxEnergyCells);
+      const btcPerSec = calcBtcPerSecond(state.totalHashRate, state.activeMiningEvents, state.prestigeMultiplier, energyScale);
+      const earned = btcPerSec * action.secondsAway * 0.5; // 50% efficiency while offline
+      return {
+        ...state,
+        pendingOfflineEarnings: state.btcBalance + earned,
+        offlineEarningsShown: false
+      };
+    }
+    case 'BP_BUY_PREMIUM': return {
+      ...state,
+      battlePass: { ...state.battlePass, isPremium: true }
+    };
+    case 'BP_CLAIM_REWARD': return {
+      ...state,
+      battlePass: { ...state.battlePass, claimedRewardIds: [...state.battlePass.claimedRewardIds, action.rewardId] }
+    };
+    case 'LUCKY_WHEEL_SPIN': return {
+      ...state,
+      tycoonPoints: state.tycoonPoints - action.cost,
+      lastWheelSpin: Date.now()
+    };
+    case 'CLAIM_WHEEL_REWARD': {
+      const { type, value } = action.reward;
+      if (type === 'tp') return { ...state, tycoonPoints: state.tycoonPoints + (value as number) };
+      if (type === 'btc') return { ...state, btcBalance: state.btcBalance + (value as number) };
+      // Speed boost is handled differently in this app (usually by globalMultiplier or event)
+      // For now we just return state for other types
+      return state;
+    }
+    case 'WATCH_AD': return {
+      ...state,
+      btcBalance: state.btcBalance + state.adRewardBtc,
+      tycoonPoints: state.tycoonPoints + state.adRewardTp,
+      lastAdWatchTime: Date.now(),
+      questProgress: {
+        ...state.questProgress,
+        adsWatched: (state.questProgress.adsWatched || 0) + 1
+      }
+    };
     case 'SET_MODAL': return { ...state, activeModal: action.modal };
     default: return state;
   }
@@ -534,16 +644,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchTransactions = async (userId: string) => {
     try {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from(TABLES.TRANSACTIONS)
         .select('*')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(20);
-
-      if (error) {
-        console.error('❌ Transactions fetch error:', error.message, error.details);
-      }
 
       if (data) {
         const mapped = data.map((t: any) => ({
@@ -551,7 +657,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           type: t.type,
           amount: t.amount,
           label: t.description || 'İşlem',
-          date: new Date(t.created_at || t.timestamp || Date.now()).getTime(),
+          date: new Date(t.created_at || t.timestamp).getTime(),
           status: t.status || 'completed'
         }));
         dispatch({ type: 'SET_TRANSACTIONS', transactions: mapped });
@@ -565,7 +671,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const { data } = await supabase
         .from(TABLES.PROFILES)
-        .select('*')
+        .select('id, username, btcBalance, totalHashRate, level')
         .order('btcBalance', { ascending: false })
         .limit(50);
 
@@ -602,81 +708,41 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (profile && !error) {
         const { id, user: _u, isLoading: _l, ...rest } = profile as any;
-
-        // snake_case veya camelCase kolon isimlerini normalize et
-        const gameData: any = {
-          ...INITIAL_STATE,
-          ...rest,
-          isLoading: false, 
-          btcBalance: rest.btcBalance ?? rest.btc_balance ?? 0,
-          tycoonPoints: rest.tycoonPoints ?? rest.tycoon_points ?? 0,
-          totalHashRate: rest.totalHashRate ?? rest.total_hash_rate ?? 50,
-          userId: rest.userId || rest.user_id || uid.substring(0, 7),
-          referralCode: rest.referralCode || rest.referral_code || '',
-          rankTitle: rest.rankTitle || rest.rank_title || 'Garaj Madencisi',
-          lastMiningTick: rest.lastMiningTick || rest.MiningTick || Date.now(),
-          battlePass: rest.battlePass || INITIAL_STATE.battlePass,
-          questProgress: rest.questProgress || INITIAL_STATE.questProgress,
-          vip: rest.vip || INITIAL_STATE.vip,
-          farmSettings: rest.farmSettings || INITIAL_STATE.farmSettings,
-        };
-
-        // Referral code yoksa uret ve kaydet
-        if (!gameData.referralCode) {
+        const gameData = { ...rest, userId: id };
+        
+        // Referral code yoksa üret ve güncelle
+        if (!profile.referralCode) {
           const newCode = generateReferralCode();
-          console.info('🎟️ Referans kodu uretiliyor:', newCode);
-          const { error: updateErr } = await supabase.from(TABLES.PROFILES).update({
-            referralCode: newCode,
-          }).eq('id', uid);
-          
-          if (updateErr) {
-            console.error('❌ Referans kodu kaydedilemedi:', updateErr);
-          } else {
-            console.info('✅ Referans kodu basariyla kaydedildi.');
-            gameData.referralCode = newCode;
-          }
+          console.info('🎟️ Referans kodu üretiliyor:', newCode);
+          await supabase.from(TABLES.PROFILES).update({ referralCode: newCode }).eq('id', uid);
+          gameData.referralCode = newCode;
         }
 
         dispatch({ type: 'SET_GAME_STATE', state: gameData as any });
       } else {
-        console.info('Yeni profil olusturuluyor...');
+        console.info('✨ Yeni profil oluşturuluyor...');
         const newCode = generateReferralCode();
-        const shortId = uid.substring(0, 7);
-        const { data: newProfile, error: upsertError } = await supabase
+        const { data: newProfile } = await supabase
           .from(TABLES.PROFILES)
           .upsert({
             id: uid,
             username: displayName || email?.split('@')[0] || 'Madenci',
-            referralCode: newCode,
+            email: email,
+            userId: uid.substring(0, 7),
+            referralCode: generateReferralCode(),
             btcBalance: 0,
             tycoonPoints: 1500,
             level: 1,
             xp: 0,
+            rankTitle: 'Garaj Madencisi',
           })
           .select()
           .single();
 
-        if (upsertError) {
-          console.error('❌ Profil olusturma hatasi:', upsertError.message);
-          dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
-          return;
-        }
-
         if (newProfile) {
           const { id, user: _u, isLoading: _l, ...rest } = newProfile as any;
-          const gameData: any = {
-            ...INITIAL_STATE,
-            ...rest,
-            isLoading: false,
-            userId: rest.userId || rest.user_id || id,
-            referralCode: rest.referralCode || rest.referral_code || newCode,
-            btcBalance: rest.btcBalance ?? rest.btc_balance ?? 0,
-            tycoonPoints: rest.tycoonPoints ?? rest.tycoon_points ?? 1500,
-          };
+          const gameData = { ...rest, userId: id };
           dispatch({ type: 'SET_GAME_STATE', state: gameData as any });
-        } else {
-            // Veri gelmediyse bile yuklemeyi kapat
-            dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
         }
       }
     } catch (e) {
@@ -740,13 +806,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           dispatch({ type: 'SET_GLOBAL_MULTIPLIER', multiplier: settings.globalMultiplier || 1.0 });
         }
 
-        const [{ data: marketData, error: marketErr }, { data: guilds, error: guildsErr }] = await Promise.all([
+        const [{ data: marketData }, { data: guilds }] = await Promise.all([
           supabase.from(TABLES.MARKETPLACE).select('*').order('created_at', { ascending: false }),
           supabase.from(TABLES.GUILDS).select('*').order('rank', { ascending: true }),
         ]);
-
-        if (marketErr) console.error('❌ Marketplace fetch error:', marketErr.message);
-        if (guildsErr) console.error('❌ Guilds fetch error:', guildsErr.message);
 
         if (guilds) dispatch({ type: 'SET_GUILDS', guilds });
         if (marketData) {
@@ -762,10 +825,29 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             sellerName: l.sellerName,
             sellerId: l.seller_id,
             price: l.price,
-            listedAt: new Date(l.created_at || Date.now()).getTime(),
+            listedAt: new Date(l.created_at).getTime(),
             isOwn: currentUserId === l.seller_id
           }));
           dispatch({ type: 'SET_MARKETPLACE', listings: mappedMarket });
+        }
+
+        // ── Ödüllü reklam ödüllerini free_options'dan yükle ─────────────
+        const { data: freeOpts } = await supabase
+          .from(TABLES.SETTINGS)
+          .select('*')
+          .eq('id', 'free_options')
+          .single();
+
+        if (freeOpts?.value) {
+          const v = freeOpts.value;
+          dispatch({
+            type: 'SET_AD_REWARD',
+            btc: parseFloat(v.ad_reward_btc) || 0,
+            tp: parseInt(v.ad_reward_tp) || 0,
+            dailyLimit: parseInt(v.ad_reward_daily_limit) || 10,
+            duration: parseInt(v.ad_reward_duration) || 30,
+            enabled: v.ad_reward_enabled !== false,
+          });
         }
       } catch (e) {
         console.error('Global data error:', e);
@@ -780,10 +862,27 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.SETTINGS }, (payload) => {
         if (payload.new) {
           const s = payload.new as any;
-          dispatch({ type: 'SET_GLOBAL_SETTINGS', settings: s });
-          dispatch({ type: 'SET_MAINTENANCE', isMaintenance: s.isMaintenance });
-          if (s.announcement) dispatch({ type: 'SET_ANNOUNCEMENT', announcement: s.announcement });
-          dispatch({ type: 'SET_GLOBAL_MULTIPLIER', multiplier: s.globalMultiplier || 1.0 });
+
+          // v1 → global settings
+          if (s.id === 'v1') {
+            dispatch({ type: 'SET_GLOBAL_SETTINGS', settings: s });
+            dispatch({ type: 'SET_MAINTENANCE', isMaintenance: s.isMaintenance });
+            if (s.announcement) dispatch({ type: 'SET_ANNOUNCEMENT', announcement: s.announcement });
+            dispatch({ type: 'SET_GLOBAL_MULTIPLIER', multiplier: s.globalMultiplier || 1.0 });
+          }
+
+          // free_options → reklam ödülleri anında güncelle
+          if (s.id === 'free_options' && s.value) {
+            const v = s.value;
+            dispatch({
+              type: 'SET_AD_REWARD',
+              btc: parseFloat(v.ad_reward_btc) || 0,
+              tp: parseInt(v.ad_reward_tp) || 0,
+              dailyLimit: parseInt(v.ad_reward_daily_limit) || 10,
+              duration: parseInt(v.ad_reward_duration) || 30,
+              enabled: v.ad_reward_enabled !== false,
+            });
+          }
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.MARKETPLACE }, () => {

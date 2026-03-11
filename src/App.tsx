@@ -285,10 +285,10 @@ function AppInner() {
       {/* ── Overflow Menu ──────────────────────────────────────── */}
       <AnimatePresence>
         {menuOpen && (
-          <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={() => setMenuOpen(false)}
-              className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm" />
+          <motion.div key="menu-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[90]">
+            <div onClick={() => setMenuOpen(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
               className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[100] w-[calc(100%-2rem)] max-w-sm rounded-3xl p-4 shadow-2xl backdrop-blur-xl"
               style={{ background: `${theme.vars['--ct-surface']}F5`, border: `1px solid ${a1}20` }}>
@@ -312,7 +312,7 @@ function AppInner() {
                 })}
               </div>
             </motion.div>
-          </>
+          </motion.div>
         )}
       </AnimatePresence>
       <ParticleBackground />
