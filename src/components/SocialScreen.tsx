@@ -6,7 +6,8 @@
 import React from 'react';
 import {
   Trophy, Crown, Zap, Users, Copy, Share2,
-  ChevronUp, ChevronDown, Minus, Star, Shield, X, User
+  ChevronUp, ChevronDown, Minus, Star, Shield, X, User,
+  Tag, Gift
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -59,6 +60,9 @@ export default function SocialScreen() {
 
   // Redeem Code State
   const [redeemCode, setRedeemCode] = React.useState('');
+  const [promoCode, setPromoCode] = React.useState('');
+  const [promoLoading, setPromoLoading] = React.useState(false);
+  const [promoResult, setPromoResult] = React.useState<{ success: boolean; message: string } | null>(null);
 
   const handleCreateGuild = async () => {
     if (guildName.trim().length < 3) {
@@ -126,6 +130,21 @@ export default function SocialScreen() {
     dispatch({ type: 'APPLY_REFERRAL_CODE', code: redeemCode });
     notify({ type: 'success', title: 'Başarılı', message: 'Kod uygulandı! +1000 TP ve %5 Hız Bonusu kazandın.' });
     setRedeemCode('');
+  };
+
+  const handleRedeemPromo = async () => {
+    if (!promoCode.trim()) return;
+    setPromoLoading(true);
+    setPromoResult(null);
+    const result = await state.redeemPromoCode(promoCode.trim());
+    setPromoResult(result);
+    if (result.success) {
+      notify({ type: 'success', title: 'Promo Kodu Kullanıldı!', message: result.message });
+      setPromoCode('');
+    } else {
+      notify({ type: 'warning', title: 'Geçersiz Kod', message: result.message });
+    }
+    setPromoLoading(false);
   };
 
   const leaders = state.leaderboard || [];
@@ -471,6 +490,46 @@ export default function SocialScreen() {
           </p>
         </div>
       )}
+
+      {/* Promo Code Section */}
+      <div className="glass-card rounded-xl p-4 space-y-3 border border-white/5 bg-white/[0.02]">
+        <div className="flex items-center gap-2">
+          <Tag size={16} className="text-emerald-400" />
+          <h3 className="text-sm font-black">Promosyon Kodu</h3>
+        </div>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={promoCode}
+            onChange={(e) => { setPromoCode(e.target.value.toUpperCase()); setPromoResult(null); }}
+            placeholder="PROMO KODUNU GİR..."
+            className="flex-1 bg-black/30 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-emerald-500/50 transition-colors"
+          />
+          <button
+            onClick={handleRedeemPromo}
+            disabled={!promoCode.trim() || promoLoading}
+            className="px-4 py-2 bg-emerald-500 text-black font-bold text-xs rounded-xl hover:brightness-110 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            {promoLoading ? <div className="w-3 h-3 border-2 border-black/30 border-t-black rounded-full animate-spin" /> : <Gift size={14} />}
+            {promoLoading ? '...' : 'Kullan'}
+          </button>
+        </div>
+        <AnimatePresence>
+          {promoResult && (
+            <motion.p 
+              initial={{ opacity: 0, height: 0 }} 
+              animate={{ opacity: 1, height: 'auto' }} 
+              exit={{ opacity: 0, height: 0 }}
+              className={cn("text-[10px] font-bold", promoResult.success ? "text-emerald-400" : "text-red-400")}
+            >
+              {promoResult.message}
+            </motion.p>
+          )}
+        </AnimatePresence>
+        <p className="text-[10px] text-zinc-500">
+          Admin tarafından paylaşılan kodları buraya girerek özel ödüller alabilirsin.
+        </p>
+      </div>
 
       {/* Leaderboard */}
       <div className="space-y-3">

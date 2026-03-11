@@ -594,11 +594,18 @@ function gameReducer(state: GameState, action: Action): GameState {
     case 'SET_AUTH_USER': return { ...state, user: action.user };
     case 'SET_GAME_STATE': {
       const { user: _u, isLoading: _l, ...safeState } = action.state as any;
+      // Ensure questProgress is merged safely if present
+      if (safeState.questProgress) {
+        safeState.questProgress = {
+           ...INITIAL_STATE.questProgress,
+           ...safeState.questProgress
+        };
+      }
       return {
         ...state,
         ...safeState,
         user: state.user,
-        isLoading: (action.state as any).isLoading ?? state.isLoading,
+        isLoading: false
       };
     }
     case 'ADD_TP': return { ...state, tycoonPoints: state.tycoonPoints + action.amount };
@@ -919,11 +926,22 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           lastClaim: rawStreak.lastClaim ?? 0
         };
 
+        // Ensure questProgress object exists with defaults
+        const rawQuestProgress = rest.questProgress || {};
+        const questProgress = {
+          adsWatched: rawQuestProgress.adsWatched ?? 0,
+          contractsPurchased: rawQuestProgress.contractsPurchased ?? 0,
+          referralsDone: rawQuestProgress.referralsDone ?? 0,
+          loginStreak: rawQuestProgress.loginStreak ?? 0,
+          claimedQuestIds: rawQuestProgress.claimedQuestIds ?? []
+        };
+
         const gameData = { 
           ...rest, 
           userId: id,
           streak: streak,
-          loginStreak: streak.count
+          loginStreak: streak.count,
+          questProgress: questProgress
         };
         
         // Referral code yoksa üret ve güncelle
