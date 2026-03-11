@@ -1087,10 +1087,13 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const currentBtcPerSecond = calcBtcPerSecond(state.totalHashRate, state.activeMiningEvents, state.prestigeMultiplier, energyScale, state.isFeverMode, state.researchedNodes);
   const earnedTodayBtc = currentBtcPerSecond * 86400;
   
+  const todayStr = new Date().toISOString().split('T')[0];
+  const currentDailyEarned = state.lastEarningsResetDate === todayStr ? state.dailyEarningsBtc : 0;
+  
   const isVipCapExempt = state.vip?.isActive && state.vip.expiresAt > Date.now();
   const dailyCapBtc = 1.0 / (state.usdRate || 91200);
-  const dailyCapReached = !isVipCapExempt && state.dailyEarningsBtc >= dailyCapBtc;
-  const dailyEarnedPct = Math.min(100, (state.dailyEarningsBtc / dailyCapBtc) * 100);
+  const dailyCapReached = !isVipCapExempt && currentDailyEarned >= dailyCapBtc;
+  const dailyEarnedPct = Math.min(100, (currentDailyEarned / dailyCapBtc) * 100);
 
   // ─── Marketplace Functions ──────────────────────────────────────────────────
   const listContractOnMarket = async (contract: OwnedContract, price: number) => {
@@ -1345,7 +1348,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       state, dispatch, btcToUsd, formatBtc, earnedTodayBtc, earnedTodayUsd: btcToUsd(earnedTodayBtc),
       effectiveHashRate: state.totalHashRate * energyScale, energyScale, currentBtcPerSecond, canPrestige: state.level >= 10, 
       isVipActive: isVipCapExempt, vipBtcBonus: isVipCapExempt ? (state.vip?.tier === 'gold' ? 1.5 : 1.2) : 1.0,
-      dailyEarnedBtc: state.dailyEarningsBtc, dailyCapBtc, dailyEarnedPct, dailyCapReached, isVipCapExempt,
+      dailyEarnedBtc: currentDailyEarned, dailyCapBtc, dailyEarnedPct, dailyCapReached, isVipCapExempt,
       listContractOnMarket, buyContractFromMarket, cancelMarketListing,
       createGuildInFirestore, joinGuildInFirestore, leaveGuildInFirestore, donateToGuildInFirestore,
       adminSetBtc, adminSetTp, adminSetLevel, adminUpdateSettings, adminTriggerEvent,
