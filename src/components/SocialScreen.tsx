@@ -336,9 +336,16 @@ export default function SocialScreen() {
                     <h4 className="text-xs font-bold text-zinc-400 uppercase">Üyeler ({selectedGuild.members})</h4>
                   </div>
                   <div className="space-y-2 max-h-40 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-white/10">
-                    <div className="text-center py-4 text-[10px] text-zinc-500 italic">
-                      Üye listesi yükleniyor...
+                    <div className="p-3 bg-white/5 rounded-xl border border-white/5 flex items-center justify-between">
+                       <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-[10px] font-black">{state.user?.displayName?.slice(0,2).toUpperCase() || 'M'}</div>
+                          <p className="text-xs font-bold">{state.user?.displayName || 'Sen'}</p>
+                       </div>
+                       <span className="text-[9px] font-black text-emerald-500 uppercase">ÜYE</span>
                     </div>
+                    {selectedGuild.members > 1 && (
+                       <p className="text-center py-4 text-[9px] text-zinc-500 font-bold uppercase tracking-widest">ve diğer {selectedGuild.members - 1} üye...</p>
+                    )}
                   </div>
                 </div>
 

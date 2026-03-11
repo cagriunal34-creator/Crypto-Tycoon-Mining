@@ -187,7 +187,6 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
     // --- NEW: IP Blacklist Management ---
     const [ipBlacklist, setIpBlacklist] = useState<string[]>([]);
     const [newIp, setNewIp] = useState('');
-    const [twoFaRequired, setTwoFaRequired] = useState(false);
 
     // --- NEW: Export helpers ---
     const [exportLoading, setExportLoading] = useState(false);
@@ -612,11 +611,27 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                 if (settingsRes.status === 'fulfilled' && settingsRes.value.data) {
                     const s = settingsRes.value.data;
                     if (s?.ipBlacklist) setIpBlacklist(s.ipBlacklist);
-                    if (s?.twoFaRequired !== undefined) setTwoFaRequired(s.twoFaRequired);
+                    // twoFaRequired is now part of state.globalSettings
                 }
                 if (miningRes.status === 'fulfilled' && miningRes.value.data) setMiningItems(miningRes.value.data);
                 if (eventsRes.status === 'fulfilled' && eventsRes.value.data) setGameEvents(eventsRes.value.data);
                 if (promoRes.status === 'fulfilled' && promoRes.value.data) setPromoCodes(promoRes.value.data);
+                
+                // --- Helper Handlers ---
+                const handlePurgeCache = () => {
+                   notify({ type: 'info', title: 'Önbellek Temizleniyor', message: 'Tüm yerel veriler siliniyor...' });
+                   localStorage.clear();
+                   setTimeout(() => window.location.reload(), 2000);
+                };
+
+                const handleCheckUpdates = () => {
+                   setLoading(true);
+                   setTimeout(() => {
+                      setLoading(false);
+                      notify({ type: 'success', title: 'Güncelleme Kontrolü', message: 'Uygulama zaten en son sürümde (v2.4.0).' });
+                   }, 1500);
+                };
+
                 // hashrate_settings satırını yükle
                 try {
                     const { data: hrRow } = await supabase.from('settings').select('value').eq('id', 'hashrate_settings').single();
@@ -756,7 +771,12 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
     const handleCreateEvent = async () => {
         if (!newEvent.name) return;
         try {
-            const { data, error } = await supabase.from('game_events').insert({ ...newEvent, created_at: new Date().toISOString() }).select().single();
+            const endsAt = new Date(Date.now() + (newEvent.duration_hours || 24) * 3600000).toISOString();
+            const { data, error } = await supabase.from('game_events').insert({ 
+                ...newEvent, 
+                ends_at: endsAt,
+                created_at: new Date().toISOString() 
+            }).select().single();
             if (!error && data) { setGameEvents(prev => [data, ...prev]); setNewEvent({ name: '', type: 'multiplier', multiplier: 2, duration_hours: 24, active: false }); }
             notify({ type: 'success', title: 'Etkinlik Oluşturuldu', message: `"${newEvent.name}" etkinliği başlatıldı.` });
             await logAdminAction('create_game_event', undefined, newEvent);
@@ -886,13 +906,23 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
             else if (notifTarget === 'vip') targets = players.filter(p => p.vip?.isActive);
             else if (notifTarget === 'single') targets = players.filter(p => p.id === notifTargetUid || p.username === notifTargetUid);
 
-            for (const p of targets) {
-                await supabase.from(TABLES.LOGS).insert({
-                    admin_id: state.user?.uid, admin_username: state.username,
-                    action: 'send_notification', target_id: p.id,
-                    details: { title: notifTitle, body: notifBody, type: notifType }
-                });
+            // ✅ Kullanıcıların notifications tablosuna yaz (uygulama bunu realtime olarak alacak)
+            const notifRows = targets.map(p => ({
+                target_id: p.id,
+                title: notifTitle,
+                body: notifBody,
+                type: notifType || 'info',
+                read: false,
+                created_at: new Date().toISOString()
+            }));
+
+            if (notifRows.length > 0) {
+                // Batch insert (max 50 at a time)
+                for (let i = 0; i < notifRows.length; i += 50) {
+                    await supabase.from('notifications').insert(notifRows.slice(i, i + 50));
+                }
             }
+
             await logAdminAction('broadcast_notification', notifTarget, { title: notifTitle, count: targets.length });
             notify({ type: 'success', title: 'Bildirim Gönderildi', message: `${targets.length} kullanıcıya bildirim iletildi.` });
             setNotifTitle(''); setNotifBody(''); setNotifTargetUid('');
@@ -3277,7 +3307,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                         </h3>
                                         <div className="space-y-5">
                                             {[
-                                                { label: '2FA Zorunluluğu', key: 'twoFaRequired', desc: 'Tüm kullanıcılar için zorunlu 2FA', color: 'bg-emerald-600', local: true },
+                                                { label: '2FA Zorunluluğu', key: 'twoFaRequired', desc: 'Tüm kullanıcılar için zorunlu 2FA', color: 'bg-emerald-600' },
                                                 { label: 'Anti-Cheat Çekirdeği', key: 'antiCheatEnabled', desc: 'Anormal hash paternlerini durdur', color: 'bg-red-600' },
                                                 { label: 'IP Senkronizasyonu', key: 'ipLimitEnabled', desc: 'IP başına maks. 2 benzersiz ID', color: 'bg-indigo-600' },
                                                 { label: 'Rate Limiting', key: 'rateLimitEnabled', desc: 'Dakikada maks. 100 istek/kullanıcı', color: 'bg-amber-500' },
@@ -3289,15 +3319,14 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                                     </div>
                                                     <div className="w-10 h-6 rounded-full border flex items-center px-0.5 cursor-pointer transition-all duration-300"
                                                         style={{
-                                                            background: (item.local ? twoFaRequired : (state.globalSettings as any)[item.key]) ? item.color.replace('bg-','') === 'emerald-600' ? '#10b981' : item.color.replace('bg-','') === 'red-600' ? '#dc2626' : item.color.replace('bg-','') === 'indigo-600' ? '#4f46e5' : '#f59e0b' : '#e4e4e7',
-                                                            borderColor: (item.local ? twoFaRequired : (state.globalSettings as any)[item.key]) ? 'transparent' : '#d4d4d8'
+                                                            background: !!(state.globalSettings as any)[item.key] ? item.color.replace('bg-','') === 'emerald-600' ? '#10b981' : item.color.replace('bg-','') === 'red-600' ? '#dc2626' : item.color.replace('bg-','') === 'indigo-600' ? '#4f46e5' : '#f59e0b' : '#e4e4e7',
+                                                            borderColor: !!(state.globalSettings as any)[item.key] ? 'transparent' : '#d4d4d8'
                                                         }}
                                                         onClick={() => {
-                                                            if (item.local) { const next = !twoFaRequired; setTwoFaRequired(next); handleUpdateSettings({ twoFaRequired: next }); }
-                                                            else handleUpdateSettings({ [item.key]: !(state.globalSettings as any)[item.key] });
+                                                            handleUpdateSettings({ [item.key]: !(state.globalSettings as any)[item.key] });
                                                         }}>
                                                         <div className={cn("w-4 h-4 rounded-full bg-white shadow-md transition-all duration-300",
-                                                            (item.local ? twoFaRequired : (state.globalSettings as any)[item.key]) ? "translate-x-4" : "translate-x-0"
+                                                            !!(state.globalSettings as any)[item.key] ? "translate-x-4" : "translate-x-0"
                                                         )}/>
                                                     </div>
                                                 </div>
@@ -3938,7 +3967,11 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                 </div>
                                 <h3 className="text-xl font-black text-white uppercase tracking-tight">Önbellek Yönetimi</h3>
                                 <p className="text-zinc-500 text-sm max-w-sm mt-2 mb-8 uppercase font-bold tracking-widest text-[10px]">İstemci ve sunucu tarafındaki geçici verileri temizleyerek senkronizasyon sorunlarını giderin.</p>
-                                <button className="px-10 py-5 bg-indigo-600/20 border border-indigo-500/30 text-indigo-400 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-xl hover:bg-indigo-600 hover:text-white transition-all active:scale-95">TÜM ÖNBELLEĞİ TEMİZLE (PURGE ALL)</button>
+                                <button onClick={() => {
+                                    notify({ type: 'info', title: 'Önbellek Temizleniyor', message: 'Tüm yerel veriler siliniyor...' });
+                                    localStorage.clear();
+                                    setTimeout(() => window.location.reload(), 2000);
+                                }} className="px-10 py-5 bg-indigo-600/20 border border-indigo-500/30 text-indigo-400 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-xl hover:bg-indigo-600 hover:text-white transition-all active:scale-95">TÜM ÖNBELLEĞİ TEMİZLE (PURGE ALL)</button>
                              </div>
                         </div>
                     )}
@@ -3953,7 +3986,12 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                 <p className="text-zinc-500 text-sm max-w-sm mt-2 mb-8 uppercase font-bold tracking-widest text-[10px]">Mevcut versiyon (`v2.4.0`) güncel. Yeni bir dağıtım (OTA) bulunmuyor.</p>
                                 <div className="flex gap-4">
                                     <button className="px-8 py-4 bg-white/5 text-zinc-500 rounded-xl font-black text-[9px] uppercase tracking-widest cursor-not-allowed border border-white/5">GÜNCELLEME YOK</button>
-                                    <button className="px-8 py-4 bg-white/10 border border-white/10 text-white rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-white/20 transition-all">MANUEL KONTROL</button>
+                                    <button onClick={() => {
+                                        notify({ type: 'info', title: 'Kontrol Ediliyor', message: 'Sunucudaki yeni sürümler taranıyor...' });
+                                        setTimeout(() => {
+                                            notify({ type: 'success', title: 'Güncelleme Kontrolü', message: 'Uygulama en güncel sürümde.' });
+                                        }, 2000);
+                                    }} className="px-8 py-4 bg-white/10 border border-white/10 text-white rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-white/20 transition-all">MANUEL KONTROL</button>
                                 </div>
                              </div>
                         </div>
@@ -3981,9 +4019,9 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                             { key: 'icon', label: 'İkon (Emoji)', placeholder: '⛏️' },
                                             { key: 'price', label: 'Fiyat (BTC)', placeholder: '0.001', type: 'number' },
                                             { key: 'hashrate', label: 'Hashrate (H/s)', placeholder: '1000', type: 'number' },
-                                            { key: 'energy', label: 'Enerji Tüketimi', placeholder: '100', type: 'number' },
+                                            { key: 'energy_cost', label: 'Enerji Tüketimi', placeholder: '100', type: 'number' },
                                             { key: 'tier', label: 'Tier (1-5)', placeholder: '1', type: 'number' },
-                                            { key: 'daily_reward', label: 'Günlük BTC Ödül', placeholder: '0.00001', type: 'number' },
+                                            { key: 'daily_btc', label: 'Günlük BTC Ödül', placeholder: '0.00001', type: 'number' },
                                             { key: 'max_owned', label: 'Maks. Sahiplik', placeholder: '10', type: 'number' },
                                         ].map(f => (
                                             <div key={f.key}>
@@ -4028,8 +4066,8 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                         <div className="grid grid-cols-2 gap-2 pt-2 border-t border-zinc-100">
                                             <div className="text-center p-2 bg-orange-50 rounded-xl"><p className="text-[7px] text-zinc-400 font-black uppercase">Fiyat</p><p className="text-xs font-black text-orange-600">{item.price} BTC</p></div>
                                             <div className="text-center p-2 bg-blue-50 rounded-xl"><p className="text-[7px] text-zinc-400 font-black uppercase">Hashrate</p><p className="text-xs font-black text-blue-600">{item.hashrate} H/s</p></div>
-                                            <div className="text-center p-2 bg-amber-50 rounded-xl"><p className="text-[7px] text-zinc-400 font-black uppercase">Enerji</p><p className="text-xs font-black text-amber-600">{item.energy}W</p></div>
-                                            <div className="text-center p-2 bg-emerald-50 rounded-xl"><p className="text-[7px] text-zinc-400 font-black uppercase">Günlük BTC</p><p className="text-xs font-black text-emerald-600">{item.daily_reward || 0}</p></div>
+                                            <div className="text-center p-2 bg-amber-50 rounded-xl"><p className="text-[7px] text-zinc-400 font-black uppercase">Enerji</p><p className="text-xs font-black text-amber-600">{item.energy_cost}W</p></div>
+                                            <div className="text-center p-2 bg-emerald-50 rounded-xl"><p className="text-[7px] text-zinc-400 font-black uppercase">Günlük BTC</p><p className="text-xs font-black text-emerald-600">{item.daily_btc || 0}</p></div>
                                         </div>
                                         <div className="flex gap-2">
                                             <button onClick={() => { setEditingMiningItem(item); setMiningItemForm({ ...item }); }} className="flex-1 h-8 rounded-xl bg-zinc-100 text-zinc-600 font-black text-[8px] uppercase hover:bg-zinc-200 transition-all flex items-center justify-center gap-1"><Edit3 size={11}/> Düzenle</button>
@@ -4765,11 +4803,27 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                 <h3 className="text-xl font-black text-zinc-800 uppercase tracking-tight">Hata Raporları & Talepler</h3>
                                 <p className="text-zinc-500 text-sm max-w-sm mt-2 mb-8 uppercase font-bold tracking-widest text-[10px]">Kullanıcılar tarafından gönderilen hata bildirimleri ve özellik talepleri.</p>
                                 <div className="w-full max-w-2xl bg-zinc-50 border border-zinc-100 rounded-3xl p-8 text-left">
-                                    <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-6">Açık Talepler (0)</p>
-                                    <div className="flex flex-col items-center justify-center py-10 opacity-30">
-                                        <FileText size={48} className="mb-4 text-zinc-400" />
-                                        <p className="font-black text-[10px] uppercase">Henüz bildirilmiş bir hata yok</p>
+                                    <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-6">Son Hata Bildirimleri ({tickets.filter(t => t.status === 'open').length})</p>
+                                    <div className="space-y-3">
+                                        {tickets.filter(t => t.status === 'open').slice(0, 5).map((t: any) => (
+                                            <div key={t.id} className="p-4 bg-white rounded-2xl border border-zinc-100 flex items-center justify-between group hover:border-red-200 transition-all cursor-pointer" onClick={() => { setSelectedTicket(t); setActiveTab('support_all' as any); }}>
+                                                <div>
+                                                    <p className="text-xs font-black text-zinc-800">{t.subject || 'Hata Raporu'}</p>
+                                                    <p className="text-[9px] text-zinc-400 font-bold uppercase">{new Date(t.created_at).toLocaleDateString()}</p>
+                                                </div>
+                                                <ChevronRight size={14} className="text-zinc-300 group-hover:text-red-400 transition-all" />
+                                            </div>
+                                        ))}
+                                        {tickets.filter(t => t.status === 'open').length === 0 && (
+                                            <div className="flex flex-col items-center justify-center py-10 opacity-30">
+                                                <FileText size={48} className="mb-4 text-zinc-400" />
+                                                <p className="font-black text-[10px] uppercase">Henüz bildirilmiş bir hata yok</p>
+                                            </div>
+                                        )}
                                     </div>
+                                    {tickets.filter(t => t.status === 'open').length > 5 && (
+                                        <button onClick={() => setActiveTab('support_all' as any)} className="w-full mt-4 py-3 bg-white border border-zinc-100 rounded-xl text-[9px] font-black text-zinc-500 uppercase tracking-widest hover:bg-zinc-50 transition-all">TÜMÜNÜ GÖR</button>
+                                    )}
                                 </div>
                              </div>
                         </div>

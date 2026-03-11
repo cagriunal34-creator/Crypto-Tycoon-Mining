@@ -21,7 +21,7 @@ const REWARDS = [
 ];
 
 export default function LoginStreak() {
-    const { state, dispatch } = useGame();
+    const { state, claimStreakReward } = useGame();
     const { notify } = useNotify();
     const { theme } = useTheme();
     const [isOpen, setIsOpen] = useState(false);
@@ -38,7 +38,7 @@ export default function LoginStreak() {
     }, [state.streak.lastClaim]);
 
     const handleClaim = () => {
-        dispatch({ type: 'CLAIM_STREAK_REWARD' });
+        claimStreakReward();
         setIsOpen(false);
         notify({
             type: 'success',

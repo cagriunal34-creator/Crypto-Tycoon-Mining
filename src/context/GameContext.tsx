@@ -49,6 +49,40 @@ export type {
   PrestigeRecord
 };
 
+// ─── Admin-Driven Dynamic Types ───────────────────────────────────────────────
+
+export interface DynamicMiningItem {
+  id: string;
+  name: string;
+  tier: string;
+  price: number;
+  hashrate: number;
+  daily_btc: number;
+  energy_cost: number;
+  description?: string;
+  available?: boolean;
+}
+
+export interface ActiveGameEvent {
+  id: string;
+  name: string;
+  type: string; // 'multiplier' | 'discount' | 'bonus_tp'
+  multiplier: number;
+  active: boolean;
+  ends_at?: string;
+  created_at: string;
+}
+
+export interface InboxNotification {
+  id: string;
+  title: string;
+  body: string;
+  type: string; // 'info' | 'warning' | 'reward' | 'system'
+  target_id: string;
+  created_at: string;
+  read: boolean;
+}
+
 // ─── Game State ───────────────────────────────────────────────────────────────
 
 export interface GameState {
@@ -215,6 +249,11 @@ export interface GameState {
   } | null;
   dailyEarningsBtc: number;
   lastEarningsResetDate: string; // ISO yyyy-mm-dd
+
+  // ── Realtime Admin-Driven Data ──────────────────────────────────────────────
+  dynamicMiningItems: DynamicMiningItem[];   // admin'den çekilen ekipmanlar
+  activeGameEvents: ActiveGameEvent[];       // admin'den gelen aktif etkinlikler
+  inboxNotifications: InboxNotification[];   // admin'den gelen bildirimler
 }
 
 // ─── Initial State ────────────────────────────────────────────────────────────
@@ -362,6 +401,9 @@ export const INITIAL_STATE: GameState = {
   googleAdsConfig: null,
   dailyEarningsBtc: 0,
   lastEarningsResetDate: new Date().toISOString().split('T')[0],
+  dynamicMiningItems: [],
+  activeGameEvents: [],
+  inboxNotifications: [],
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -423,7 +465,12 @@ type Action =
   | { type: 'CLAIM_WHEEL_REWARD'; reward: { type: string; value: number | string; label: string } }
   | { type: 'WATCH_AD' }
   | { type: 'SET_MODAL'; modal: string | null }
-  | { type: 'UPDATE_PROFILE'; updates: Partial<{ username: string; email: string; phone: string; avatarUrl: string }> };
+  | { type: 'UPDATE_PROFILE'; updates: Partial<{ username: string; email: string; phone: string; avatarUrl: string }> }
+  | { type: 'SET_DYNAMIC_MINING_ITEMS'; items: DynamicMiningItem[] }
+  | { type: 'SET_ACTIVE_GAME_EVENTS'; events: ActiveGameEvent[] }
+  | { type: 'SET_INBOX_NOTIFICATIONS'; notifications: InboxNotification[] }
+  | { type: 'MARK_NOTIFICATION_READ'; id: string }
+  | { type: 'REDEEM_PROMO_CODE'; code: string; btc: number; tp: number };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -724,6 +771,18 @@ function gameReducer(state: GameState, action: Action): GameState {
     }
     case 'SET_MODAL': return { ...state, activeModal: action.modal };
     case 'UPDATE_PROFILE': return { ...state, ...action.updates };
+    case 'SET_DYNAMIC_MINING_ITEMS': return { ...state, dynamicMiningItems: action.items };
+    case 'SET_ACTIVE_GAME_EVENTS': return { ...state, activeGameEvents: action.events };
+    case 'SET_INBOX_NOTIFICATIONS': return { ...state, inboxNotifications: action.notifications };
+    case 'MARK_NOTIFICATION_READ': return {
+      ...state,
+      inboxNotifications: state.inboxNotifications.map(n => n.id === action.id ? { ...n, read: true } : n)
+    };
+    case 'REDEEM_PROMO_CODE': return {
+      ...state,
+      btcBalance: state.btcBalance + action.btc,
+      tycoonPoints: state.tycoonPoints + action.tp
+    };
     default: return state;
   }
 }
@@ -763,6 +822,9 @@ interface GameContextValue {
   adminTriggerEvent: (eventType: string) => Promise<void>;
   updateUserProfile: (updates: Partial<{ username: string; email: string; phone: string; avatarUrl: string }>) => Promise<void>;
   uploadAvatar: (file: File) => Promise<string | null>;
+  claimStreakReward: () => Promise<void>;
+  redeemPromoCode: (code: string) => Promise<{ success: boolean; message: string }>;
+  markNotificationRead: (id: string) => Promise<void>;
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -1026,6 +1088,25 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } catch (_) {
           // free_options henüz oluşturulmamış, varsayılan değerler geçerli
         }
+
+        // ── Admin'den Dinamik Mining Items ────────────────────────────────
+        try {
+          const { data: miningItems } = await supabase
+            .from(TABLES.MINING_ITEMS)
+            .select('*')
+            .eq('available', true)
+            .order('price', { ascending: true });
+          if (miningItems) dispatch({ type: 'SET_DYNAMIC_MINING_ITEMS', items: miningItems });
+        } catch (_) {}
+
+        // ── Admin'den Aktif Game Events ───────────────────────────────────
+        try {
+          const { data: gameEvents } = await supabase
+            .from(TABLES.GAME_EVENTS)
+            .select('*')
+            .eq('active', true);
+          if (gameEvents) dispatch({ type: 'SET_ACTIVE_GAME_EVENTS', events: gameEvents });
+        } catch (_) {}
       } catch (e) {
         console.error('Global data error:', e);
       }
@@ -1033,6 +1114,21 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     loadGlobal();
     fetchLeaderboard();
+
+    // ── Kullanıcıya özel inbox bildirimleri ──────────────────────────────
+    const loadInboxNotifications = async () => {
+      if (!state.user?.uid) return;
+      try {
+        const { data } = await supabase
+          .from(TABLES.NOTIFICATIONS)
+          .select('*')
+          .eq('target_id', state.user.uid)
+          .order('created_at', { ascending: false })
+          .limit(50);
+        if (data) dispatch({ type: 'SET_INBOX_NOTIFICATIONS', notifications: data.map(n => ({ ...n, read: n.read ?? false })) });
+      } catch (_) {}
+    };
+    loadInboxNotifications();
 
     // ── Global Realtime Subscriptions ──────────────────────────
     const globalSub = supabase.channel('global-sync')
@@ -1046,6 +1142,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             dispatch({ type: 'SET_MAINTENANCE', isMaintenance: s.isMaintenance });
             if (s.announcement) dispatch({ type: 'SET_ANNOUNCEMENT', announcement: s.announcement });
             dispatch({ type: 'SET_GLOBAL_MULTIPLIER', multiplier: s.globalMultiplier || 1.0 });
+          }
+
+          // hashrate_settings → hashrate konfigürasyonu anında güncelle
+          if (s.id === 'hashrate_settings' && s.value) {
+            dispatch({ type: 'SET_GLOBAL_SETTINGS', settings: s.value });
+            dispatch({ type: 'SET_GLOBAL_MULTIPLIER', multiplier: s.value.global_multiplier || 1.0 });
           }
 
           // google_ads_config → Google Ads ayarları anında güncelle
@@ -1074,14 +1176,49 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loadGlobal(); // Refresh guilds
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: TABLES.PROFILES }, () => {
-        // Debounced or occasional fetch would be better, but for real-time requirement:
         fetchLeaderboard();
       })
+      // ── Game Events realtime (admin toggle/create) ────────────
+      .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.GAME_EVENTS }, async () => {
+        try {
+          const { data } = await supabase.from(TABLES.GAME_EVENTS).select('*').eq('active', true);
+          if (data) dispatch({ type: 'SET_ACTIVE_GAME_EVENTS', events: data });
+        } catch (_) {}
+      })
+      // ── Mining Items realtime (admin CRUD) ────────────────────
+      .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.MINING_ITEMS }, async () => {
+        try {
+          const { data } = await supabase.from(TABLES.MINING_ITEMS).select('*').eq('available', true).order('price', { ascending: true });
+          if (data) dispatch({ type: 'SET_DYNAMIC_MINING_ITEMS', items: data });
+        } catch (_) {}
+      })
       .subscribe();
+
+    // ── User-specific Notifications Realtime ────────────────────
+    let notifSub: any = null;
+    if (state.user?.uid) {
+      notifSub = supabase.channel(`notifications-${state.user.uid}`)
+        .on('postgres_changes', {
+          event: 'INSERT', schema: 'public', table: TABLES.NOTIFICATIONS,
+          filter: `target_id=eq.${state.user.uid}`
+        }, (payload) => {
+          if (payload.new) {
+            const n = payload.new as any;
+            // Mevcut bildirimlerin üzerine ekle (tekrarlanmaması için check edebiliriz ama INSERT event sadece yeni gelendir)
+            dispatch({
+              type: 'SET_INBOX_NOTIFICATIONS',
+              notifications: [{ ...n, read: false }, ...state.inboxNotifications]
+            });
+            // Toast notification tetiklemek için bir modal veya sese gerek duyulabilir ama şu an sadece listeye ekliyoruz
+          }
+        })
+        .subscribe();
+    }
 
     return () => {
       unsubscribeAuth();
       globalSub.unsubscribe();
+      if (notifSub) notifSub.unsubscribe();
     };
   }, []);
 
@@ -1386,6 +1523,51 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }).eq('id', 'v1');
   };
 
+  const claimStreakReward = async () => {
+    if (!state.user) return;
+    
+    // 1. Reducer işlemi (state'i anında günceller)
+    dispatch({ type: 'CLAIM_STREAK_REWARD' });
+    
+    // 2. Side effect: Ödülü hesapla (tekrar hesaplıyoruz çünkü newState henüz elimizde değil veya o anki state'i kullanabiliriz)
+    const currentDayIndex = state.streak.count % 7;
+    const rewards = [
+        { type: 'tp', value: 100 },
+        { type: 'tp', value: 250 },
+        { type: 'btc', value: 0.000001 },
+        { type: 'tp', value: 500 },
+        { type: 'energy', value: 5 },
+        { type: 'tp', value: 1000 },
+        { type: 'btc', value: 0.00001 },
+    ];
+    const reward = rewards[currentDayIndex];
+    
+    const newStreak = {
+      count: state.streak.count + 1,
+      lastClaim: Date.now()
+    };
+    
+    let newTp = state.tycoonPoints;
+    let newBtc = state.btcBalance;
+    let newEnergy = state.energyCells;
+    
+    if (reward.type === 'tp') newTp += reward.value;
+    if (reward.type === 'btc') newBtc += reward.value;
+    if (reward.type === 'energy') newEnergy = Math.min(state.maxEnergyCells, state.energyCells + reward.value);
+
+    // 3. Veritabanına anında yaz (Sync bekleme)
+    await supabase.from(TABLES.PROFILES).update({
+      streak: newStreak,
+      loginStreak: newStreak.count,
+      tycoonPoints: newTp,
+      btcBalance: newBtc,
+      energyCells: newEnergy,
+      updated_at: new Date().toISOString()
+    }).eq('id', state.user.uid);
+    
+    console.info('🎁 Günlük ödül veritabanına kaydedildi:', newStreak.count);
+  };
+
   const updateUserProfile = async (updates: Partial<{ username: string; email: string; phone: string; avatarUrl: string }>) => {
     if (!state.user) throw new Error("Auth required");
     const { error } = await supabase.from(TABLES.PROFILES).update(updates).eq('id', state.user.uid);
@@ -1412,6 +1594,67 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return publicUrl;
   };
 
+  // ── Promo Code Redemption ─────────────────────────────────────────────────
+  const redeemPromoCode = async (code: string): Promise<{ success: boolean; message: string }> => {
+    if (!state.user?.uid) return { success: false, message: 'Giriş yapmalısın.' };
+    try {
+      const { data: promo, error } = await supabase
+        .from(TABLES.PROMO_CODES)
+        .select('*')
+        .eq('code', code.toUpperCase().trim())
+        .maybeSingle();
+
+      if (error || !promo) return { success: false, message: 'Geçersiz promo kodu.' };
+      if (promo.expires_at && new Date(promo.expires_at) < new Date()) return { success: false, message: 'Bu promo kodunun süresi dolmuş.' };
+      if (promo.used_count >= promo.max_uses) return { success: false, message: 'Bu promo kodu kullanım limitine ulaştı.' };
+
+      // Check if user already used this code
+      const { data: alreadyUsed } = await supabase
+        .from(TABLES.TRANSACTIONS)
+        .select('id')
+        .eq('user_id', state.user.uid)
+        .eq('type', 'promo_code')
+        .eq('note', code.toUpperCase().trim())
+        .maybeSingle();
+
+      if (alreadyUsed) return { success: false, message: 'Bu kodu daha önce kullandın.' };
+
+      // Apply reward
+      const rewardBtc = promo.reward_btc || 0;
+      const rewardTp = promo.reward_tp || 0;
+
+      await supabase.from(TABLES.TRANSACTIONS).insert({
+        user_id: state.user.uid,
+        username: state.username,
+        type: 'promo_code',
+        amount: rewardBtc,
+        status: 'approved',
+        note: code.toUpperCase().trim(),
+        created_at: new Date().toISOString()
+      });
+
+      await supabase.from(TABLES.PROMO_CODES).update({ used_count: (promo.used_count || 0) + 1 }).eq('id', promo.id);
+      await supabase.from(TABLES.PROFILES).update({
+        btcBalance: state.btcBalance + rewardBtc,
+        tycoonPoints: state.tycoonPoints + rewardTp
+      }).eq('id', state.user.uid);
+
+      dispatch({ type: 'REDEEM_PROMO_CODE', code, btc: rewardBtc, tp: rewardTp });
+      return { success: true, message: `+${rewardBtc} BTC ve +${rewardTp} TP kazandın!` };
+    } catch {
+      return { success: false, message: 'Bir hata oluştu. Lütfen tekrar dene.' };
+    }
+  };
+
+  const markNotificationRead = async (id: string) => {
+    try {
+       await supabase.from(TABLES.NOTIFICATIONS).update({ read: true }).eq('id', id);
+       dispatch({ type: 'MARK_NOTIFICATION_READ', id });
+    } catch (e) {
+       console.error('Notification mark read error:', e);
+    }
+  };
+
   return (
     <GameContext.Provider value={{
       state, dispatch, btcToUsd, formatBtc, earnedTodayBtc, earnedTodayUsd: btcToUsd(earnedTodayBtc),
@@ -1421,7 +1664,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       listContractOnMarket, buyContractFromMarket, cancelMarketListing,
       createGuildInFirestore, joinGuildInFirestore, leaveGuildInFirestore, donateToGuildInFirestore,
       adminSetBtc, adminSetTp, adminSetLevel, adminUpdateSettings, adminTriggerEvent,
-      updateUserProfile, uploadAvatar
+      updateUserProfile, uploadAvatar, claimStreakReward, redeemPromoCode, markNotificationRead
     }}>
       {children}
     </GameContext.Provider>

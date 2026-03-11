@@ -80,9 +80,24 @@ export default function MiningPanel({
   const happyHourCountdown = useCountdown(state.happyHourEndsAt);
   const chartData = useHashHistory(effectiveHashRate);
 
-  // Active events (non-expired)
+  // Active events (non-expired) — local game events
   const now = Date.now();
-  const activeEvents = state.activeMiningEvents.filter(ev => ev.endsAt > now);
+  const activeLocalEvents = state.activeMiningEvents.filter(ev => ev.endsAt > now);
+
+  // Admin-driven game events from Supabase (realtime synced)
+  const adminGameEvents = (state.activeGameEvents || []).filter(ev => ev.active).map(ev => ({
+    id: `admin-${ev.id}`,
+    type: (ev.type as any) || 'flash_pool',
+    label: ev.name,
+    emoji: ev.type === 'multiplier' ? '⚡' : ev.type === 'bonus_tp' ? '🎯' : '💰',
+    description: `${ev.multiplier > 1 ? `+${((ev.multiplier - 1) * 100).toFixed(0)}% BTC çarpanı` : 'Özel etkinlik'} — Admin tarafından başlatıldı`,
+    multiplier: ev.multiplier || 1.0,
+    hashBoost: 0,
+    endsAt: ev.ends_at ? new Date(ev.ends_at).getTime() : now + 86400000,
+    startsAt: new Date(ev.created_at).getTime(),
+  }));
+
+  const activeEvents = [...activeLocalEvents, ...adminGameEvents];
 
   // Energy color: red < 30%, yellow 30-60%, green/accent > 60%
   const energyColor = energyPercentage < 30 ? '#EF4444'

@@ -19,5 +19,10 @@ export const TABLES = {
   GUILDS: 'guilds',
   WITHDRAWALS: 'withdrawals',
   LOGS: 'logs',
-  TRANSACTIONS: 'transactions'
+  TRANSACTIONS: 'transactions',
+  MINING_ITEMS: 'mining_items',
+  GAME_EVENTS: 'game_events',
+  PROMO_CODES: 'promo_codes',
+  NOTIFICATIONS: 'notifications',
+  SUPPORT_TICKETS: 'support_tickets',
 };

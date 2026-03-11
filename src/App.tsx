@@ -403,8 +403,14 @@ function AppInner() {
 
           <button onClick={() => navigate('inbox')} className="p-2 rounded-full hover:bg-white/5 transition-colors relative">
             <Bell size={18} style={{ color: activeScreen === 'inbox' ? a1 : 'var(--ct-muted)' }} />
-            <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full border"
-              style={{ background: a1, boxShadow: `0 0 6px ${a1}`, borderColor: 'var(--ct-bg)' }} />
+            {(state.inboxNotifications?.filter(n => !n.read).length || 0) > 0 ? (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[8px] font-black flex items-center justify-center border border-zinc-900">
+                {state.inboxNotifications.filter(n => !n.read).length > 9 ? '9+' : state.inboxNotifications.filter(n => !n.read).length}
+              </span>
+            ) : (
+              <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full border"
+                style={{ background: a1, boxShadow: `0 0 6px ${a1}`, borderColor: 'var(--ct-bg)' }} />
+            )}
           </button>
         </div>
       </header>
