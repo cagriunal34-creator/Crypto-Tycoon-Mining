@@ -246,6 +246,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
         boost_vip:                  2.0,    // VIP çarpanı
         boost_event:                1.5,    // Etkinlik çarpanı
         halving_block:          1050000,    // Halving referans bloğu
+        rewarded_ad_unit_id: 'ca-app-pub-6329108306834809/8774596958',
     });
     const [hashrateSettingsSaving, setHashrateSettingsSaving] = useState(false);
     const [hashrateChanged,        setHashrateChanged]        = useState(false);
@@ -941,6 +942,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                 boost_vip:                hashrateSettings.boost_vip,
                 boost_event:              hashrateSettings.boost_event,
                 halving_block:            hashrateSettings.halving_block,
+                rewarded_ad_unit_id:      hashrateSettings.rewarded_ad_unit_id,
             });
             setHashrateChanged(false);
             await logAdminAction('update_hashrate_settings', 'global', hashrateSettings);
@@ -2321,6 +2323,23 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                                     <span className="text-[9px] font-black text-zinc-700 tabular-nums">{s.val}</span>
                                                 </div>
                                             ))}
+                                        </div>
+
+                                        {/* Reklam Yapılandırması */}
+                                        <div className="p-5 bg-indigo-50 rounded-2xl border border-indigo-100 space-y-3">
+                                            <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest flex items-center gap-2">
+                                                <Play size={10}/> Reklam Yapılandırması
+                                            </p>
+                                            <div>
+                                                <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Ödüllü Geçiş Reklamı ID</p>
+                                                <input
+                                                    type="text"
+                                                    value={hashrateSettings.rewarded_ad_unit_id || ''}
+                                                    onChange={e => { setHashrateSettings((p:any)=>({...p,rewarded_ad_unit_id:e.target.value})); setHashrateChanged(true); }}
+                                                    className="w-full h-10 px-4 bg-white border border-zinc-200 rounded-xl font-mono text-[10px] font-bold text-zinc-800 focus:outline-none focus:border-indigo-300 transition-all"
+                                                    placeholder="ca-app-pub-..."
+                                                />
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

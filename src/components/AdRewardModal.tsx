@@ -27,8 +27,39 @@ export default function AdRewardModal({ isOpen, onClose }: { isOpen: boolean, on
 
     const startAd = () => {
         if (!isReady) return;
-        setAdState('playing');
-        setTimeLeft(15);
+
+        // Google Adsense Rewarded Ad Integration
+        try {
+            const adsbygoogle = (window as any).adsbygoogle || [];
+            if (adsbygoogle.push) {
+                setAdState('playing');
+                setTimeLeft(15); // Fallback timer or loading indicator
+
+                adsbygoogle.push({
+                    google_ad_client: "ca-pub-6329108306834809",
+                    enable_page_level_ads: true,
+                    google_ad_modality: "rewarded",
+                    google_ad_unit_id: state.rewardedAdUnitId.split('/')[1] || state.rewardedAdUnitId,
+                    onReward: (reward: any) => {
+                        console.info('Ad reward granted:', reward);
+                        setAdState('finished');
+                    },
+                    onFailure: (reason: any) => {
+                        console.error('Ad failed to load:', reason);
+                        // Fallback to simulation if ad fails to load (optional, but good for UX)
+                        // setAdState('idle'); 
+                    }
+                });
+            } else {
+                // Fallback to simulation if adsbygoogle is not ready
+                setAdState('playing');
+                setTimeLeft(15);
+            }
+        } catch (e) {
+            console.error('Ad error:', e);
+            setAdState('playing'); // Fallback to simulation
+            setTimeLeft(15);
+        }
     };
 
     const claimReward = () => {
@@ -36,7 +67,7 @@ export default function AdRewardModal({ isOpen, onClose }: { isOpen: boolean, on
         notify({
             type: 'success',
             title: 'Ödül Alındı!',
-            message: `${formatBtc(state.adRewardBtc)} BTC ve ${state.adRewardTp} TP hesabına eklendi.`
+            message: `Enerji hücrelerin yenilendi ve ödüller hesabına eklendi.`
         });
         setAdState('idle');
         onClose();

@@ -188,6 +188,7 @@ export interface GameState {
   announcement: string;
   activeModal: string | null;
   globalSettings: any;
+  rewardedAdUnitId: string;
 }
 
 // ─── Initial State ────────────────────────────────────────────────────────────
@@ -327,6 +328,7 @@ export const INITIAL_STATE: GameState = {
   announcement: '',
   activeModal: null,
   globalSettings: {},
+  rewardedAdUnitId: 'ca-app-pub-6329108306834809/8774596958',
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
