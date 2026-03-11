@@ -463,7 +463,11 @@ function gameReducer(state: GameState, action: Action): GameState {
       if (!state.miningActive) return state;
       const now = Date.now();
       const elapsed = Math.min((now - state.lastMiningTick) / 1000, 30);
-      const newEnergy = state.isInfiniteEnergy ? state.energyCells : Math.max(0, state.energyCells - (elapsed * 0.005));
+      
+      // Her hücre 1 saat (3600 sn) dayansın -> 1 / 3600 hücre/sn tüketim
+      const drainPerSec = 1 / 3600;
+      const newEnergy = state.isInfiniteEnergy ? state.energyCells : Math.max(0, state.energyCells - (elapsed * drainPerSec));
+      
       const energyScale = energyToHashScale(newEnergy, state.maxEnergyCells);
       const activeEvents = state.activeMiningEvents.filter(ev => ev.endsAt > now);
       const isVipActiveNow = state.vip?.isActive && state.vip.expiresAt > now;
@@ -604,6 +608,7 @@ function gameReducer(state: GameState, action: Action): GameState {
       ...state,
       btcBalance: state.btcBalance + state.adRewardBtc,
       tycoonPoints: state.tycoonPoints + state.adRewardTp,
+      energyCells: Math.min(state.maxEnergyCells, state.energyCells + 2), // +2 Hücre kazanımı
       lastAdWatchTime: Date.now(),
       questProgress: {
         ...state.questProgress,
@@ -1087,6 +1092,31 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       tycoonPoints: state.tycoonPoints - cost,
       userGuildId: newGuild.id
     }).eq('id', state.user.uid);
+  };
+
+  const onWatchAd = async () => {
+    if (!state.user) throw new Error("Auth required");
+    const newEnergy = Math.min(state.maxEnergyCells, state.energyCells + 2);
+    const newTp     = state.tycoonPoints + state.adRewardTp;
+
+    // 1. Update Profile (Energy & TP)
+    const { error } = await supabase.from(TABLES.PROFILES).update({
+      energyCells: newEnergy,
+      tycoonPoints: newTp
+    }).eq('id', state.user.uid);
+
+    if (error) throw error;
+
+    // 2. Log to Transactions (Social Feed)
+    await supabase.from(TABLES.TRANSACTIONS).insert({
+      user_id: state.user.uid,
+      amount: 0,
+      type: 'mining',
+      description: 'Reklam izleyerek +2 Enerji kazandı! 🔋',
+      timestamp: new Date().toISOString()
+    });
+
+    dispatch({ type: 'WATCH_AD' });
   };
 
   const joinGuildInFirestore = async (guild: Guild) => {

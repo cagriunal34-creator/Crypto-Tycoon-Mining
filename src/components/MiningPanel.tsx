@@ -323,23 +323,34 @@ export default function MiningPanel({
             />
           </div>
 
-          {/* Hücre grid — sağ tarafta ince gösterim */}
+          {/* Hücre grid — her hücre bir pil gibi */}
           <div className="flex-1 space-y-2">
-            <div className="grid grid-cols-8 gap-1">
+            <div className="grid grid-cols-6 gap-2">
               {Array.from({ length: state.maxEnergyCells }).map((_, i) => {
                 const isActive = i < Math.floor(state.energyCells);
                 const isFading = i === Math.floor(state.energyCells) && state.energyCells % 1 > 0;
                 return (
-                  <div key={i} className="h-5 rounded-sm relative overflow-hidden transition-all duration-300"
+                  <div key={i} className="h-6 rounded-md relative overflow-hidden transition-all duration-300"
                     style={{
-                      background: isActive ? `${energyColor}22` : 'rgba(255,255,255,0.03)',
-                      border: `1px solid ${isActive ? energyColor + '50' : 'rgba(255,255,255,0.05)'}`,
-                      boxShadow: isActive ? `0 0 6px ${energyColor}30` : 'none',
-                      opacity: isFading ? 0.6 : 1,
+                      background: isActive ? `linear-gradient(180deg, ${energyColor}33, ${energyColor}11)` : 'rgba(0,0,0,0.4)',
+                      border: `1px solid ${isActive ? energyColor + '60' : 'rgba(255,255,255,0.08)'}`,
+                      boxShadow: isActive ? `0 0 8px ${energyColor}20` : 'none',
                     }}>
+                    <AnimatePresence>
+                      {isActive && (
+                        <motion.div 
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          className="absolute inset-0 flex items-center justify-center"
+                        >
+                           <div className="w-[60%] h-[2px] rounded-full opacity-30" style={{ background: energyColor }} />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                     {isActive && (
-                      <div className="absolute bottom-0 left-0 right-0 h-0.5"
-                        style={{ background: energyColor, boxShadow: `0 0 4px ${energyColor}` }} />
+                      <div className="absolute bottom-0 left-0 right-0 h-1"
+                        style={{ background: energyColor, boxShadow: `0 0 10px ${energyColor}` }} />
                     )}
                   </div>
                 );
@@ -347,15 +358,15 @@ export default function MiningPanel({
             </div>
 
             {/* Hashrate bar */}
-            <div className="relative h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+            <div className="relative h-2 rounded-full overflow-hidden" style={{ background: 'rgba(0,0,0,0.38)', border: '1px solid rgba(255,255,255,0.05)' }}>
               <motion.div
                 className="absolute inset-y-0 left-0 rounded-full"
                 animate={{ width: `${energyScale * 100}%` }}
                 style={{ background: `linear-gradient(90deg,${energyColor},${energyColor}AA)` }} />
             </div>
-            <div className="flex justify-between items-center">
-              <p className="text-[9px]" style={{ color: theme.vars['--ct-muted'] }}>
-                Hashrate kapasitesi
+            <div className="flex justify-between items-center px-0.5">
+              <p className="text-[9px] font-bold tracking-tight" style={{ color: theme.vars['--ct-muted'] }}>
+                HASH MOTORU VERİMLİLİĞİ
               </p>
               <div className="text-[9px] font-black tabular-nums" style={{ color: energyColor }}>
                 {Math.round(energyScale * 100)}%
@@ -365,13 +376,14 @@ export default function MiningPanel({
         </div>
 
         {/* Energy → Hashrate explanation */}
-        <div className="flex items-center gap-2 p-2 rounded-xl relative z-10"
-          style={{ background: 'rgba(0,0,0,0.2)', border: `1px solid ${energyColor}12` }}>
-          <TrendingUp size={12} style={{ color: energyColor, flexShrink: 0 }} />
-          <p className="text-[9px]" style={{ color: theme.vars['--ct-muted'] }}>
-            Enerji doldukça hashrate artar (30%→100%). Şu an{' '}
-            <span style={{ color: energyColor, fontWeight: 800 }}>{Math.round(energyScale * 100)}% kapasite</span>{' '}
-            → <span style={{ color: a1, fontWeight: 800 }}>{effectiveHashRate.toFixed(1)} Gh/s</span> etkili hashrate
+        <div className="flex items-center gap-2 p-2.5 rounded-xl relative z-10"
+          style={{ background: 'rgba(0,0,0,0.3)', border: `1px solid ${energyColor}15` }}>
+          <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${energyColor}10` }}>
+            <TrendingUp size={12} style={{ color: energyColor }} />
+          </div>
+          <p className="text-[10px] leading-tight" style={{ color: theme.vars['--ct-muted'] }}>
+            Piller doldukça verimlilik artar. Her pil <span className="text-white font-bold">1 SAAT</span> madencilik sağlar. 
+            Güncel: <span style={{ color: energyColor, fontWeight: 900 }}>%{Math.round(energyScale * 100)} KAPASİTE</span>
           </p>
         </div>
       </div>
