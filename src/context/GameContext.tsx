@@ -704,7 +704,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .from(TABLES.PROFILES)
         .select('*')
         .eq('id', uid)
-        .single();
+        .maybeSingle();
 
       if (profile && !error) {
         const { id, user: _u, isLoading: _l, ...rest } = profile as any;
@@ -797,7 +797,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .from(TABLES.SETTINGS)
           .select('*')
           .eq('id', 'v1')
-          .single();
+          .maybeSingle();
 
         if (settings) {
           dispatch({ type: 'SET_GLOBAL_SETTINGS', settings });
@@ -832,22 +832,27 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         // ── Ödüllü reklam ödüllerini free_options'dan yükle ─────────────
-        const { data: freeOpts } = await supabase
-          .from(TABLES.SETTINGS)
-          .select('*')
-          .eq('id', 'free_options')
-          .single();
+        // maybeSingle() kullanıyoruz: kayıt yoksa null döner, 406 hatası fırlatmaz
+        try {
+          const { data: freeOpts } = await supabase
+            .from(TABLES.SETTINGS)
+            .select('*')
+            .eq('id', 'free_options')
+            .maybeSingle();
 
-        if (freeOpts?.value) {
-          const v = freeOpts.value;
-          dispatch({
-            type: 'SET_AD_REWARD',
-            btc: parseFloat(v.ad_reward_btc) || 0,
-            tp: parseInt(v.ad_reward_tp) || 0,
-            dailyLimit: parseInt(v.ad_reward_daily_limit) || 10,
-            duration: parseInt(v.ad_reward_duration) || 30,
-            enabled: v.ad_reward_enabled !== false,
-          });
+          if (freeOpts?.value) {
+            const v = freeOpts.value;
+            dispatch({
+              type: 'SET_AD_REWARD',
+              btc: parseFloat(v.ad_reward_btc) || 0,
+              tp: parseInt(v.ad_reward_tp) || 0,
+              dailyLimit: parseInt(v.ad_reward_daily_limit) || 10,
+              duration: parseInt(v.ad_reward_duration) || 30,
+              enabled: v.ad_reward_enabled !== false,
+            });
+          }
+        } catch (_) {
+          // free_options henüz oluşturulmamış, varsayılan değerler geçerli
         }
       } catch (e) {
         console.error('Global data error:', e);
