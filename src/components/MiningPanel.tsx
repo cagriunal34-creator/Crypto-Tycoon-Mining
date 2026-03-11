@@ -20,6 +20,7 @@ import MiningEventsBar from './MiningEventsBar';
 import PrestigePanel from './PrestigePanel';
 import BTC3D from './BTC3D';
 import SocialFeed from './SocialFeed';
+import BatteryWidget from './BatteryWidget';
 
 function useHashHistory(current: number) {
   const [history, setHistory] = React.useState<{ time: string; speed: number }[]>(
@@ -309,26 +310,58 @@ export default function MiningPanel({
           </div>
         </div>
 
-        {/* Cell grid */}
-        <div className="grid grid-cols-12 gap-1 relative z-10">
-          {Array.from({ length: state.maxEnergyCells }).map((_, i) => {
-            const isActive = i < Math.floor(state.energyCells);
-            const isFading = i === Math.floor(state.energyCells) && state.energyCells % 1 > 0;
-            return (
-              <div key={i} className="h-7 rounded-sm relative overflow-hidden transition-all duration-300"
-                style={{
-                  background: isActive ? `${energyColor}22` : 'rgba(255,255,255,0.03)',
-                  border: `1px solid ${isActive ? energyColor + '50' : 'rgba(255,255,255,0.05)'}`,
-                  boxShadow: isActive ? `0 0 8px ${energyColor}30` : 'none',
-                  opacity: isFading ? 0.6 : 1,
-                }}>
-                {isActive && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5"
-                    style={{ background: energyColor, boxShadow: `0 0 4px ${energyColor}` }} />
-                )}
+        {/* ── Gerçek Pil Görseli (BatteryWidget) + Hücre Grid ── */}
+        <div className="flex items-center gap-4 relative z-10">
+
+          {/* Animasyonlu pil — admin panelinden kontrol edilir */}
+          <div className="flex-shrink-0">
+            <BatteryWidget
+              level={energyPercentage}
+              staticDisplay={true}
+              showPercent={false}
+              className=""
+            />
+          </div>
+
+          {/* Hücre grid — sağ tarafta ince gösterim */}
+          <div className="flex-1 space-y-2">
+            <div className="grid grid-cols-8 gap-1">
+              {Array.from({ length: state.maxEnergyCells }).map((_, i) => {
+                const isActive = i < Math.floor(state.energyCells);
+                const isFading = i === Math.floor(state.energyCells) && state.energyCells % 1 > 0;
+                return (
+                  <div key={i} className="h-5 rounded-sm relative overflow-hidden transition-all duration-300"
+                    style={{
+                      background: isActive ? `${energyColor}22` : 'rgba(255,255,255,0.03)',
+                      border: `1px solid ${isActive ? energyColor + '50' : 'rgba(255,255,255,0.05)'}`,
+                      boxShadow: isActive ? `0 0 6px ${energyColor}30` : 'none',
+                      opacity: isFading ? 0.6 : 1,
+                    }}>
+                    {isActive && (
+                      <div className="absolute bottom-0 left-0 right-0 h-0.5"
+                        style={{ background: energyColor, boxShadow: `0 0 4px ${energyColor}` }} />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Hashrate bar */}
+            <div className="relative h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+              <motion.div
+                className="absolute inset-y-0 left-0 rounded-full"
+                animate={{ width: `${energyScale * 100}%` }}
+                style={{ background: `linear-gradient(90deg,${energyColor},${energyColor}AA)` }} />
+            </div>
+            <div className="flex justify-between items-center">
+              <p className="text-[9px]" style={{ color: theme.vars['--ct-muted'] }}>
+                Hashrate kapasitesi
+              </p>
+              <div className="text-[9px] font-black tabular-nums" style={{ color: energyColor }}>
+                {Math.round(energyScale * 100)}%
               </div>
-            );
-          })}
+            </div>
+          </div>
         </div>
 
         {/* Energy → Hashrate explanation */}

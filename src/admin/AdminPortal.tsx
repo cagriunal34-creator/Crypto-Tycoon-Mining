@@ -95,9 +95,9 @@ import {
 } from 'recharts';
 
 type AdminTab = 'overview' |
-    'players_active' | 'players_banned' | 'players_email_unverified' | 'players_mobile_unverified' | 'players_kyc_unverified' | 'players_kyc_pending' | 'players_balance' | 'players_all' | 'players_notification' | 'banned' | 'players' |
-    'currencies' | 'mining_plans' | 'mining_paths' | 'mining_items' | 'flash_offers' | 'free_options' | 'contracts' |
-    'deposits_initiated' | 'deposits_pending' | 'deposits_approved' | 'deposits_success' | 'deposits_rejected' | 'deposits_all' | 'withdrawals' |
+    'players_active' | 'players_banned' | 'players_email_unverified' | 'players_mobile_unverified' | 'players_kyc_unverified' | 'players_kyc_pending' | 'players_balance' | 'players_all' | 'players_notification' |
+    'currencies' | 'mining_plans' | 'mining_paths' | 'mining_items' |
+    'deposits_initiated' | 'deposits_pending' | 'deposits_approved' | 'deposits_success' | 'deposits_rejected' | 'deposits_all' |
     'withdrawals_pending' | 'withdrawals_approved' | 'withdrawals_rejected' | 'withdrawals_all' |
     'system_settings' | 'orders' | 'transactions_all' | 'referral_bonus' |
     'reports_login' | 'reports_notifications' |
@@ -202,55 +202,6 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
     const [editingMiningItem, setEditingMiningItem] = useState<any>(null);
     const [miningItemForm, setMiningItemForm] = useState<any>({});
 
-    // --- NEW: Mining Plans ---
-    const [miningPlans, setMiningPlans] = useState<any[]>([]);
-    const [miningPlanSearch, setMiningPlanSearch] = useState('');
-    const [showMiningPlanModal, setShowMiningPlanModal] = useState(false);
-    const [editingMiningPlan, setEditingMiningPlan] = useState<any>(null);
-    const [miningPlanAnalyticsId, setMiningPlanAnalyticsId] = useState<string | null>(null);
-    const [miningPlanForm, setMiningPlanForm] = useState<any>({
-        title: '', currency: 'Bitcoin', price: 0, return_amount: 0, return_type: 'Fixed',
-        hashrate_value: 1, hashrate_unit: 'MH/s', period_value: 1, period_unit: 'Day',
-        maintenance_cost: 0, features: [], description: '', status: 'enabled'
-    });
-    const [miningPlanFeatureInput, setMiningPlanFeatureInput] = useState('');
-    const [miningPlanAnalyticsData, setMiningPlanAnalyticsData] = useState<any>(null);
-    const [miningPlanAnalyticsRange, setMiningPlanAnalyticsRange] = useState<'7d' | '30d'>('7d');
-
-    // --- NEW: Flash Offers ---
-    const [flashOffers, setFlashOffers] = useState<any[]>([]);
-    const [showFlashOfferModal, setShowFlashOfferModal] = useState(false);
-    const [editingFlashOffer, setEditingFlashOffer] = useState<any>(null);
-    const defaultFlashForm = { title: '', badge_text: 'SINIRLI STOK', subtitle: '', hashrate_value: 100, hashrate_unit: 'GH/s', bonus_hashrate: 0, original_price: 0, offer_price: 0, expires_minutes: 60, linked_plan_id: '', active: true };
-    const [flashOfferForm, setFlashOfferForm] = useState<any>({ ...defaultFlashForm });
-
-    // --- NEW: Free Options ---
-    const [freeOptions, setFreeOptions] = useState<any>({
-        daily_bonus_enabled: true,
-        daily_bonus_ad_url: '',
-        daily_bonus_ad_duration: 20,
-        daily_bonus_mining_hours: 3,
-        daily_bonus_tp_reward: 50,
-        free_miner_enabled: true,
-        free_miner_daily_max_usd: 0.50,
-        free_miner_hashrate: 5,
-        free_miner_hashrate_unit: 'GH/s',
-        // --- Ödüllü Reklam (AdRewardModal) ---
-        ad_reward_enabled: true,
-        ad_reward_btc: 0.000001,
-        ad_reward_tp: 50,
-        ad_reward_daily_limit: 10,
-        ad_reward_duration: 30,
-    });
-    const [freeOptionsSaving, setFreeOptionsSaving] = useState(false);
-
-    // --- NEW: Contracts ---
-    const [contracts, setContracts] = useState<any[]>([]);
-    const [showContractModal, setShowContractModal] = useState(false);
-    const [editingContract, setEditingContract] = useState<any>(null);
-    const defaultContractForm = { title: '', description: '', reward_amount: 0, reward_currency: 'BTC', prestige_required: 1, duration_days: 7, max_participants: 100, active: true };
-    const [contractForm, setContractForm] = useState<any>({ ...defaultContractForm });
-
     // --- NEW: Game Events ---
     const [gameEvents, setGameEvents] = useState<any[]>([]);
     const [newEvent, setNewEvent] = useState({ name: '', type: 'multiplier', multiplier: 2, duration_hours: 24, active: false });
@@ -272,17 +223,32 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
     const [dbQuery, setDbQuery] = useState('');
     const DB_TABLES = ['profiles', 'transactions', 'withdrawals', 'guilds', 'marketplace', 'logs', 'settings', 'support_tickets', 'subscribers', 'miners', 'promo_codes', 'game_events'];
 
-    // --- Orders state ---
+    // ── orders state ──────────────────────────────────────────────────────
     const [orders, setOrders] = useState<any[]>([]);
 
-    // --- Security Directives (used in security score widget) ---
+    // ── securityDirectives (güvenlik skoru widget'ı için) ─────────────────
     const securityDirectives = [
-        { key: 'twoFaRequired' },
+        { key: 'twoFaRequired'    },
         { key: 'antiCheatEnabled' },
-        { key: 'ipLimitEnabled' },
+        { key: 'ipLimitEnabled'   },
         { key: 'rateLimitEnabled' },
-        { key: 'kycRequired' },
+        { key: 'kycRequired'      },
     ] as const;
+
+    // ── Hashrate & Battery / Energy Settings ──────────────────────────────
+    const [hashrateSettings, setHashrateSettings] = useState<any>({
+        base_hashrate_gh:            50,    // Tüm kullanıcılar için başlangıç GH/s
+        hashrate_per_level:           5,    // Her seviyede eklenen GH/s
+        global_multiplier:          1.0,    // Global çarpan
+        max_hashrate_gh:           1000,    // Kullanıcı başı üst sınır
+        battery_drain_hours:         24,    // Tam dolu pilin kaç saatte biteceği
+        energy_regen_per_hour:       10,    // Boşta enerji yenilenme % / saat
+        boost_vip:                  2.0,    // VIP çarpanı
+        boost_event:                1.5,    // Etkinlik çarpanı
+        halving_block:          1050000,    // Halving referans bloğu
+    });
+    const [hashrateSettingsSaving, setHashrateSettingsSaving] = useState(false);
+    const [hashrateChanged,        setHashrateChanged]        = useState(false);
 
     // --- NEW: KPI Chart Data ---
     const [kpiRange, setKpiRange] = useState<'7d' | '30d' | '90d'>('7d');
@@ -350,10 +316,6 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                 { id: 'bots' as AdminTab, label: 'Bot Yönetimi', icon: <Cpu size={16} /> },
                 { id: 'economy' as AdminTab, label: 'Ekonomi Ayarları', icon: <Coins size={16} /> },
                 { id: 'mining_items' as AdminTab, label: 'Madenci Ekipmanları', icon: <Zap size={16} /> },
-                { id: 'mining_plans' as AdminTab, label: 'Madencilik Planları', icon: <Route size={16} /> },
-                { id: 'flash_offers' as AdminTab, label: 'Flaş Teklifler', icon: <Flame size={16} /> },
-                { id: 'free_options' as AdminTab, label: 'Ücretsiz Seçenekler', icon: <Gift size={16} /> },
-                { id: 'contracts' as AdminTab, label: 'Kontrat Merkezi', icon: <Layout size={16} /> },
                 { id: 'game_events' as AdminTab, label: 'Oyun Etkinlikleri', icon: <Flame size={16} /> },
                 { id: 'promo_codes' as AdminTab, label: 'Promo Kodlar', icon: <Gift size={16} /> },
                 { id: 'leaderboard' as AdminTab, label: 'Sıralama Tablosu', icon: <Award size={16} /> },
@@ -467,9 +429,6 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                 const { data: txs, error: gtErr } = await supabase.from(TABLES.TRANSACTIONS).select('*').order('created_at', { ascending: false }).limit(100);
                 if (gtErr) console.error('AdminPortal Global Tx Error:', gtErr);
                 if (txs) setAllTransactions(txs.map(t => ({ ...t, username: 'Kullanıcı' })));
-
-                const { data: ordersData } = await supabase.from('orders').select('*').order('created_at', { ascending: false }).limit(200);
-                if (ordersData) setOrders(ordersData);
             } catch (err) {
                 console.error("Fetch all data error:", err);
             } finally {
@@ -525,11 +484,6 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                 if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
                     dispatch({ type: 'SET_GLOBAL_SETTINGS', settings: payload.new });
                 }
-            })
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
-                if (payload.eventType === 'INSERT') setOrders(prev => [payload.new, ...prev].slice(0, 200));
-                if (payload.eventType === 'UPDATE') setOrders(prev => prev.map(o => o.id === payload.new.id ? payload.new : o));
-                if (payload.eventType === 'DELETE') setOrders(prev => prev.filter(o => o.id !== payload.old.id));
             })
             .subscribe();
 
@@ -608,16 +562,13 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
     useEffect(() => {
         const fetchExtra = async () => {
             try {
-                const [ticketRes, subRes, settingsRes, miningRes, eventsRes, promoRes, plansRes, flashRes, contractsRes] = await Promise.allSettled([
+                const [ticketRes, subRes, settingsRes, miningRes, eventsRes, promoRes] = await Promise.allSettled([
                     supabase.from('support_tickets').select('*').order('created_at', { ascending: false }).limit(100),
                     supabase.from('subscribers').select('*').order('created_at', { ascending: false }),
                     supabase.from(TABLES.SETTINGS).select('*').eq('id','v1').single(),
                     supabase.from('mining_items').select('*').order('price', { ascending: true }),
                     supabase.from('game_events').select('*').order('created_at', { ascending: false }),
                     supabase.from('promo_codes').select('*').order('created_at', { ascending: false }),
-                    supabase.from('mining_plans').select('*').order('created_at', { ascending: false }),
-                    supabase.from('flash_offers').select('*').order('created_at', { ascending: false }),
-                    supabase.from('contracts').select('*').order('created_at', { ascending: false }),
                 ]);
                 if (ticketRes.status === 'fulfilled' && ticketRes.value.data) setTickets(ticketRes.value.data);
                 if (subRes.status === 'fulfilled' && subRes.value.data) setSubscribers(subRes.value.data);
@@ -629,16 +580,11 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                 if (miningRes.status === 'fulfilled' && miningRes.value.data) setMiningItems(miningRes.value.data);
                 if (eventsRes.status === 'fulfilled' && eventsRes.value.data) setGameEvents(eventsRes.value.data);
                 if (promoRes.status === 'fulfilled' && promoRes.value.data) setPromoCodes(promoRes.value.data);
-                if (plansRes.status === 'fulfilled' && plansRes.value.data) setMiningPlans(plansRes.value.data);
-                if (flashRes.status === 'fulfilled' && flashRes.value.data) setFlashOffers(flashRes.value.data);
-                if (contractsRes.status === 'fulfilled' && contractsRes.value.data) setContracts(contractsRes.value.data);
-                // Load free options from settings
+                // hashrate_settings satırını yükle
                 try {
-                    const { data: freeOpts } = await supabase.from('settings').select('*').eq('id', 'free_options').single();
-                    if (freeOpts?.value) setFreeOptions((prev: any) => ({ ...prev, ...freeOpts.value }));
+                    const { data: hrRow } = await supabase.from('settings').select('value').eq('id', 'hashrate_settings').single();
+                    if (hrRow?.value) setHashrateSettings((p: any) => ({ ...p, ...hrRow.value }));
                 } catch {}
-                // Real-time for new tables
-                
             } catch (e) { /* tables may not exist yet */ }
         };
         fetchExtra();
@@ -662,32 +608,9 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                 if (p.eventType === 'UPDATE') setPromoCodes(prev => prev.map(c => c.id === p.new.id ? p.new : c));
                 if (p.eventType === 'DELETE') setPromoCodes(prev => prev.filter(c => c.id !== p.old.id));
             })
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'mining_plans' }, (p) => {
-                if (p.eventType === 'INSERT') setMiningPlans(prev => [p.new, ...prev]);
-                if (p.eventType === 'UPDATE') setMiningPlans(prev => prev.map(m => m.id === p.new.id ? p.new : m));
-                if (p.eventType === 'DELETE') setMiningPlans(prev => prev.filter(m => m.id !== p.old.id));
-            })
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'flash_offers' }, (p) => {
-                if (p.eventType === 'INSERT') setFlashOffers(prev => [p.new, ...prev]);
-                if (p.eventType === 'UPDATE') setFlashOffers(prev => prev.map(f => f.id === p.new.id ? p.new : f));
-                if (p.eventType === 'DELETE') setFlashOffers(prev => prev.filter(f => f.id !== p.old.id));
-            })
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'contracts' }, (p) => {
-                if (p.eventType === 'INSERT') setContracts(prev => [p.new, ...prev]);
-                if (p.eventType === 'UPDATE') setContracts(prev => prev.map(c => c.id === p.new.id ? p.new : c));
-                if (p.eventType === 'DELETE') setContracts(prev => prev.filter(c => c.id !== p.old.id));
-            })
             .subscribe();
         return () => { supabase.removeChannel(ch); };
     }, []);
-
-    // --- Orders CRUD ---
-    const handleDeleteOrder = async (id: string) => {
-        if (!window.confirm('Bu ilanı silmek istediğinize emin misiniz?')) return;
-        await supabase.from('orders').delete().eq('id', id);
-        setOrders(prev => prev.filter(o => o.id !== id));
-        notify({ type: 'warning', title: 'İlan Kaldırıldı', message: 'Market ilanı silindi.' });
-    };
 
     const logAdminAction = async (action: string, targetId?: string, details?: any) => {
         try {
@@ -787,138 +710,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
         notify({ type: 'warning', title: 'Silindi', message: 'Ekipman silindi.' });
     };
 
-    // --- Mining Plans CRUD ---
-    const handleSaveMiningPlan = async () => {
-        try {
-            const payload = {
-                ...miningPlanForm,
-                features: Array.isArray(miningPlanForm.features) ? miningPlanForm.features : [],
-                updated_at: new Date().toISOString(),
-            };
-            if (editingMiningPlan?.id) {
-                const { error } = await supabase.from('mining_plans').update(payload).eq('id', editingMiningPlan.id);
-                if (!error) {
-                    setMiningPlans(prev => prev.map(p => p.id === editingMiningPlan.id ? { ...p, ...payload } : p));
-                    notify({ type: 'success', title: 'Güncellendi', message: 'Madencilik planı güncellendi.' });
-                }
-            } else {
-                const { data, error } = await supabase.from('mining_plans').insert({ ...payload, created_at: new Date().toISOString() }).select().single();
-                if (!error && data) {
-                    setMiningPlans(prev => [data, ...prev]);
-                    notify({ type: 'success', title: 'Oluşturuldu', message: 'Yeni madencilik planı eklendi.' });
-                }
-            }
-            setShowMiningPlanModal(false);
-            setEditingMiningPlan(null);
-            setMiningPlanForm({ title: '', currency: 'Bitcoin', price: 0, return_amount: 0, return_type: 'Fixed', hashrate_value: 1, hashrate_unit: 'MH/s', period_value: 1, period_unit: 'Day', maintenance_cost: 0, features: [], description: '', status: 'enabled' });
-        } catch (e) {
-            notify({ type: 'warning', title: 'Hata', message: 'Plan kaydedilemedi.' });
-        }
-    };
-
-    const handleToggleMiningPlan = async (id: string, currentStatus: string) => {
-        const newStatus = currentStatus === 'enabled' ? 'disabled' : 'enabled';
-        await supabase.from('mining_plans').update({ status: newStatus }).eq('id', id);
-        setMiningPlans(prev => prev.map(p => p.id === id ? { ...p, status: newStatus } : p));
-        notify({ type: newStatus === 'enabled' ? 'success' : 'warning', title: newStatus === 'enabled' ? 'Aktif Edildi' : 'Devre Dışı', message: '' });
-    };
-
-    const handleDeleteMiningPlan = async (id: string) => {
-        if (!window.confirm('Bu planı silmek istediğinize emin misiniz?')) return;
-        await supabase.from('mining_plans').delete().eq('id', id);
-        setMiningPlans(prev => prev.filter(p => p.id !== id));
-        notify({ type: 'warning', title: 'Silindi', message: 'Madencilik planı silindi.' });
-    };
-
-    const loadMiningPlanAnalytics = async (planId: string) => {
-        setMiningPlanAnalyticsId(planId);
-        // Fetch orders/miners for this plan
-        try {
-            const days = miningPlanAnalyticsRange === '7d' ? 7 : 30;
-            const since = new Date(); since.setDate(since.getDate() - days);
-            const { data: orders } = await supabase.from('orders').select('*').eq('plan_id', planId).gte('created_at', since.toISOString());
-            const { data: miners } = await supabase.from('miners').select('*').eq('plan_id', planId);
-            setMiningPlanAnalyticsData({ orders: orders || [], miners: miners || [] });
-        } catch (e) {
-            setMiningPlanAnalyticsData({ orders: [], miners: [] });
-        }
-    };
-
-    // --- Flash Offers CRUD ---
-    const handleSaveFlashOffer = async () => {
-        try {
-            const payload = { ...flashOfferForm, updated_at: new Date().toISOString() };
-            if (editingFlashOffer?.id) {
-                const { error } = await supabase.from('flash_offers').update(payload).eq('id', editingFlashOffer.id);
-                if (!error) {
-                    setFlashOffers(prev => prev.map(f => f.id === editingFlashOffer.id ? { ...f, ...payload } : f));
-                    notify({ type: 'success', title: 'Güncellendi', message: 'Flaş teklif güncellendi.' });
-                }
-            } else {
-                const { data, error } = await supabase.from('flash_offers').insert({ ...payload, created_at: new Date().toISOString() }).select().single();
-                if (!error && data) {
-                    setFlashOffers(prev => [data, ...prev]);
-                    notify({ type: 'success', title: 'Oluşturuldu', message: 'Flaş teklif eklendi.' });
-                }
-            }
-            setShowFlashOfferModal(false);
-            setEditingFlashOffer(null);
-            setFlashOfferForm({ ...defaultFlashForm });
-        } catch (e) { notify({ type: 'warning', title: 'Hata', message: 'Kayıt başarısız.' }); }
-    };
-    const handleToggleFlashOffer = async (id: string, active: boolean) => {
-        await supabase.from('flash_offers').update({ active: !active }).eq('id', id);
-        setFlashOffers(prev => prev.map(f => f.id === id ? { ...f, active: !active } : f));
-    };
-    const handleDeleteFlashOffer = async (id: string) => {
-        if (!window.confirm('Bu teklifi silmek istiyor musunuz?')) return;
-        await supabase.from('flash_offers').delete().eq('id', id);
-        setFlashOffers(prev => prev.filter(f => f.id !== id));
-        notify({ type: 'warning', title: 'Silindi', message: 'Flaş teklif silindi.' });
-    };
-
-    // --- Free Options Save ---
-    const handleSaveFreeOptions = async () => {
-        setFreeOptionsSaving(true);
-        try {
-            await supabase.from('settings').upsert({ id: 'free_options', value: freeOptions, updated_at: new Date().toISOString() });
-            notify({ type: 'success', title: 'Kaydedildi', message: 'Ücretsiz seçenek ayarları güncellendi.' });
-        } catch (e) { notify({ type: 'warning', title: 'Hata', message: 'Kayıt başarısız.' }); }
-        setFreeOptionsSaving(false);
-    };
-
-    // --- Contracts CRUD ---
-    const handleSaveContract = async () => {
-        try {
-            const payload = { ...contractForm, updated_at: new Date().toISOString() };
-            if (editingContract?.id) {
-                const { error } = await supabase.from('contracts').update(payload).eq('id', editingContract.id);
-                if (!error) {
-                    setContracts(prev => prev.map(c => c.id === editingContract.id ? { ...c, ...payload } : c));
-                    notify({ type: 'success', title: 'Güncellendi', message: 'Kontrat güncellendi.' });
-                }
-            } else {
-                const { data, error } = await supabase.from('contracts').insert({ ...payload, created_at: new Date().toISOString() }).select().single();
-                if (!error && data) {
-                    setContracts(prev => [data, ...prev]);
-                    notify({ type: 'success', title: 'Oluşturuldu', message: 'Kontrat eklendi.' });
-                }
-            }
-            setShowContractModal(false);
-            setEditingContract(null);
-            setContractForm({ ...defaultContractForm });
-        } catch (e) { notify({ type: 'warning', title: 'Hata', message: 'Kontrat kaydedilemedi.' }); }
-    };
-    const handleToggleContract = async (id: string, active: boolean) => {
-        await supabase.from('contracts').update({ active: !active }).eq('id', id);
-        setContracts(prev => prev.map(c => c.id === id ? { ...c, active: !active } : c));
-    };
-    const handleDeleteContract = async (id: string) => {
-        if (!window.confirm('Bu kontratı silmek istiyor musunuz?')) return;
-        await supabase.from('contracts').delete().eq('id', id);
-        setContracts(prev => prev.filter(c => c.id !== id));
-        notify({ type: 'warning', title: 'Silindi', message: 'Kontrat silindi.' });
-    };
+    // --- Game Events CRUD ---
     const handleCreateEvent = async () => {
         if (!newEvent.name) return;
         try {
@@ -1078,48 +870,13 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
         setBulkActionLoading(false);
     };
 
-    const handleWithdrawalStatusChange = async (id: string, newStatus: 'approved' | 'rejected' | 'on_hold' | 'pending') => {
-        const cleanId = id.trim();
-        try {
-            // 1. Fetch withdrawal details to get amount and userId
-            const { data: wd } = await supabase.from(TABLES.WITHDRAWALS).select('*').eq('id', cleanId).single();
-            if (!wd) throw new Error('Çekim talebi bulunamadı.');
-
-            // 2. If rejecting from a state that was previously 'pending', 'approved', or 'on_hold'
-            // and we had deducted it (which we do now on request), we must REFUND it if status is 'rejected'
-            if (newStatus === 'rejected') {
-                const { data: profile } = await supabase.from(TABLES.PROFILES).select('btcBalance').eq('id', wd.user_id).single();
-                if (profile) {
-                    const newBalance = (profile.btcBalance || 0) + wd.amount;
-                    await supabase.from(TABLES.PROFILES).update({ btcBalance: newBalance }).eq('id', wd.user_id);
-                    // Add refund transaction
-                    await supabase.from(TABLES.TRANSACTIONS).insert({
-                        user_id: wd.user_id,
-                        amount: wd.amount,
-                        type: 'transfer_in',
-                        description: `İade: Çekim Reddedildi (#${cleanId.substring(0,6)})`,
-                        timestamp: new Date().toISOString()
-                    });
-                }
-            }
-
-            // 3. Update status
-            await supabase.from(TABLES.WITHDRAWALS).update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', cleanId);
-            
-            notify({ type: 'success', title: 'Güncellendi', message: `Talep durumu '${newStatus}' olarak güncellendi.` });
-        } catch (e: any) {
-            console.error('Withdrawal update error:', e);
-            notify({ type: 'warning', title: 'Hata', message: `Güncelleme başarısız: ${e.message}` });
-        }
-    };
-
     const handleBulkWithdrawalReject = async () => {
         setBulkActionLoading(true);
         try {
             for (const id of selectedWithdrawalIds) {
-                await handleWithdrawalStatusChange(id, 'rejected');
+                await supabase.from(TABLES.WITHDRAWALS).update({ status: 'rejected', updated_at: new Date().toISOString() }).eq('id', id.trim());
             }
-            notify({ type: 'warning', title: 'Toplu Red', message: `${selectedWithdrawalIds.size} çekim reddedildi ve iade edildi.` });
+            notify({ type: 'warning', title: 'Toplu Red', message: `${selectedWithdrawalIds.size} çekim reddedildi.` });
             setSelectedWithdrawalIds(new Set());
         } catch (e) { notify({ type: 'warning', title: 'Hata', message: 'Toplu red başarısız.' }); }
         setBulkActionLoading(false);
@@ -1152,6 +909,46 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
             await logAdminAction('delete_player', cleanUid);
             notify({ type: 'success', title: 'Silindi', message: 'Oyuncu başarıyla silindi.' });
         } catch (e) { notify({ type: 'warning', title: 'Hata', message: 'Silme işlemi başarısız.' }); }
+    };
+
+    // ── Hashrate & Battery ayarlarını kaydet → Supabase'e yaz → tüm app realtime alır ──
+    // ── Orders ────────────────────────────────────────────────────────────
+    const handleDeleteOrder = async (id: string) => {
+        if (!window.confirm('Bu ilanı silmek istediğinize emin misiniz?')) return;
+        await supabase.from('orders').delete().eq('id', id);
+        setOrders(prev => prev.filter((o: any) => o.id !== id));
+        notify({ type: 'warning', title: 'İlan Kaldırıldı', message: 'Market ilanı silindi.' });
+    };
+
+    const handleSaveHashrateSettings = async () => {
+        setHashrateSettingsSaving(true);
+        try {
+            // 1. Özel hashrate_settings satırı (okunması kolay)
+            await supabase.from('settings').upsert({
+                id: 'hashrate_settings',
+                value: hashrateSettings,
+                updated_at: new Date().toISOString(),
+            });
+            // 2. v1 globalSettings'e de mirror et → mobil uygulama anında alır
+            await supabase.from(TABLES.SETTINGS).upsert({
+                id: 'v1',
+                base_hashrate_gh:         hashrateSettings.base_hashrate_gh,
+                hashrate_per_level:       hashrateSettings.hashrate_per_level,
+                global_multiplier:        hashrateSettings.global_multiplier,
+                max_hashrate_gh:          hashrateSettings.max_hashrate_gh,
+                battery_drain_hours:      hashrateSettings.battery_drain_hours,
+                energy_regen_per_hour:    hashrateSettings.energy_regen_per_hour,
+                boost_vip:                hashrateSettings.boost_vip,
+                boost_event:              hashrateSettings.boost_event,
+                halving_block:            hashrateSettings.halving_block,
+            });
+            setHashrateChanged(false);
+            await logAdminAction('update_hashrate_settings', 'global', hashrateSettings);
+            notify({ type: 'success', title: '✅ Yayınlandı', message: 'Hashrate & pil ayarları uygulamaya anlık yansıtıldı.' });
+        } catch (e: any) {
+            notify({ type: 'warning', title: 'Hata', message: `Kayıt başarısız: ${e.message}` });
+        }
+        setHashrateSettingsSaving(false);
     };
 
     const handleUpdateSettings = async (updates: any) => {
@@ -1223,14 +1020,14 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                         <div className="space-y-0.5 animate-in slide-in-from-top-1 duration-200">
                                             {cat.items.map(item => (
                                                 <div key={String(item.id)}>
-                                                <SidebarLink
-                                                    active={activeTab === item.id}
-                                                    onClick={() => setActiveTab(item.id as AdminTab)}
-                                                    icon={item.icon}
-                                                    label={item.label}
-                                                    badge={(item as any).badge}
-                                                    sub
-                                                />
+                                                    <SidebarLink
+                                                        active={activeTab === item.id}
+                                                        onClick={() => setActiveTab(item.id as AdminTab)}
+                                                        icon={item.icon}
+                                                        label={item.label}
+                                                        badge={(item as any).badge}
+                                                        sub
+                                                    />
                                                 </div>
                                             ))}
                                         </div>
@@ -1824,16 +1621,16 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                                         />
                                                     </th>
                                                     <th className="p-4">Kullanıcı</th>
+                                                    <th className="p-4">İletişim</th>
                                                     <th className="p-4">Bakiye (BTC)</th>
                                                     <th className="p-4">Seviye</th>
-                                                    <th className="p-4">İletişim</th>
                                                     <th className="p-4">Durum</th>
                                                     <th className="p-4 text-right">İşlem</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-zinc-50">
                                                 {players.filter(p => {
-                                                    const matchesSearch = !searchTerm || (p.username || '').toLowerCase().includes(searchTerm.toLowerCase()) || (p.id || '').includes(searchTerm) || (p.email || '').toLowerCase().includes(searchTerm.toLowerCase()) || (p.phone || '').includes(searchTerm);
+                                                    const matchesSearch = !searchTerm || (p.username || '').toLowerCase().includes(searchTerm.toLowerCase()) || (p.id || '').includes(searchTerm) || (p.email || '').toLowerCase().includes(searchTerm.toLowerCase());
                                                     if (!matchesSearch) return false;
                                                     if (playerFilterStatus === 'active') return !p.isBanned;
                                                     if (playerFilterStatus === 'banned') return p.isBanned;
@@ -1869,10 +1666,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                                                     player.vip?.isActive ? "bg-amber-50 border-amber-100 text-amber-600" :
                                                                     "bg-zinc-100 border-zinc-200 text-zinc-500 group-hover:bg-indigo-50 group-hover:border-indigo-100 group-hover:text-indigo-600"
                                                                 )}>
-                                                                    {player.avatarUrl 
-                                                                        ? <img src={player.avatarUrl} className="w-full h-full rounded-xl object-cover" alt="avatar"/>
-                                                                        : (player.username?.charAt(0) || '?').toUpperCase()
-                                                                    }
+                                                                    {(player.username?.charAt(0) || '?').toUpperCase()}
                                                                 </div>
                                                                 <div>
                                                                     <p className="text-zinc-800 font-bold text-sm tracking-tight leading-none">{player.username}</p>
@@ -1881,20 +1675,20 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                                             </div>
                                                         </td>
                                                         <td className="p-4">
+                                                            <div className="space-y-0.5">
+                                                                <p className="text-[10px] font-bold text-zinc-800 flex items-center gap-1.5">
+                                                                    <Mail size={10} className="text-zinc-400" /> {player.email || '—'}
+                                                                </p>
+                                                                <p className="text-[10px] font-bold text-zinc-500 flex items-center gap-1.5">
+                                                                    <Smartphone size={10} className="text-zinc-400" /> {player.phone || '—'}
+                                                                </p>
+                                                            </div>
+                                                        </td>
+                                                        <td className="p-4">
                                                             <span className="text-orange-600 font-black text-xs tabular-nums">{(player.btcBalance || 0).toFixed(6)}</span>
                                                         </td>
                                                         <td className="p-4">
                                                             <span className="text-indigo-600 font-black text-xs">LVL {player.level || 1}</span>
-                                                        </td>
-                                                        <td className="p-4">
-                                                            <div className="flex flex-col">
-                                                                <span className="text-[9px] font-bold text-zinc-500 flex items-center gap-1">
-                                                                    <Mail size={8} /> {player.email || '—'}
-                                                                </span>
-                                                                <span className="text-[9px] font-bold text-zinc-500 flex items-center gap-1">
-                                                                    <Smartphone size={8} /> {player.phone || '—'}
-                                                                </span>
-                                                            </div>
                                                         </td>
                                                         <td className="p-4">
                                                             {player.isBanned ? (
@@ -2093,10 +1887,10 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                                         <InputGroup label="BTC Cüzdan Bakiyesi" value={currentPlayer.btcBalance?.toString()} onChange={(v) => handleUpdatePlayer(currentPlayer.id, { btcBalance: parseFloat(v) })} icon={<Bitcoin className="text-orange-500" size={18} />} placeholder="0.0" light />
                                                         <InputGroup label="Tycoon Puanı (TP)" value={currentPlayer.tycoonPoints?.toString()} onChange={(v) => handleUpdatePlayer(currentPlayer.id, { tycoonPoints: parseInt(v) })} icon={<Database className="text-indigo-500" size={18} />} placeholder="0" light />
-                                                        <InputGroup label="E-posta Adresi" value={currentPlayer.email || ''} onChange={(v) => handleUpdatePlayer(currentPlayer.id, { email: v })} icon={<Mail className="text-pink-500" size={18} />} placeholder="email@example.com" light />
-                                                        <InputGroup label="Telefon Numarası" value={currentPlayer.phone || ''} onChange={(v) => handleUpdatePlayer(currentPlayer.id, { phone: v })} icon={<Smartphone className="text-emerald-500" size={18} />} placeholder="+90 ..." light />
                                                         <InputGroup label="Mevcut Seviye" value={currentPlayer.level?.toString()} onChange={(v) => handleUpdatePlayer(currentPlayer.id, { level: parseInt(v) })} icon={<TrendingUp className="text-blue-500" size={18} />} placeholder="1" light />
                                                         <InputGroup label="Deneyim (XP)" value={currentPlayer.xp?.toString()} onChange={(v) => handleUpdatePlayer(currentPlayer.id, { xp: parseInt(v) })} icon={<Zap className="text-amber-500" size={18} />} placeholder="0" light />
+                                                        <InputGroup label="E-posta Adresi" value={currentPlayer.email || ''} onChange={(v) => handleUpdatePlayer(currentPlayer.id, { email: v })} icon={<Mail className="text-indigo-500" size={18} />} placeholder="Email" light />
+                                                        <InputGroup label="Telefon Numarası" value={currentPlayer.phone || ''} onChange={(v) => handleUpdatePlayer(currentPlayer.id, { phone: v })} icon={<Smartphone className="text-indigo-500" size={18} />} placeholder="Telefon" light />
                                                     </div>
                                                 </div>
                                             )}
@@ -2329,7 +2123,210 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                     )}
 
                     {activeTab === 'economy' && (
-                        <div className="space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
+                        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
+
+                            {/* ═══════════════════════════════════════════════
+                                HASHRATE & PİL YÖNETİM PANELİ
+                                Tüm değişiklikler Supabase realtime → anlık uygulama
+                            ═══════════════════════════════════════════════ */}
+                            <div className="bg-white border border-zinc-200 rounded-[2rem] overflow-hidden shadow-sm">
+
+                                {/* Panel Header */}
+                                <div className="flex items-center justify-between px-8 py-5 bg-gradient-to-r from-emerald-50 via-white to-white border-b border-zinc-100">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-12 h-12 rounded-2xl bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                                            <Zap size={20} className="text-white"/>
+                                        </div>
+                                        <div>
+                                            <h3 className="font-black text-sm text-zinc-800 uppercase tracking-widest">Hashrate & Enerji Sistemi</h3>
+                                            <p className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest mt-0.5">
+                                                Değişiklikler <span className="text-emerald-500">anlık</span> olarak tüm cihazlara yansır
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        {hashrateChanged && (
+                                            <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-200 rounded-xl">
+                                                <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"/>
+                                                <span className="text-[9px] font-black text-amber-600 uppercase tracking-widest">Kaydedilmemiş</span>
+                                            </div>
+                                        )}
+                                        <button
+                                            onClick={handleSaveHashrateSettings}
+                                            disabled={hashrateSettingsSaving}
+                                            className="h-11 px-8 rounded-xl bg-emerald-600 text-white font-black text-[9px] uppercase tracking-widest hover:bg-emerald-700 active:scale-95 transition-all flex items-center gap-2 shadow-lg shadow-emerald-500/25 disabled:opacity-60"
+                                        >
+                                            {hashrateSettingsSaving
+                                                ? <RefreshCw size={13} className="animate-spin"/>
+                                                : <CheckCircle2 size={13}/>
+                                            }
+                                            Uygula & Yayınla
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="p-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+                                    {/* ── Col 1: Hashrate Değerleri ── */}
+                                    <div className="space-y-7">
+                                        <h4 className="text-[10px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+                                            <Cpu size={11} className="text-emerald-500"/> Hashrate Konfigürasyonu
+                                        </h4>
+
+                                        {([
+                                            { key:'base_hashrate_gh',  label:'Temel Hashrate',          unit:'GH/s', desc:'Tüm kullanıcılar başlangıç hızı',        min:1,    max:10000, step:1,   accent:'emerald' },
+                                            { key:'hashrate_per_level',label:'Seviye Başına Bonus',      unit:'GH/s', desc:'Her seviyede kazanılan ek hashrate',      min:0,    max:200,   step:0.5, accent:'emerald' },
+                                            { key:'max_hashrate_gh',   label:'Maks. Hashrate Sınırı',   unit:'GH/s', desc:'Kullanıcı başına üst limit',             min:100,  max:99999, step:100, accent:'emerald' },
+                                        ] as const).map((f:any) => (
+                                            <div key={f.key}>
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">{f.label}</span>
+                                                    <span className="text-[9px] font-black text-emerald-600 tabular-nums">{hashrateSettings[f.key]} {f.unit}</span>
+                                                </div>
+                                                <p className="text-[8px] text-zinc-400 mb-2">{f.desc}</p>
+                                                <div className="flex gap-2 items-center">
+                                                    <input type="range" min={f.min} max={f.max} step={f.step} value={hashrateSettings[f.key]}
+                                                        onChange={e => { setHashrateSettings((p:any)=>({...p,[f.key]:parseFloat(e.target.value)})); setHashrateChanged(true); }}
+                                                        className="flex-1 h-1.5 rounded-full accent-emerald-500 cursor-pointer"/>
+                                                    <input type="number" min={f.min} max={f.max} step={f.step} value={hashrateSettings[f.key]}
+                                                        onChange={e => { setHashrateSettings((p:any)=>({...p,[f.key]:parseFloat(e.target.value)||0})); setHashrateChanged(true); }}
+                                                        className="w-20 h-9 px-2 text-center bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-black text-zinc-800 focus:outline-none focus:border-emerald-300 tabular-nums"/>
+                                                </div>
+                                            </div>
+                                        ))}
+
+                                        {/* Global Çarpan */}
+                                        <div>
+                                            <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Global Çarpan (Anlık)</p>
+                                            <div className="grid grid-cols-4 gap-1.5">
+                                                {[0.5, 1.0, 1.5, 2.0, 3.0, 5.0, 10.0, -1].map(m => (
+                                                    <button key={m}
+                                                        onClick={() => {
+                                                            if (m === -1) {
+                                                                const v = parseFloat(window.prompt('Özel çarpan:', '1.0') || '1.0');
+                                                                if (!isNaN(v)) setHashrateSettings((p:any)=>({...p,global_multiplier:v}));
+                                                            } else {
+                                                                setHashrateSettings((p:any)=>({...p,global_multiplier:m}));
+                                                            }
+                                                            setHashrateChanged(true);
+                                                        }}
+                                                        className={cn(
+                                                            "h-9 rounded-xl font-black text-[9px] transition-all border",
+                                                            hashrateSettings.global_multiplier === m
+                                                                ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm shadow-emerald-500/30'
+                                                                : 'bg-zinc-50 border-zinc-200 text-zinc-500 hover:border-emerald-300 hover:text-emerald-600'
+                                                        )}>
+                                                        {m === -1 ? '…' : `${m}x`}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                            <p className="text-[9px] text-center text-emerald-600 font-black mt-2">
+                                                Aktif: <span className="text-emerald-700">{hashrateSettings.global_multiplier}×</span>
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* ── Col 2: Pil / Enerji ── */}
+                                    <div className="space-y-7">
+                                        <h4 className="text-[10px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+                                            <Activity size={11} className="text-blue-500"/> Pil & Enerji Sistemi
+                                        </h4>
+
+                                        {/* Animasyonlu canlı pil önizleme */}
+                                        <div className="flex flex-col items-center gap-4 p-6 bg-zinc-900 rounded-2xl">
+                                            <p className="text-[8px] font-black text-zinc-400 uppercase tracking-widest">Canlı Önizleme</p>
+                                            <AdminBatteryPreview drainHours={hashrateSettings.battery_drain_hours} />
+                                            <p className="text-[9px] text-zinc-400 text-center">
+                                                Tam dolu → <span className="font-black text-white">{hashrateSettings.battery_drain_hours}s</span> içinde biter
+                                                <br/>
+                                                <span className="text-[8px] text-zinc-500">({(100/hashrateSettings.battery_drain_hours).toFixed(1)}% / saat tüketim)</span>
+                                            </p>
+                                        </div>
+
+                                        {([
+                                            { key:'battery_drain_hours',  label:'Pil Ömrü',         unit:'Saat', desc:'Tam dolu → boş süre',            min:1, max:168, step:1,  accent:'blue' },
+                                            { key:'energy_regen_per_hour',label:'Enerji Yenileme',  unit:'%/s',  desc:'Boşta beklerken kazanılan enerji', min:1, max:50,  step:1,  accent:'cyan' },
+                                        ] as const).map((f:any) => (
+                                            <div key={f.key}>
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">{f.label}</span>
+                                                    <span className="text-[9px] font-black text-blue-500 tabular-nums">{hashrateSettings[f.key]} {f.unit}</span>
+                                                </div>
+                                                <p className="text-[8px] text-zinc-400 mb-2">{f.desc}</p>
+                                                <div className="flex gap-2 items-center">
+                                                    <input type="range" min={f.min} max={f.max} step={f.step} value={hashrateSettings[f.key]}
+                                                        onChange={e => { setHashrateSettings((p:any)=>({...p,[f.key]:parseFloat(e.target.value)})); setHashrateChanged(true); }}
+                                                        className="flex-1 h-1.5 rounded-full accent-blue-500 cursor-pointer"/>
+                                                    <input type="number" min={f.min} max={f.max} value={hashrateSettings[f.key]}
+                                                        onChange={e => { setHashrateSettings((p:any)=>({...p,[f.key]:parseFloat(e.target.value)||1})); setHashrateChanged(true); }}
+                                                        className="w-20 h-9 px-2 text-center bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-black text-zinc-800 focus:outline-none focus:border-blue-300 tabular-nums"/>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* ── Col 3: Bonus çarpanlar + Hesap özeti ── */}
+                                    <div className="space-y-7">
+                                        <h4 className="text-[10px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+                                            <TrendingUp size={11} className="text-amber-500"/> Bonus & Özet
+                                        </h4>
+
+                                        {([
+                                            { key:'boost_vip',   label:'VIP Çarpanı',     unit:'x', desc:'VIP kullanıcılar için hashrate bonusu', min:1, max:10, step:0.1, color:'amber' },
+                                            { key:'boost_event', label:'Etkinlik Çarpanı', unit:'x', desc:'Aktif etkinlik sırasındaki bonus',      min:1, max:10, step:0.1, color:'orange' },
+                                        ] as const).map((f:any) => (
+                                            <div key={f.key}>
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">{f.label}</span>
+                                                    <span className={`text-[9px] font-black text-${f.color}-500 tabular-nums`}>{hashrateSettings[f.key]}{f.unit}</span>
+                                                </div>
+                                                <p className="text-[8px] text-zinc-400 mb-2">{f.desc}</p>
+                                                <div className="flex gap-2 items-center">
+                                                    <input type="range" min={f.min} max={f.max} step={f.step} value={hashrateSettings[f.key]}
+                                                        onChange={e => { setHashrateSettings((p:any)=>({...p,[f.key]:parseFloat(e.target.value)})); setHashrateChanged(true); }}
+                                                        className={`flex-1 h-1.5 rounded-full accent-${f.color}-500 cursor-pointer`}/>
+                                                    <input type="number" min={f.min} max={f.max} step={f.step} value={hashrateSettings[f.key]}
+                                                        onChange={e => { setHashrateSettings((p:any)=>({...p,[f.key]:parseFloat(e.target.value)||1})); setHashrateChanged(true); }}
+                                                        className="w-20 h-9 px-2 text-center bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-black text-zinc-800 focus:outline-none tabular-nums"/>
+                                                </div>
+                                            </div>
+                                        ))}
+
+                                        {/* Halving block */}
+                                        <div>
+                                            <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1">Halving Blok No</p>
+                                            <p className="text-[8px] text-zinc-400 mb-2">Yarılanma sayacı referansı</p>
+                                            <div className="flex gap-2">
+                                                <input type="number" value={hashrateSettings.halving_block}
+                                                    onChange={e=>{setHashrateSettings((p:any)=>({...p,halving_block:parseInt(e.target.value)||0}));setHashrateChanged(true);}}
+                                                    className="flex-1 h-10 px-4 bg-zinc-50 border border-zinc-200 rounded-xl font-mono font-black text-sm text-zinc-800 focus:outline-none focus:border-orange-300"/>
+                                                <button onClick={()=>{setHashrateSettings((p:any)=>({...p,halving_block:1050000}));setHashrateChanged(true);}}
+                                                    className="h-10 px-3 rounded-xl bg-orange-50 text-orange-600 text-[8px] font-black uppercase border border-orange-200 hover:bg-orange-500 hover:text-white transition-all">
+                                                    Reset
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Hesaplama özeti */}
+                                        <div className="p-5 bg-zinc-50 rounded-2xl border border-zinc-100 space-y-2.5">
+                                            <p className="text-[8px] font-black text-zinc-400 uppercase tracking-widest mb-3">📊 Hesaplama Özeti</p>
+                                            {[
+                                                { lbl:'Lv.1 Oyuncu',  val:`${((hashrateSettings.base_hashrate_gh + hashrateSettings.hashrate_per_level * 1)  * hashrateSettings.global_multiplier).toFixed(1)} GH/s` },
+                                                { lbl:'Lv.10 Oyuncu', val:`${((hashrateSettings.base_hashrate_gh + hashrateSettings.hashrate_per_level * 10) * hashrateSettings.global_multiplier).toFixed(1)} GH/s` },
+                                                { lbl:'VIP Lv.10',    val:`${((hashrateSettings.base_hashrate_gh + hashrateSettings.hashrate_per_level * 10) * hashrateSettings.global_multiplier * hashrateSettings.boost_vip).toFixed(1)} GH/s` },
+                                                { lbl:'Pil %/saat',   val:`${(100/hashrateSettings.battery_drain_hours).toFixed(2)}%` },
+                                            ].map(s=>(
+                                                <div key={s.lbl} className="flex justify-between">
+                                                    <span className="text-[8px] font-bold text-zinc-400 uppercase">{s.lbl}</span>
+                                                    <span className="text-[9px] font-black text-zinc-700 tabular-nums">{s.val}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* ── Mevcut: Manuel Müdahale + Kontrat ── */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                                 <div className="space-y-8">
                                     <h3 className="text-zinc-800 font-black text-xs uppercase tracking-widest flex items-center gap-3">
@@ -2346,26 +2343,20 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                         <ShoppingCart className="text-indigo-500" size={18} /> Kontrat Denetimi
                                     </h3>
                                     <div className="grid gap-4">
-                                        {(state.availableJobs || []).map(job => (
+                                        {(state.availableJobs || []).map((job: any) => (
                                             <div key={job.id} className="p-6 rounded-2xl bg-white border border-zinc-200 shadow-sm space-y-4 group hover:border-indigo-200 transition-all">
                                                 <div className="flex justify-between items-center">
                                                     <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">{job.client}</span>
-                                                    <span className="text-[9px] font-bold text-zinc-400 uppercase">GH: {job.goalHash.toLocaleString()}</span>
+                                                    <span className="text-[9px] font-bold text-zinc-400 uppercase">GH: {(job.goalHash || 0).toLocaleString()}</span>
                                                 </div>
                                                 <div className="flex justify-between items-end">
-                                                    <div>
-                                                        <h4 className="text-zinc-800 font-black text-sm uppercase tracking-tight">{job.label}</h4>
-                                                    </div>
+                                                    <h4 className="text-zinc-800 font-black text-sm uppercase tracking-tight">{job.label}</h4>
                                                     <div className="text-right">
                                                         <div className="flex items-center gap-2">
                                                             <Bitcoin size={12} className="text-orange-500" />
-                                                            <input
-                                                                type="number"
-                                                                step="0.000000001"
-                                                                defaultValue={job.reward}
+                                                            <input type="number" step="0.000000001" defaultValue={job.reward}
                                                                 onBlur={(e) => dispatch({ type: 'ADMIN_UPDATE_JOB', jobId: job.id, updates: { reward: parseFloat(e.target.value) } })}
-                                                                className="w-24 bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-1 text-right text-xs font-black text-zinc-800 focus:outline-none focus:border-indigo-300 transition-all tabular-nums"
-                                                            />
+                                                                className="w-24 bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-1 text-right text-xs font-black text-zinc-800 focus:outline-none focus:border-indigo-300 tabular-nums"/>
                                                         </div>
                                                         <p className="text-[8px] font-bold text-zinc-400 uppercase mt-1 tracking-widest">BTC ÖDÜLÜ</p>
                                                     </div>
@@ -3357,21 +3348,21 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                                             {req.status === 'pending' && (
                                                                 <>
                                                                     <button
-                                                                        onClick={() => handleWithdrawalStatusChange(req.id, 'approved')}
+                                                                        onClick={() => supabase.from(TABLES.WITHDRAWALS).update({ status: 'approved', updated_at: new Date().toISOString() }).eq('id', (req.id as string).trim())}
                                                                         className="p-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-500/10 transition-all active:scale-95"
                                                                         title="Onayla"
                                                                     >
                                                                         <CheckCircle2 size={14} />
                                                                     </button>
                                                                     <button
-                                                                        onClick={() => handleWithdrawalStatusChange(req.id, 'on_hold')}
+                                                                        onClick={() => supabase.from(TABLES.WITHDRAWALS).update({ status: 'on_hold', updated_at: new Date().toISOString() }).eq('id', (req.id as string).trim())}
                                                                         className="p-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-500/10 transition-all active:scale-95"
                                                                         title="Beklet"
                                                                     >
                                                                         <Clock size={14} />
                                                                     </button>
                                                                     <button
-                                                                        onClick={() => handleWithdrawalStatusChange(req.id, 'rejected')}
+                                                                        onClick={() => supabase.from(TABLES.WITHDRAWALS).update({ status: 'rejected', updated_at: new Date().toISOString() }).eq('id', (req.id as string).trim())}
                                                                         className="p-2.5 rounded-xl bg-zinc-900 hover:bg-red-600 shadow-lg transition-all active:scale-95"
                                                                         title="İptal Et"
                                                                     >
@@ -3381,7 +3372,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                                             )}
                                                             {req.status !== 'pending' && (
                                                                 <button
-                                                                    onClick={() => handleWithdrawalStatusChange(req.id, 'pending')}
+                                                                    onClick={() => supabase.from(TABLES.WITHDRAWALS).update({ status: 'pending', updated_at: new Date().toISOString() }).eq('id', (req.id as string).trim())}
                                                                     className="px-4 py-2 rounded-xl bg-zinc-100 text-[9px] font-black uppercase text-zinc-500 hover:text-zinc-900 hover:bg-zinc-200 transition-all"
                                                                 >
                                                                     Geri Al
@@ -3932,974 +3923,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                         </div>
                     )}
 
-                    {/* ===== MADENCİLİK PLANLARI ===== */}
-                    {activeTab === 'mining_plans' && !miningPlanAnalyticsId && (
-                        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                            {/* Header */}
-                            <div className="flex items-center justify-between flex-wrap gap-4">
-                                <h3 className="font-black text-sm text-zinc-800 uppercase tracking-widest flex items-center gap-2">
-                                    <Route className="text-indigo-500" size={18}/> Madencilik Planları
-                                </h3>
-                                <div className="flex items-center gap-3">
-                                    <div className="relative">
-                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" size={14}/>
-                                        <input
-                                            type="text"
-                                            placeholder="Başlık / Para Birimi"
-                                            value={miningPlanSearch}
-                                            onChange={e => setMiningPlanSearch(e.target.value)}
-                                            className="h-10 pl-9 pr-4 bg-white border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 focus:outline-none focus:border-indigo-300 shadow-sm w-52"
-                                        />
-                                    </div>
-                                    <button
-                                        onClick={() => {
-                                            setEditingMiningPlan(null);
-                                            setMiningPlanForm({ title: '', currency: 'Bitcoin', price: 0, return_amount: 0, return_type: 'Fixed', hashrate_value: 1, hashrate_unit: 'MH/s', period_value: 1, period_unit: 'Day', maintenance_cost: 0, features: [], description: '', status: 'enabled' });
-                                            setShowMiningPlanModal(true);
-                                        }}
-                                        className="h-10 px-5 rounded-xl bg-indigo-600 text-white font-black text-[9px] uppercase hover:bg-indigo-700 transition-all active:scale-95 flex items-center gap-2 shadow-lg shadow-indigo-500/20"
-                                    >
-                                        <Zap size={12}/> + Yeni Plan Ekle
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Table */}
-                            <div className="bg-white border border-zinc-200 rounded-[2rem] overflow-hidden shadow-sm">
-                                <table className="w-full text-left border-collapse">
-                                    <thead>
-                                        <tr className="bg-indigo-600 text-white">
-                                            {['Başlık','Para Birimi','Fiyat','Hashrate','Süre','Getiri/Gün','Bakım','Durum','İşlem'].map(h => (
-                                                <th key={h} className="px-4 py-4 text-[9px] font-black uppercase tracking-widest whitespace-nowrap">{h}</th>
-                                            ))}
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-zinc-100">
-                                        {miningPlans
-                                            .filter(p => !miningPlanSearch || p.title?.toLowerCase().includes(miningPlanSearch.toLowerCase()) || p.currency?.toLowerCase().includes(miningPlanSearch.toLowerCase()))
-                                            .map(plan => (
-                                            <tr key={plan.id} className="hover:bg-zinc-50/70 transition-colors group">
-                                                <td className="px-4 py-3">
-                                                    <p className="font-black text-xs text-zinc-800 uppercase tracking-tight">{plan.title}</p>
-                                                </td>
-                                                <td className="px-4 py-3 text-xs font-bold text-zinc-600">{plan.currency}</td>
-                                                <td className="px-4 py-3 text-xs font-black text-zinc-800">${Number(plan.price || 0).toLocaleString()}</td>
-                                                <td className="px-4 py-3 text-xs font-bold text-zinc-600">{plan.hashrate_value} {plan.hashrate_unit}</td>
-                                                <td className="px-4 py-3 text-xs font-bold text-zinc-600">{plan.period_value} {plan.period_unit}</td>
-                                                <td className="px-4 py-3 text-xs font-bold text-zinc-600">{plan.return_amount} {plan.currency?.slice(0,3).toUpperCase()}</td>
-                                                <td className="px-4 py-3 text-xs font-bold text-zinc-600">{plan.maintenance_cost || 0} %</td>
-                                                <td className="px-4 py-3">
-                                                    <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase border ${
-                                                        plan.status === 'enabled'
-                                                            ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
-                                                            : 'bg-amber-50 text-amber-600 border-amber-200'
-                                                    }`}>
-                                                        {plan.status === 'enabled' ? 'Aktif' : 'Pasif'}
-                                                    </span>
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    <div className="flex items-center gap-1.5">
-                                                        <button
-                                                            onClick={() => { setEditingMiningPlan(plan); setMiningPlanForm({ ...plan, features: plan.features || [] }); setShowMiningPlanModal(true); }}
-                                                            className="h-7 px-3 rounded-lg border border-indigo-200 text-indigo-600 font-black text-[8px] uppercase hover:bg-indigo-50 transition-all flex items-center gap-1"
-                                                        ><Edit3 size={10}/> Düzenle</button>
-                                                        <button
-                                                            onClick={() => handleToggleMiningPlan(plan.id, plan.status)}
-                                                            className={`h-7 px-3 rounded-lg border font-black text-[8px] uppercase transition-all flex items-center gap-1 ${
-                                                                plan.status === 'enabled'
-                                                                    ? 'border-red-200 text-red-500 hover:bg-red-50'
-                                                                    : 'border-emerald-200 text-emerald-600 hover:bg-emerald-50'
-                                                            }`}
-                                                        >
-                                                            {plan.status === 'enabled' ? <><X size={10}/> Kapat</> : <><Eye size={10}/> Aç</>}
-                                                        </button>
-                                                        <button
-                                                            onClick={() => { loadMiningPlanAnalytics(plan.id); }}
-                                                            className="h-7 px-3 rounded-lg border border-blue-200 text-blue-600 font-black text-[8px] uppercase hover:bg-blue-50 transition-all flex items-center gap-1"
-                                                        ><BarChart3 size={10}/> Analitik</button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                        {miningPlans.length === 0 && (
-                                            <tr><td colSpan={9} className="px-6 py-16 text-center text-zinc-400 text-[9px] font-bold uppercase tracking-widest">Henüz plan yok. "Yeni Plan Ekle" ile başlayın.</td></tr>
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            {/* Add / Edit Modal */}
-                            {showMiningPlanModal && (
-                                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-                                    <div className="w-full max-w-2xl bg-white rounded-[2rem] shadow-2xl overflow-hidden">
-                                        {/* Modal Header */}
-                                        <div className="flex items-center justify-between px-8 py-5 border-b border-zinc-100">
-                                            <h4 className="font-black text-sm text-zinc-800 uppercase tracking-tight">
-                                                {editingMiningPlan?.id ? `Planı Düzenle - ${editingMiningPlan.title}` : 'Plan Ekle'}
-                                            </h4>
-                                            <button onClick={() => { setShowMiningPlanModal(false); setEditingMiningPlan(null); }} className="p-2 rounded-xl hover:bg-zinc-100 text-zinc-400 transition-colors"><X size={18}/></button>
-                                        </div>
-                                        {/* Modal Body */}
-                                        <div className="p-8 space-y-5 max-h-[75vh] overflow-y-auto">
-                                            <div className="grid grid-cols-2 gap-5">
-                                                {/* Title */}
-                                                <div>
-                                                    <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">Başlık <span className="text-red-500">*</span></p>
-                                                    <input type="text" placeholder="Plan Başlığı Girin"
-                                                        value={miningPlanForm.title || ''}
-                                                        onChange={e => setMiningPlanForm((p: any) => ({ ...p, title: e.target.value }))}
-                                                        className="w-full h-11 px-4 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 focus:outline-none focus:border-indigo-300 bg-white"/>
-                                                </div>
-                                                {/* Currency */}
-                                                <div>
-                                                    <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">Para Birimi</p>
-                                                    <select value={miningPlanForm.currency || 'Bitcoin'}
-                                                        onChange={e => setMiningPlanForm((p: any) => ({ ...p, currency: e.target.value }))}
-                                                        className="w-full h-11 px-4 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 focus:outline-none focus:border-indigo-300 bg-white">
-                                                        {['Bitcoin','Litecoin','Ethereum','Dogecoin','Ripple','Tron','Eddy','USD'].map(c => <option key={c}>{c}</option>)}
-                                                    </select>
-                                                </div>
-                                                {/* Price */}
-                                                <div>
-                                                    <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">Fiyat <span className="text-red-500">*</span></p>
-                                                    <div className="flex">
-                                                        <span className="h-11 px-3 bg-zinc-100 border border-r-0 border-zinc-200 rounded-l-xl flex items-center text-xs font-black text-zinc-500">$</span>
-                                                        <input type="number" placeholder="0"
-                                                            value={miningPlanForm.price || ''}
-                                                            onChange={e => setMiningPlanForm((p: any) => ({ ...p, price: parseFloat(e.target.value) || 0 }))}
-                                                            className="flex-1 h-11 px-3 border border-zinc-200 rounded-r-xl text-xs font-bold text-zinc-800 focus:outline-none focus:border-indigo-300 bg-white"/>
-                                                    </div>
-                                                </div>
-                                                {/* Return Amount Type */}
-                                                <div>
-                                                    <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">Getiri Tipi</p>
-                                                    <select value={miningPlanForm.return_type || 'Fixed'}
-                                                        onChange={e => setMiningPlanForm((p: any) => ({ ...p, return_type: e.target.value }))}
-                                                        className="w-full h-11 px-4 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 focus:outline-none focus:border-indigo-300 bg-white">
-                                                        <option>Fixed</option><option>Percentage</option><option>Range</option>
-                                                    </select>
-                                                </div>
-                                            </div>
-                                            {/* Return Amount / Day */}
-                                            <div>
-                                                <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">Günlük Getiri <span className="text-red-500">*</span></p>
-                                                <div className="flex">
-                                                    <input type="text" placeholder="Günlük Getiri Girin"
-                                                        value={miningPlanForm.return_amount || ''}
-                                                        onChange={e => setMiningPlanForm((p: any) => ({ ...p, return_amount: e.target.value }))}
-                                                        className="flex-1 h-11 px-4 border border-zinc-200 rounded-l-xl text-xs font-bold text-zinc-800 focus:outline-none focus:border-indigo-300 bg-white"/>
-                                                    <span className="h-11 px-4 bg-zinc-100 border border-l-0 border-zinc-200 rounded-r-xl flex items-center text-xs font-black text-zinc-500">
-                                                        {(miningPlanForm.currency || 'BTC').slice(0,3).toUpperCase()}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            {/* Hashrate + Period + Maintenance */}
-                                            <div className="grid grid-cols-3 gap-4">
-                                                <div>
-                                                    <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">Hashrate <span className="text-red-500">*</span></p>
-                                                    <div className="flex">
-                                                        <input type="number"
-                                                            value={miningPlanForm.hashrate_value || ''}
-                                                            onChange={e => setMiningPlanForm((p: any) => ({ ...p, hashrate_value: parseFloat(e.target.value) || 0 }))}
-                                                            className="flex-1 h-11 px-3 border border-zinc-200 rounded-l-xl text-xs font-bold text-zinc-800 focus:outline-none focus:border-indigo-300 bg-white min-w-0"/>
-                                                        <select value={miningPlanForm.hashrate_unit || 'MH/s'}
-                                                            onChange={e => setMiningPlanForm((p: any) => ({ ...p, hashrate_unit: e.target.value }))}
-                                                            className="h-11 px-2 border border-l-0 border-zinc-200 rounded-r-xl text-[10px] font-black text-zinc-600 bg-zinc-50 focus:outline-none">
-                                                            {['MH/s','GH/s','TH/s','KH/s'].map(u => <option key={u}>{u}</option>)}
-                                                        </select>
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">Süre <span className="text-red-500">*</span></p>
-                                                    <div className="flex">
-                                                        <input type="number"
-                                                            value={miningPlanForm.period_value || ''}
-                                                            onChange={e => setMiningPlanForm((p: any) => ({ ...p, period_value: parseFloat(e.target.value) || 0 }))}
-                                                            className="flex-1 h-11 px-3 border border-zinc-200 rounded-l-xl text-xs font-bold text-zinc-800 focus:outline-none focus:border-indigo-300 bg-white min-w-0"/>
-                                                        <select value={miningPlanForm.period_unit || 'Day'}
-                                                            onChange={e => setMiningPlanForm((p: any) => ({ ...p, period_unit: e.target.value }))}
-                                                            className="h-11 px-2 border border-l-0 border-zinc-200 rounded-r-xl text-[10px] font-black text-zinc-600 bg-zinc-50 focus:outline-none">
-                                                            {['Day','Week','Month','Year'].map(u => <option key={u}>{u}</option>)}
-                                                        </select>
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">Bakım Maliyeti <span className="text-red-500">*</span></p>
-                                                    <div className="flex">
-                                                        <input type="number" step="0.01"
-                                                            value={miningPlanForm.maintenance_cost || ''}
-                                                            onChange={e => setMiningPlanForm((p: any) => ({ ...p, maintenance_cost: parseFloat(e.target.value) || 0 }))}
-                                                            className="flex-1 h-11 px-3 border border-zinc-200 rounded-l-xl text-xs font-bold text-zinc-800 focus:outline-none focus:border-indigo-300 bg-white min-w-0"/>
-                                                        <span className="h-11 px-3 bg-zinc-100 border border-l-0 border-zinc-200 rounded-r-xl flex items-center text-[10px] font-black text-zinc-500 whitespace-nowrap">% Per Day</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            {/* Features */}
-                                            <div>
-                                                <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">Özellikler</p>
-                                                <div className="min-h-[44px] px-3 py-2 border border-zinc-200 rounded-xl bg-white flex flex-wrap gap-2 items-center">
-                                                    {(miningPlanForm.features || []).map((f: string, i: number) => (
-                                                        <span key={i} className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 text-indigo-700 text-[9px] font-black rounded-lg border border-indigo-100">
-                                                            {f}
-                                                            <button onClick={() => setMiningPlanForm((p: any) => ({ ...p, features: p.features.filter((_: any, j: number) => j !== i) }))} className="text-indigo-400 hover:text-red-500"><X size={10}/></button>
-                                                        </span>
-                                                    ))}
-                                                    <input
-                                                        type="text"
-                                                        placeholder="Özellik ekle, Enter'a bas"
-                                                        value={miningPlanFeatureInput}
-                                                        onChange={e => setMiningPlanFeatureInput(e.target.value)}
-                                                        onKeyDown={e => {
-                                                            if (e.key === 'Enter' && miningPlanFeatureInput.trim()) {
-                                                                setMiningPlanForm((p: any) => ({ ...p, features: [...(p.features||[]), miningPlanFeatureInput.trim()] }));
-                                                                setMiningPlanFeatureInput('');
-                                                                e.preventDefault();
-                                                            }
-                                                        }}
-                                                        className="flex-1 min-w-[120px] h-8 text-xs font-bold text-zinc-800 focus:outline-none bg-transparent"
-                                                    />
-                                                </div>
-                                            </div>
-                                            {/* Description */}
-                                            <div>
-                                                <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">Açıklama</p>
-                                                <textarea rows={3}
-                                                    value={miningPlanForm.description || ''}
-                                                    onChange={e => setMiningPlanForm((p: any) => ({ ...p, description: e.target.value }))}
-                                                    className="w-full px-4 py-3 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 focus:outline-none focus:border-indigo-300 bg-white resize-none"/>
-                                            </div>
-                                        </div>
-                                        {/* Modal Footer */}
-                                        <div className="px-8 py-5 border-t border-zinc-100">
-                                            <button onClick={handleSaveMiningPlan}
-                                                className="w-full h-12 rounded-xl bg-indigo-600 text-white font-black text-xs uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-[0.98] shadow-lg shadow-indigo-500/20">
-                                                Kaydet
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* ===== MADENCİLİK PLANI ANALİTİĞİ ===== */}
-                    {activeTab === 'mining_plans' && miningPlanAnalyticsId && (() => {
-                        const plan = miningPlans.find(p => p.id === miningPlanAnalyticsId);
-                        const orders = miningPlanAnalyticsData?.orders || [];
-                        const miners = miningPlanAnalyticsData?.miners || [];
-                        const totalRevenue = orders.reduce((a: number, o: any) => a + (o.amount || 0), 0);
-                        const activeMiners = miners.filter((m: any) => m.status === 'active').length;
-                        const completedMiners = miners.filter((m: any) => m.status === 'completed' || m.status === 'expired').length;
-                        const totalReturn = miners.reduce((a: number, m: any) => a + (m.total_return || 0), 0);
-                        const totalMaintenance = miners.reduce((a: number, m: any) => a + (m.total_maintenance || 0), 0);
-
-                        // Build chart data (last 7 days)
-                        const chartDays = miningPlanAnalyticsRange === '7d' ? 7 : 30;
-                        const chartData = Array.from({ length: chartDays }, (_, i) => {
-                            const d = new Date(); d.setDate(d.getDate() - (chartDays - 1 - i));
-                            const ds = d.toISOString().slice(0,10);
-                            const label = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' }).replace(/ /g, '-');
-                            const dayOrders = orders.filter((o: any) => o.created_at?.slice(0,10) === ds);
-                            const dayMiners = miners.filter((m: any) => m.started_at?.slice(0,10) === ds);
-                            return {
-                                label,
-                                revenue: dayOrders.reduce((a: number, o: any) => a + (o.amount || 0), 0),
-                                returnAmount: dayMiners.reduce((a: number, m: any) => a + (m.daily_return || plan?.return_amount || 1), 0),
-                                maintenance: dayMiners.reduce((a: number, m: any) => a + (m.daily_maintenance || 0), 0),
-                            };
-                        });
-
-                        const statCards = [
-                            { icon: <Route size={22} className="text-white"/>, bg: 'bg-indigo-600', label: 'Toplam Madencilik İzleri', value: miners.length, badge: 'Tümünü Görüntüle' },
-                            { icon: <Zap size={22} className="text-white"/>, bg: 'bg-emerald-500', label: 'Aktif Madencilik Yolları', value: activeMiners, badge: 'Tümünü Görüntüle' },
-                            { icon: <Route size={22} className="text-white"/>, bg: 'bg-[#1a2744]', label: 'Tamamlanmış Maden Yolları', value: completedMiners, badge: 'Tümünü Görüntüle' },
-                            { icon: <ShoppingCart size={22} className="text-white"/>, bg: 'bg-indigo-500', label: 'Toplam Sipariş Tutarı', value: `$${totalRevenue.toLocaleString('tr-TR', { minimumFractionDigits: 1 })}`, badge: 'Tümünü Görüntüle' },
-                            { icon: <TrendingUp size={22} className="text-white"/>, bg: 'bg-amber-500', label: 'Toplam Getiri Tutarı', value: `${totalReturn.toFixed(2)} ${(plan?.currency||'BTC').slice(0,3).toUpperCase()}`, badge: 'Tümünü Görüntüle' },
-                            { icon: <RefreshCw size={22} className="text-white"/>, bg: 'bg-blue-500', label: 'Toplam Bakım Maliyeti', value: `${totalMaintenance.toFixed(2)} ${(plan?.currency||'BTC').slice(0,3).toUpperCase()}`, badge: 'Tümünü Görüntüle' },
-                        ];
-
-                        return (
-                            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                                {/* Back button */}
-                                <div className="flex items-center justify-between">
-                                    <h3 className="font-black text-sm text-zinc-800 uppercase tracking-widest">
-                                        {plan?.title} Analitiği
-                                    </h3>
-                                    <button
-                                        onClick={() => { setMiningPlanAnalyticsId(null); setMiningPlanAnalyticsData(null); }}
-                                        className="h-9 px-5 rounded-xl border border-zinc-200 text-zinc-600 font-black text-[9px] uppercase hover:bg-zinc-50 transition-all flex items-center gap-2"
-                                    >
-                                        <ChevronRight size={12} className="rotate-180"/> Geri
-                                    </button>
-                                </div>
-
-                                {/* Stat Cards */}
-                                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                    {statCards.map((s, i) => (
-                                        <div key={i} className="bg-white border border-zinc-200 rounded-2xl p-5 shadow-sm flex items-center gap-4 relative group hover:shadow-md transition-all">
-                                            <div className={`w-12 h-12 rounded-2xl ${s.bg} flex items-center justify-center shrink-0`}>{s.icon}</div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-xl font-black text-zinc-800 tracking-tight truncate">{s.value}</p>
-                                                <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-wide mt-0.5 leading-tight">{s.label}</p>
-                                            </div>
-                                            <span className="absolute top-3 right-3 px-2 py-0.5 rounded-lg bg-zinc-100 text-[7px] font-black text-zinc-400 uppercase tracking-widest border border-zinc-200">{s.badge}</span>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                {/* Charts */}
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                    {/* Revenue Chart */}
-                                    <div className="bg-white border border-zinc-200 rounded-2xl p-6 shadow-sm">
-                                        <div className="flex items-center justify-between mb-4">
-                                            <h4 className="font-black text-xs text-zinc-700 uppercase tracking-widest">Sipariş Miktarı Tarihe Göre</h4>
-                                            <select value={miningPlanAnalyticsRange} onChange={e => { setMiningPlanAnalyticsRange(e.target.value as any); loadMiningPlanAnalytics(miningPlanAnalyticsId!); }}
-                                                className="h-8 px-3 text-[9px] font-black border border-zinc-200 rounded-xl bg-white text-zinc-600 focus:outline-none">
-                                                <option value="7d">Son 7 Gün</option>
-                                                <option value="30d">Son 30 Gün</option>
-                                            </select>
-                                        </div>
-                                        <ResponsiveContainer width="100%" height={220}>
-                                            <AreaChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
-                                                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0"/>
-                                                <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#94a3b8', fontWeight: 700 }} tickFormatter={v => v.slice(0,10)}/>
-                                                <YAxis tick={{ fontSize: 9, fill: '#94a3b8' }}/>
-                                                <Tooltip contentStyle={{ fontSize: 10, borderRadius: 12, border: '1px solid #e2e8f0' }}/>
-                                                <Area type="monotone" dataKey="revenue" stroke="#6366f1" fill="#eef2ff" strokeWidth={2} dot={false} name="USD"/>
-                                            </AreaChart>
-                                        </ResponsiveContainer>
-                                    </div>
-
-                                    {/* Return vs Maintenance Chart */}
-                                    <div className="bg-white border border-zinc-200 rounded-2xl p-6 shadow-sm">
-                                        <div className="flex items-center justify-between mb-4">
-                                            <h4 className="font-black text-xs text-zinc-700 uppercase tracking-widest">Tarihe Göre İade Tutarı</h4>
-                                            <select value={miningPlanAnalyticsRange} onChange={e => { setMiningPlanAnalyticsRange(e.target.value as any); loadMiningPlanAnalytics(miningPlanAnalyticsId!); }}
-                                                className="h-8 px-3 text-[9px] font-black border border-zinc-200 rounded-xl bg-white text-zinc-600 focus:outline-none">
-                                                <option value="7d">Son 7 Gün</option>
-                                                <option value="30d">Son 30 Gün</option>
-                                            </select>
-                                        </div>
-                                        <ResponsiveContainer width="100%" height={220}>
-                                            <BarChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
-                                                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0"/>
-                                                <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#94a3b8', fontWeight: 700 }} tickFormatter={v => v.slice(0,10)}/>
-                                                <YAxis tick={{ fontSize: 9, fill: '#94a3b8' }}/>
-                                                <Tooltip contentStyle={{ fontSize: 10, borderRadius: 12, border: '1px solid #e2e8f0' }}/>
-                                                <Legend iconSize={8} wrapperStyle={{ fontSize: 9, fontWeight: 700 }}/>
-                                                <Bar dataKey="returnAmount" fill="#10b981" name="Return Amount" radius={[4,4,0,0]}/>
-                                                <Bar dataKey="maintenance" fill="#ef4444" name="Maintenance Cost" radius={[4,4,0,0]}/>
-                                            </BarChart>
-                                        </ResponsiveContainer>
-                                    </div>
-                                </div>
-                            </div>
-                        );
-                    })()}
-                    {activeTab === 'flash_offers' && (
-                        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                            {/* Header */}
-                            <div className="flex items-center justify-between flex-wrap gap-4">
-                                <div>
-                                    <h3 className="font-black text-sm text-zinc-800 uppercase tracking-widest flex items-center gap-2">
-                                        <Flame className="text-orange-500" size={18}/> Flaş Teklifler
-                                    </h3>
-                                    <p className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest mt-1">Market ekranındaki flaş teklifler — Mining Plans ile senkronize</p>
-                                </div>
-                                <button
-                                    onClick={() => { setEditingFlashOffer(null); setFlashOfferForm({ ...defaultFlashForm }); setShowFlashOfferModal(true); }}
-                                    className="h-10 px-5 rounded-xl bg-orange-500 text-white font-black text-[9px] uppercase hover:bg-orange-600 transition-all active:scale-95 flex items-center gap-2 shadow-lg shadow-orange-500/20"
-                                >
-                                    <Flame size={12}/> + Yeni Flaş Teklif
-                                </button>
-                            </div>
-
-                            {/* Cards Grid */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                                {flashOffers.map(offer => {
-                                    const linkedPlan = miningPlans.find(p => p.id === offer.linked_plan_id);
-                                    return (
-                                        <div key={offer.id} className={cn("bg-[#1a1a1a] rounded-3xl p-6 space-y-4 border transition-all", offer.active ? 'border-orange-500/30' : 'border-white/5 opacity-60')}>
-                                            <div className="flex items-start justify-between">
-                                                <div>
-                                                    <div className="flex items-center gap-2 mb-1">
-                                                        <Flame size={14} className="text-orange-500"/>
-                                                        <span className="text-[8px] font-black text-orange-500 uppercase tracking-widest">Flaş Teklifler</span>
-                                                    </div>
-                                                    <p className="font-black text-white text-sm uppercase tracking-tight">{offer.title}</p>
-                                                    {offer.subtitle && <p className="text-[9px] text-amber-400 font-black uppercase">{offer.subtitle}</p>}
-                                                </div>
-                                                <div className="text-right">
-                                                    <p className="text-2xl font-black text-white tabular-nums">{offer.hashrate_value}</p>
-                                                    <p className="text-[9px] font-bold text-zinc-400">{offer.hashrate_unit}</p>
-                                                    {offer.bonus_hashrate > 0 && <p className="text-[9px] font-black text-amber-400">+{offer.bonus_hashrate} Flaş Bonus</p>}
-                                                </div>
-                                            </div>
-                                            {offer.badge_text && (
-                                                <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-orange-500/20 border border-orange-500/40 text-[8px] font-black text-orange-400 uppercase tracking-widest">
-                                                    {offer.badge_text}
-                                                </span>
-                                            )}
-                                            <div className="flex items-center justify-between pt-2 border-t border-white/10">
-                                                <div>
-                                                    <p className="text-[8px] text-zinc-500 font-black uppercase">Teklif Fiyatı</p>
-                                                    <div className="flex items-baseline gap-2">
-                                                        <p className="text-base font-black text-white">${offer.offer_price}</p>
-                                                        <p className="text-[9px] text-zinc-500 line-through">${offer.original_price}</p>
-                                                    </div>
-                                                </div>
-                                                <div className="text-right">
-                                                    <p className="text-[8px] text-zinc-500 font-black uppercase">Süre Sonu</p>
-                                                    <p className="text-[10px] font-black text-zinc-300">{offer.expires_minutes} dk</p>
-                                                </div>
-                                            </div>
-                                            {linkedPlan && (
-                                                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
-                                                    <Route size={10} className="text-indigo-400"/>
-                                                    <p className="text-[9px] font-black text-indigo-400 uppercase">Plan: {linkedPlan.title}</p>
-                                                </div>
-                                            )}
-                                            <div className="flex gap-2 pt-1">
-                                                <button onClick={() => { setEditingFlashOffer(offer); setFlashOfferForm({ ...offer }); setShowFlashOfferModal(true); }}
-                                                    className="flex-1 h-8 rounded-xl bg-white/5 text-zinc-300 font-black text-[8px] uppercase hover:bg-white/10 transition-all flex items-center justify-center gap-1">
-                                                    <Edit3 size={10}/> Düzenle
-                                                </button>
-                                                <button onClick={() => handleToggleFlashOffer(offer.id, offer.active)}
-                                                    className={cn("h-8 px-3 rounded-xl font-black text-[8px] uppercase transition-all", offer.active ? 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20' : 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20')}>
-                                                    {offer.active ? <X size={11}/> : <Eye size={11}/>}
-                                                </button>
-                                                <button onClick={() => handleDeleteFlashOffer(offer.id)}
-                                                    className="h-8 px-3 rounded-xl bg-red-500/10 text-red-400 font-black text-[8px] uppercase hover:bg-red-500/20 transition-all">
-                                                    <Trash2 size={11}/>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                                {flashOffers.length === 0 && (
-                                    <div className="col-span-3 p-16 text-center">
-                                        <Flame size={32} className="text-zinc-700 mx-auto mb-3"/>
-                                        <p className="text-zinc-500 text-[9px] font-bold uppercase tracking-widest">Henüz flaş teklif yok</p>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Modal */}
-                            {showFlashOfferModal && (
-                                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-                                    <div className="w-full max-w-xl bg-[#111] border border-white/10 rounded-[2rem] shadow-2xl overflow-hidden">
-                                        <div className="flex items-center justify-between px-8 py-5 border-b border-white/10">
-                                            <h4 className="font-black text-sm text-white uppercase tracking-tight flex items-center gap-2">
-                                                <Flame size={16} className="text-orange-500"/>
-                                                {editingFlashOffer?.id ? 'Flaş Teklifi Düzenle' : 'Yeni Flaş Teklif'}
-                                            </h4>
-                                            <button onClick={() => { setShowFlashOfferModal(false); setEditingFlashOffer(null); }} className="p-2 rounded-xl hover:bg-white/10 text-zinc-400 transition-colors"><X size={18}/></button>
-                                        </div>
-                                        <div className="p-8 space-y-5 max-h-[70vh] overflow-y-auto">
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div className="col-span-2">
-                                                    <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-1.5">Başlık *</p>
-                                                    <input type="text" placeholder="Yıldırım Madenci" value={flashOfferForm.title || ''}
-                                                        onChange={e => setFlashOfferForm((p: any) => ({ ...p, title: e.target.value }))}
-                                                        className="w-full h-11 px-4 bg-white/5 border border-white/10 rounded-xl text-sm font-bold text-white focus:outline-none focus:border-orange-500/50"/>
-                                                </div>
-                                                <div>
-                                                    <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-1.5">Alt Başlık</p>
-                                                    <input type="text" placeholder="%50 EKSTRA HIZ AKTİF" value={flashOfferForm.subtitle || ''}
-                                                        onChange={e => setFlashOfferForm((p: any) => ({ ...p, subtitle: e.target.value }))}
-                                                        className="w-full h-11 px-4 bg-white/5 border border-white/10 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-orange-500/50"/>
-                                                </div>
-                                                <div>
-                                                    <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-1.5">Rozet Metni</p>
-                                                    <input type="text" placeholder="SINIRLI STOK" value={flashOfferForm.badge_text || ''}
-                                                        onChange={e => setFlashOfferForm((p: any) => ({ ...p, badge_text: e.target.value }))}
-                                                        className="w-full h-11 px-4 bg-white/5 border border-white/10 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-orange-500/50"/>
-                                                </div>
-                                                <div>
-                                                    <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-1.5">Hashrate Değeri</p>
-                                                    <div className="flex">
-                                                        <input type="number" value={flashOfferForm.hashrate_value || ''} onChange={e => setFlashOfferForm((p: any) => ({ ...p, hashrate_value: parseFloat(e.target.value)||0 }))}
-                                                            className="flex-1 h-11 px-3 bg-white/5 border border-white/10 rounded-l-xl text-xs font-bold text-white focus:outline-none min-w-0"/>
-                                                        <select value={flashOfferForm.hashrate_unit || 'GH/s'} onChange={e => setFlashOfferForm((p: any) => ({ ...p, hashrate_unit: e.target.value }))}
-                                                            className="h-11 px-2 bg-white/5 border border-l-0 border-white/10 rounded-r-xl text-[10px] font-black text-zinc-300 focus:outline-none">
-                                                            {['KH/s','MH/s','GH/s','TH/s'].map(u => <option key={u} className="bg-zinc-900">{u}</option>)}
-                                                        </select>
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-1.5">Bonus Hashrate</p>
-                                                    <input type="number" placeholder="1200" value={flashOfferForm.bonus_hashrate || ''} onChange={e => setFlashOfferForm((p: any) => ({ ...p, bonus_hashrate: parseFloat(e.target.value)||0 }))}
-                                                        className="w-full h-11 px-4 bg-white/5 border border-white/10 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-orange-500/50"/>
-                                                </div>
-                                                <div>
-                                                    <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-1.5">Normal Fiyat ($)</p>
-                                                    <input type="number" placeholder="129.99" value={flashOfferForm.original_price || ''} onChange={e => setFlashOfferForm((p: any) => ({ ...p, original_price: parseFloat(e.target.value)||0 }))}
-                                                        className="w-full h-11 px-4 bg-white/5 border border-white/10 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-orange-500/50"/>
-                                                </div>
-                                                <div>
-                                                    <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-1.5">Teklif Fiyatı ($)</p>
-                                                    <input type="number" placeholder="69.99" value={flashOfferForm.offer_price || ''} onChange={e => setFlashOfferForm((p: any) => ({ ...p, offer_price: parseFloat(e.target.value)||0 }))}
-                                                        className="w-full h-11 px-4 bg-white/5 border border-white/10 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-orange-500/50"/>
-                                                </div>
-                                                <div>
-                                                    <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-1.5">Süre (Dakika)</p>
-                                                    <input type="number" placeholder="60" value={flashOfferForm.expires_minutes || ''} onChange={e => setFlashOfferForm((p: any) => ({ ...p, expires_minutes: parseInt(e.target.value)||60 }))}
-                                                        className="w-full h-11 px-4 bg-white/5 border border-white/10 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-orange-500/50"/>
-                                                </div>
-                                                <div className="col-span-2">
-                                                    <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-1.5">Bağlı Mining Plan (Opsiyonel)</p>
-                                                    <select value={flashOfferForm.linked_plan_id || ''} onChange={e => setFlashOfferForm((p: any) => ({ ...p, linked_plan_id: e.target.value }))}
-                                                        className="w-full h-11 px-4 bg-white/5 border border-white/10 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-orange-500/50">
-                                                        <option value="" className="bg-zinc-900">— Plan Seç —</option>
-                                                        {miningPlans.map(pl => <option key={pl.id} value={pl.id} className="bg-zinc-900">{pl.title} ({pl.currency})</option>)}
-                                                    </select>
-                                                </div>
-                                                <div className="col-span-2 flex items-center gap-3">
-                                                    <input type="checkbox" id="fo-active" checked={flashOfferForm.active !== false}
-                                                        onChange={e => setFlashOfferForm((p: any) => ({ ...p, active: e.target.checked }))}
-                                                        className="w-4 h-4 accent-orange-500 cursor-pointer"/>
-                                                    <label htmlFor="fo-active" className="text-[10px] font-black text-zinc-400 uppercase tracking-widest cursor-pointer">Aktif (Market'te Göster)</label>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="px-8 py-5 border-t border-white/10">
-                                            <button onClick={handleSaveFlashOffer}
-                                                className="w-full h-12 rounded-xl bg-orange-500 text-white font-black text-xs uppercase tracking-widest hover:bg-orange-600 transition-all active:scale-[0.98] shadow-lg">
-                                                Kaydet
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* ===== ÜCRETSİZ SEÇENEKLER ===== */}
-                    {activeTab === 'free_options' && (
-                        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <h3 className="font-black text-sm text-zinc-800 uppercase tracking-widest flex items-center gap-2">
-                                        <Gift className="text-emerald-500" size={18}/> Ücretsiz Seçenekler
-                                    </h3>
-                                    <p className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest mt-1">Market ekranındaki ücretsiz seçenekleri yapılandır</p>
-                                </div>
-                                <button onClick={handleSaveFreeOptions} disabled={freeOptionsSaving}
-                                    className="h-10 px-6 rounded-xl bg-emerald-600 text-white font-black text-[9px] uppercase hover:bg-emerald-700 transition-all active:scale-95 flex items-center gap-2 disabled:opacity-50 shadow-lg shadow-emerald-500/20">
-                                    {freeOptionsSaving ? <RefreshCw size={12} className="animate-spin"/> : <CheckCircle2 size={12}/>}
-                                    Kaydet
-                                </button>
-                            </div>
-
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                {/* Daily Bonus Config */}
-                                <div className="bg-white border border-zinc-200 rounded-[2rem] p-7 shadow-sm space-y-5">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-11 h-11 rounded-2xl bg-emerald-100 flex items-center justify-center">
-                                                <Gift size={18} className="text-emerald-600"/>
-                                            </div>
-                                            <div>
-                                                <h4 className="font-black text-xs text-zinc-800 uppercase tracking-tight">Günlük Bonus</h4>
-                                                <p className="text-[8px] text-zinc-400 font-bold uppercase">Reklam izle ve kazan</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-[9px] font-black text-zinc-500 uppercase">{freeOptions.daily_bonus_enabled ? 'Aktif' : 'Pasif'}</span>
-                                            <div className="w-10 h-6 rounded-full border flex items-center px-0.5 cursor-pointer transition-all duration-300"
-                                                style={{ background: freeOptions.daily_bonus_enabled ? '#10b981' : '#e4e4e7', borderColor: freeOptions.daily_bonus_enabled ? '#10b981' : '#d4d4d8' }}
-                                                onClick={() => setFreeOptions((p: any) => ({ ...p, daily_bonus_enabled: !p.daily_bonus_enabled }))}>
-                                                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-all duration-300 ${freeOptions.daily_bonus_enabled ? 'translate-x-4' : 'translate-x-0'}`}/>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-4 pt-2 border-t border-zinc-100">
-                                        <div>
-                                            <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">Reklam URL (Video/iFrame)</p>
-                                            <input type="text" placeholder="https://ads.example.com/video.mp4" value={freeOptions.daily_bonus_ad_url || ''}
-                                                onChange={e => setFreeOptions((p: any) => ({ ...p, daily_bonus_ad_url: e.target.value }))}
-                                                className="w-full h-10 px-4 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 focus:outline-none focus:border-emerald-300"/>
-                                        </div>
-                                        <div className="grid grid-cols-3 gap-3">
-                                            <div>
-                                                <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">Min. İzleme (sn) <span className="text-orange-500">≥20</span></p>
-                                                <input type="number" min={20} value={freeOptions.daily_bonus_ad_duration || 20}
-                                                    onChange={e => setFreeOptions((p: any) => ({ ...p, daily_bonus_ad_duration: Math.max(20, parseInt(e.target.value)||20) }))}
-                                                    className="w-full h-10 px-3 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 focus:outline-none focus:border-emerald-300"/>
-                                            </div>
-                                            <div>
-                                                <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">Madencilik (+Saat)</p>
-                                                <input type="number" min={1} value={freeOptions.daily_bonus_mining_hours || 3}
-                                                    onChange={e => setFreeOptions((p: any) => ({ ...p, daily_bonus_mining_hours: parseInt(e.target.value)||3 }))}
-                                                    className="w-full h-10 px-3 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 focus:outline-none focus:border-emerald-300"/>
-                                            </div>
-                                            <div>
-                                                <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">TP Ödülü</p>
-                                                <input type="number" min={0} value={freeOptions.daily_bonus_tp_reward || 50}
-                                                    onChange={e => setFreeOptions((p: any) => ({ ...p, daily_bonus_tp_reward: parseInt(e.target.value)||50 }))}
-                                                    className="w-full h-10 px-3 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 focus:outline-none focus:border-emerald-300"/>
-                                            </div>
-                                        </div>
-                                        {/* Info Box */}
-                                        <div className="flex items-start gap-3 p-4 bg-amber-50 rounded-2xl border border-amber-100">
-                                            <Info size={14} className="text-amber-500 shrink-0 mt-0.5"/>
-                                            <p className="text-[9px] font-bold text-amber-700 leading-relaxed">
-                                                Kullanıcı reklamı en az <strong>{freeOptions.daily_bonus_ad_duration}sn</strong> izlediğinde <strong>{freeOptions.daily_bonus_mining_hours} saatlik</strong> madencilik hızı bonusu ve <strong>{freeOptions.daily_bonus_tp_reward} TP</strong> kazanır. Günde 1 kez kullanılabilir.
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Free Miner Config */}
-                                <div className="bg-white border border-zinc-200 rounded-[2rem] p-7 shadow-sm space-y-5">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-11 h-11 rounded-2xl bg-indigo-100 flex items-center justify-center">
-                                                <Zap size={18} className="text-indigo-600"/>
-                                            </div>
-                                            <div>
-                                                <h4 className="font-black text-xs text-zinc-800 uppercase tracking-tight">Ücretsiz Madenci</h4>
-                                                <p className="text-[8px] text-zinc-400 font-bold uppercase">Sınırlı süreli hız</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-[9px] font-black text-zinc-500 uppercase">{freeOptions.free_miner_enabled ? 'Aktif' : 'Pasif'}</span>
-                                            <div className="w-10 h-6 rounded-full border flex items-center px-0.5 cursor-pointer transition-all duration-300"
-                                                style={{ background: freeOptions.free_miner_enabled ? '#6366f1' : '#e4e4e7', borderColor: freeOptions.free_miner_enabled ? '#6366f1' : '#d4d4d8' }}
-                                                onClick={() => setFreeOptions((p: any) => ({ ...p, free_miner_enabled: !p.free_miner_enabled }))}>
-                                                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-all duration-300 ${freeOptions.free_miner_enabled ? 'translate-x-4' : 'translate-x-0'}`}/>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-4 pt-2 border-t border-zinc-100">
-                                        <div className="grid grid-cols-3 gap-3">
-                                            <div>
-                                                <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">Günlük Maks ($) <span className="text-red-500">≤0.50</span></p>
-                                                <input type="number" step="0.01" max={0.50} value={freeOptions.free_miner_daily_max_usd || 0.50}
-                                                    onChange={e => setFreeOptions((p: any) => ({ ...p, free_miner_daily_max_usd: Math.min(0.50, parseFloat(e.target.value)||0.50) }))}
-                                                    className="w-full h-10 px-3 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 focus:outline-none focus:border-indigo-300"/>
-                                            </div>
-                                            <div>
-                                                <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">Hashrate</p>
-                                                <input type="number" value={freeOptions.free_miner_hashrate || 5}
-                                                    onChange={e => setFreeOptions((p: any) => ({ ...p, free_miner_hashrate: parseFloat(e.target.value)||5 }))}
-                                                    className="w-full h-10 px-3 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 focus:outline-none focus:border-indigo-300"/>
-                                            </div>
-                                            <div>
-                                                <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">Birim</p>
-                                                <select value={freeOptions.free_miner_hashrate_unit || 'GH/s'}
-                                                    onChange={e => setFreeOptions((p: any) => ({ ...p, free_miner_hashrate_unit: e.target.value }))}
-                                                    className="w-full h-10 px-3 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 focus:outline-none focus:border-indigo-300">
-                                                    {['KH/s','MH/s','GH/s','TH/s'].map(u => <option key={u}>{u}</option>)}
-                                                </select>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-start gap-3 p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
-                                            <Info size={14} className="text-indigo-500 shrink-0 mt-0.5"/>
-                                            <p className="text-[9px] font-bold text-indigo-700 leading-relaxed">
-                                                Kullanıcılar ücretsiz madenci ile günlük maksimum <strong>${freeOptions.free_miner_daily_max_usd}</strong> değerinde kazanç sağlayabilir. Hashrate: <strong>{freeOptions.free_miner_hashrate} {freeOptions.free_miner_hashrate_unit}</strong>.
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* ── Ödüllü Reklam Birimi ─────────────────────────────────── */}
-                            <div className="bg-white border-2 border-orange-100 rounded-[2rem] p-7 shadow-sm space-y-5">
-                                {/* Header */}
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-orange-400 to-amber-500 flex items-center justify-center shadow-md shadow-orange-200">
-                                            <Play size={20} className="text-white"/>
-                                        </div>
-                                        <div>
-                                            <h4 className="font-black text-xs text-zinc-800 uppercase tracking-tight">Ödüllü Reklam Birimi</h4>
-                                            <p className="text-[8px] text-zinc-400 font-bold uppercase">İzle & Kazan — AdRewardModal ödülleri</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-[9px] font-black uppercase" style={{ color: freeOptions.ad_reward_enabled ? '#f97316' : '#a1a1aa' }}>
-                                            {freeOptions.ad_reward_enabled ? 'Aktif' : 'Pasif'}
-                                        </span>
-                                        <div className="w-10 h-6 rounded-full border flex items-center px-0.5 cursor-pointer transition-all duration-300"
-                                            style={{ background: freeOptions.ad_reward_enabled ? '#f97316' : '#e4e4e7', borderColor: freeOptions.ad_reward_enabled ? '#f97316' : '#d4d4d8' }}
-                                            onClick={() => setFreeOptions((p: any) => ({ ...p, ad_reward_enabled: !p.ad_reward_enabled }))}>
-                                            <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-all duration-300 ${freeOptions.ad_reward_enabled ? 'translate-x-4' : 'translate-x-0'}`}/>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Preview pill */}
-                                <div className="flex items-center gap-3 p-3 rounded-2xl bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-100">
-                                    <div className="flex items-center gap-2 flex-1">
-                                        <Bitcoin size={14} className="text-orange-500 shrink-0"/>
-                                        <div>
-                                            <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">PARA ÖDÜLÜ</p>
-                                            <p className="text-sm font-black text-orange-600 tabular-nums">{Number(freeOptions.ad_reward_btc || 0).toFixed(10)} BTC</p>
-                                        </div>
-                                    </div>
-                                    <div className="w-px h-8 bg-orange-100"/>
-                                    <div className="flex items-center gap-2 flex-1">
-                                        <Database size={14} className="text-amber-500 shrink-0"/>
-                                        <div>
-                                            <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">TP ÖDÜLÜ</p>
-                                            <p className="text-sm font-black text-amber-600 tabular-nums">+{freeOptions.ad_reward_tp || 0} TP</p>
-                                        </div>
-                                    </div>
-                                    <div className="w-px h-8 bg-orange-100"/>
-                                    <div className="flex items-center gap-2 flex-1">
-                                        <Clock size={14} className="text-zinc-400 shrink-0"/>
-                                        <div>
-                                            <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">SÜRE</p>
-                                            <p className="text-sm font-black text-zinc-700 tabular-nums">{freeOptions.ad_reward_duration || 30}sn</p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Fields */}
-                                <div className="pt-2 border-t border-zinc-100 space-y-4">
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1.5 flex items-center gap-1">
-                                                <Bitcoin size={10} className="text-orange-500"/> BTC Ödülü (izleme başına)
-                                            </p>
-                                            <div className="relative">
-                                                <input
-                                                    type="number"
-                                                    step="0.0000001"
-                                                    min={0}
-                                                    value={freeOptions.ad_reward_btc || 0}
-                                                    onChange={e => setFreeOptions((p: any) => ({ ...p, ad_reward_btc: parseFloat(e.target.value) || 0 }))}
-                                                    className="w-full h-10 px-3 pr-12 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-black text-zinc-800 focus:outline-none focus:border-orange-300 tabular-nums"
-                                                    placeholder="0.000001"
-                                                />
-                                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-orange-400">BTC</span>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1.5 flex items-center gap-1">
-                                                <Database size={10} className="text-amber-500"/> TP Ödülü (izleme başına)
-                                            </p>
-                                            <div className="relative">
-                                                <input
-                                                    type="number"
-                                                    min={0}
-                                                    value={freeOptions.ad_reward_tp || 0}
-                                                    onChange={e => setFreeOptions((p: any) => ({ ...p, ad_reward_tp: parseInt(e.target.value) || 0 }))}
-                                                    className="w-full h-10 px-3 pr-10 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-black text-zinc-800 focus:outline-none focus:border-amber-300 tabular-nums"
-                                                    placeholder="50"
-                                                />
-                                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-amber-400">TP</span>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1.5 flex items-center gap-1">
-                                                <Clock size={10} className="text-blue-500"/> Min. İzleme Süresi (sn)
-                                            </p>
-                                            <div className="relative">
-                                                <input
-                                                    type="number"
-                                                    min={5}
-                                                    value={freeOptions.ad_reward_duration || 30}
-                                                    onChange={e => setFreeOptions((p: any) => ({ ...p, ad_reward_duration: Math.max(5, parseInt(e.target.value) || 30) }))}
-                                                    className="w-full h-10 px-3 pr-10 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-black text-zinc-800 focus:outline-none focus:border-blue-300 tabular-nums"
-                                                    placeholder="30"
-                                                />
-                                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-blue-400">sn</span>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1.5 flex items-center gap-1">
-                                                <RefreshCw size={10} className="text-emerald-500"/> Günlük Limit (kullanıcı başına)
-                                            </p>
-                                            <div className="relative">
-                                                <input
-                                                    type="number"
-                                                    min={1}
-                                                    max={100}
-                                                    value={freeOptions.ad_reward_daily_limit || 10}
-                                                    onChange={e => setFreeOptions((p: any) => ({ ...p, ad_reward_daily_limit: Math.max(1, parseInt(e.target.value) || 10) }))}
-                                                    className="w-full h-10 px-3 pr-14 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-black text-zinc-800 focus:outline-none focus:border-emerald-300 tabular-nums"
-                                                    placeholder="10"
-                                                />
-                                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-emerald-400">/ gün</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Info box */}
-                                    <div className="flex items-start gap-3 p-4 bg-orange-50 rounded-2xl border border-orange-100">
-                                        <Info size={14} className="text-orange-500 shrink-0 mt-0.5"/>
-                                        <p className="text-[9px] font-bold text-orange-700 leading-relaxed">
-                                            Kullanıcı <strong>{freeOptions.ad_reward_duration || 30} saniye</strong> reklam izlediğinde{' '}
-                                            <strong className="text-orange-600">{Number(freeOptions.ad_reward_btc || 0).toFixed(10)} BTC</strong>{' '}
-                                            ve <strong className="text-amber-600">+{freeOptions.ad_reward_tp || 0} TP</strong> kazanır.{' '}
-                                            Günde en fazla <strong>{freeOptions.ad_reward_daily_limit || 10}</strong> kez kullanılabilir.{' '}
-                                            Bu değerler uygulama açıldığında <code className="bg-orange-100 px-1 rounded">AdRewardModal</code>'a otomatik yansır.
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* ===== KONTRAT MERKEZİ ===== */}
-                    {activeTab === 'contracts' && (
-                        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                            <div className="flex items-center justify-between flex-wrap gap-4">
-                                <div>
-                                    <h3 className="font-black text-sm text-zinc-800 uppercase tracking-widest flex items-center gap-2">
-                                        <Layout className="text-indigo-500" size={18}/> Aktif İşler — Kurumsal Kontrat Merkezi
-                                    </h3>
-                                    <p className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest mt-1">Kullanılabilir fırsatları yönet — Prestij seviyesine göre kilit aç</p>
-                                </div>
-                                <button onClick={() => { setEditingContract(null); setContractForm({ ...defaultContractForm }); setShowContractModal(true); }}
-                                    className="h-10 px-5 rounded-xl bg-indigo-600 text-white font-black text-[9px] uppercase hover:bg-indigo-700 transition-all active:scale-95 flex items-center gap-2 shadow-lg shadow-indigo-500/20">
-                                    <Layout size={12}/> + Yeni Kontrat
-                                </button>
-                            </div>
-
-                            {/* Contracts Grid */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                                {contracts.map(contract => (
-                                    <div key={contract.id} className={cn("bg-white border rounded-[2rem] p-6 shadow-sm space-y-4 transition-all hover:shadow-md", contract.active ? 'border-zinc-200' : 'border-zinc-100 opacity-60')}>
-                                        <div className="flex items-start justify-between">
-                                            <div className="w-12 h-12 rounded-2xl bg-indigo-100 flex items-center justify-center shrink-0">
-                                                <Briefcase size={20} className="text-indigo-600"/>
-                                            </div>
-                                            <span className={`px-2.5 py-1 rounded-xl text-[7px] font-black uppercase border ${contract.active ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-zinc-100 text-zinc-400 border-zinc-200'}`}>
-                                                {contract.active ? 'Aktif' : 'Pasif'}
-                                            </span>
-                                        </div>
-                                        <div>
-                                            <h4 className="font-black text-sm text-zinc-800 uppercase tracking-tight leading-tight">{contract.title}</h4>
-                                            <p className="text-[9px] text-zinc-500 font-bold mt-1 leading-relaxed line-clamp-2">{contract.description}</p>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-2">
-                                            <div className="p-2.5 bg-orange-50 rounded-xl">
-                                                <p className="text-[7px] text-zinc-400 font-black uppercase">Ödül</p>
-                                                <p className="text-xs font-black text-orange-600">{contract.reward_amount} {contract.reward_currency}</p>
-                                            </div>
-                                            <div className="p-2.5 bg-indigo-50 rounded-xl">
-                                                <p className="text-[7px] text-zinc-400 font-black uppercase">Prestij Gerek</p>
-                                                <p className="text-xs font-black text-indigo-600">Lv. {contract.prestige_required}</p>
-                                            </div>
-                                            <div className="p-2.5 bg-blue-50 rounded-xl">
-                                                <p className="text-[7px] text-zinc-400 font-black uppercase">Süre</p>
-                                                <p className="text-xs font-black text-blue-600">{contract.duration_days} Gün</p>
-                                            </div>
-                                            <div className="p-2.5 bg-zinc-50 rounded-xl">
-                                                <p className="text-[7px] text-zinc-400 font-black uppercase">Maks. Katılım</p>
-                                                <p className="text-xs font-black text-zinc-700">{contract.max_participants}</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <button onClick={() => { setEditingContract(contract); setContractForm({ ...contract }); setShowContractModal(true); }}
-                                                className="flex-1 h-8 rounded-xl bg-zinc-100 text-zinc-600 font-black text-[8px] uppercase hover:bg-zinc-200 transition-all flex items-center justify-center gap-1">
-                                                <Edit3 size={10}/> Düzenle
-                                            </button>
-                                            <button onClick={() => handleToggleContract(contract.id, contract.active)}
-                                                className={cn("h-8 px-3 rounded-xl font-black text-[8px] uppercase transition-all", contract.active ? 'bg-amber-50 text-amber-500 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100')}>
-                                                {contract.active ? <X size={11}/> : <Eye size={11}/>}
-                                            </button>
-                                            <button onClick={() => handleDeleteContract(contract.id)}
-                                                className="h-8 px-3 rounded-xl bg-red-50 text-red-500 font-black text-[8px] uppercase hover:bg-red-500 hover:text-white transition-all">
-                                                <Trash2 size={11}/>
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
-                                {contracts.length === 0 && (
-                                    <div className="col-span-3 p-16 rounded-[2rem] bg-white border border-zinc-200 text-center">
-                                        <div className="w-16 h-16 rounded-3xl bg-indigo-50 border border-indigo-100 flex items-center justify-center mx-auto mb-4">
-                                            <Award size={28} className="text-indigo-300"/>
-                                        </div>
-                                        <p className="font-black text-zinc-400 text-[9px] uppercase tracking-widest">Kurumsal kontratları tamamlayarak saygınlığını artır. Prestij seviyen yükseldikçe daha yüksek ödüllü işler merkezimize eklenecektir.</p>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Contract Modal */}
-                            {showContractModal && (
-                                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-                                    <div className="w-full max-w-lg bg-white rounded-[2rem] shadow-2xl overflow-hidden">
-                                        <div className="flex items-center justify-between px-8 py-5 border-b border-zinc-100">
-                                            <h4 className="font-black text-sm text-zinc-800 uppercase tracking-tight flex items-center gap-2">
-                                                <Layout size={16} className="text-indigo-600"/>
-                                                {editingContract?.id ? 'Kontratı Düzenle' : 'Yeni Kontrat'}
-                                            </h4>
-                                            <button onClick={() => { setShowContractModal(false); setEditingContract(null); }} className="p-2 rounded-xl hover:bg-zinc-100 text-zinc-400 transition-colors"><X size={18}/></button>
-                                        </div>
-                                        <div className="p-8 space-y-4 max-h-[70vh] overflow-y-auto">
-                                            <div>
-                                                <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">Kontrat Başlığı *</p>
-                                                <input type="text" placeholder="Örn: Yüksek Performans Madenciliği" value={contractForm.title || ''}
-                                                    onChange={e => setContractForm((p: any) => ({ ...p, title: e.target.value }))}
-                                                    className="w-full h-11 px-4 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 focus:outline-none focus:border-indigo-300"/>
-                                            </div>
-                                            <div>
-                                                <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">Açıklama</p>
-                                                <textarea rows={3} placeholder="Kontrat detaylarını girin..." value={contractForm.description || ''}
-                                                    onChange={e => setContractForm((p: any) => ({ ...p, description: e.target.value }))}
-                                                    className="w-full px-4 py-3 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 focus:outline-none focus:border-indigo-300 resize-none"/>
-                                            </div>
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div>
-                                                    <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">Ödül Miktarı</p>
-                                                    <input type="number" step="0.0001" value={contractForm.reward_amount || ''}
-                                                        onChange={e => setContractForm((p: any) => ({ ...p, reward_amount: parseFloat(e.target.value)||0 }))}
-                                                        className="w-full h-11 px-4 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 focus:outline-none focus:border-indigo-300"/>
-                                                </div>
-                                                <div>
-                                                    <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">Ödül Para Birimi</p>
-                                                    <select value={contractForm.reward_currency || 'BTC'}
-                                                        onChange={e => setContractForm((p: any) => ({ ...p, reward_currency: e.target.value }))}
-                                                        className="w-full h-11 px-4 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 focus:outline-none focus:border-indigo-300 bg-white">
-                                                        {['BTC','LTC','ETH','TP','USD'].map(c => <option key={c}>{c}</option>)}
-                                                    </select>
-                                                </div>
-                                                <div>
-                                                    <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">Prestij Gereksinimi</p>
-                                                    <input type="number" min={1} value={contractForm.prestige_required || 1}
-                                                        onChange={e => setContractForm((p: any) => ({ ...p, prestige_required: parseInt(e.target.value)||1 }))}
-                                                        className="w-full h-11 px-4 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 focus:outline-none focus:border-indigo-300"/>
-                                                </div>
-                                                <div>
-                                                    <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">Süre (Gün)</p>
-                                                    <input type="number" min={1} value={contractForm.duration_days || 7}
-                                                        onChange={e => setContractForm((p: any) => ({ ...p, duration_days: parseInt(e.target.value)||7 }))}
-                                                        className="w-full h-11 px-4 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 focus:outline-none focus:border-indigo-300"/>
-                                                </div>
-                                                <div>
-                                                    <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">Maks. Katılımcı</p>
-                                                    <input type="number" min={1} value={contractForm.max_participants || 100}
-                                                        onChange={e => setContractForm((p: any) => ({ ...p, max_participants: parseInt(e.target.value)||100 }))}
-                                                        className="w-full h-11 px-4 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 focus:outline-none focus:border-indigo-300"/>
-                                                </div>
-                                                <div className="flex items-end pb-2">
-                                                    <div className="flex items-center gap-2">
-                                                        <input type="checkbox" id="c-active" checked={contractForm.active !== false}
-                                                            onChange={e => setContractForm((p: any) => ({ ...p, active: e.target.checked }))}
-                                                            className="w-4 h-4 accent-indigo-500 cursor-pointer"/>
-                                                        <label htmlFor="c-active" className="text-[10px] font-black text-zinc-500 uppercase tracking-widest cursor-pointer">Aktif</label>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="px-8 py-5 border-t border-zinc-100">
-                                            <button onClick={handleSaveContract}
-                                                className="w-full h-12 rounded-xl bg-indigo-600 text-white font-black text-xs uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-[0.98] shadow-lg shadow-indigo-500/20">
-                                                Kaydet
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
+                    {/* ===== OYUN ETKİNLİKLERİ ===== */}
                     {activeTab === 'game_events' && (
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -5784,6 +4808,101 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
 
                 </div>
             </main>
+        </div>
+    );
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  AdminBatteryPreview
+//  Admin panelindeki Economy sekmesinde canlı pil animasyonu
+//  drainHours: tam dolunun kaç saniyede biteceği (preview 60sn loop)
+// ═══════════════════════════════════════════════════════════════
+function AdminBatteryPreview({ drainHours }: { drainHours: number }) {
+    const [pct, setPct] = useState(100);
+
+    // Her saniye drain: 60 saniyelik preview loop içinde sıfıra iner
+    useEffect(() => {
+        setPct(100);
+        const drainPerSec = 100 / 60;
+        const id = setInterval(() => {
+            setPct(p => {
+                const next = p - drainPerSec;
+                return next <= 0 ? 100 : next;
+            });
+        }, 1000);
+        return () => clearInterval(id);
+    }, [drainHours]);
+
+    const level   = Math.max(0, Math.min(100, pct));
+    const color   = level > 55 ? '#22c55e' : level > 25 ? '#f59e0b' : '#ef4444';
+    const glow    = level > 55 ? 'rgba(34,197,94,0.45)' : level > 25 ? 'rgba(245,158,11,0.45)' : 'rgba(239,68,68,0.6)';
+    const isCrit  = level < 15;
+    const label   = level > 55 ? 'Dolu' : level > 25 ? 'Orta' : 'Kritik';
+
+    // SVG boyutları
+    const W = 48, H = 110, capH = 9, bodyY = capH, bodyH = H - capH, innerX = 5, innerY = bodyY + 5, innerW = W - 10, innerH = bodyH - 10;
+    const fillH  = (level / 100) * innerH;
+    const fillY  = innerY + (innerH - fillH);
+
+    return (
+        <div className="flex flex-col items-center gap-3">
+            <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ overflow:'visible', filter: isCrit ? `drop-shadow(0 0 8px ${glow})` : 'none' }}>
+                <defs>
+                    <linearGradient id="bfg" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%"   stopColor={color} stopOpacity="0.75"/>
+                        <stop offset="50%"  stopColor={color} stopOpacity="1"/>
+                        <stop offset="100%" stopColor={color} stopOpacity="0.75"/>
+                    </linearGradient>
+                    <clipPath id="bclip">
+                        <rect x={innerX} y={innerY} width={innerW} height={innerH} rx="5"/>
+                    </clipPath>
+                </defs>
+
+                {/* Nub */}
+                <rect x={W/2-9} y={0} width={18} height={capH+2} rx="4" fill="#4b5563"/>
+
+                {/* Body */}
+                <rect x={1} y={bodyY} width={W-2} height={bodyH} rx="9" fill="#0f172a" stroke="#334155" strokeWidth="1.5"/>
+
+                {/* Fill */}
+                <rect
+                    x={innerX} y={fillY} width={innerW} height={fillH}
+                    rx="5" fill="url(#bfg)"
+                    clipPath="url(#bclip)"
+                    style={{
+                        filter: `drop-shadow(0 0 6px ${glow})`,
+                        transition: 'y 0.9s cubic-bezier(.4,0,.2,1), height 0.9s cubic-bezier(.4,0,.2,1)',
+                        animation: isCrit ? 'battCrit 0.8s ease-in-out infinite' : 'none',
+                    }}
+                />
+
+                {/* Segment lines */}
+                {[0.25, 0.5, 0.75].map((s,i) => (
+                    <line key={i}
+                        x1={innerX} y1={innerY + s*innerH}
+                        x2={innerX+innerW} y2={innerY + s*innerH}
+                        stroke="rgba(0,0,0,0.4)" strokeWidth="1.5"/>
+                ))}
+
+                {/* Shine */}
+                <rect x={innerX+3} y={innerY+4} width={8} height={innerH*0.45} rx="3" fill="rgba(255,255,255,0.05)"/>
+
+                {/* % label */}
+                <text x={W/2} y={bodyY + bodyH/2 + 5} textAnchor="middle"
+                    fill="white" fontSize="12" fontWeight="900" fontFamily="monospace" opacity="0.9">
+                    {Math.round(level)}%
+                </text>
+            </svg>
+
+            <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                <div style={{ width:7, height:7, borderRadius:'50%', background:color, boxShadow:`0 0 6px ${glow}`, animation: isCrit ? 'pulse 0.8s infinite' : 'battPulse 2s ease-in-out infinite' }}/>
+                <span style={{ color, fontSize:9, fontWeight:900, letterSpacing:'0.12em', textTransform:'uppercase' }}>{label}</span>
+            </div>
+
+            <style>{`
+                @keyframes battCrit { 0%,100%{opacity:.5} 50%{opacity:1} }
+                @keyframes battPulse { 0%,100%{opacity:.7} 50%{opacity:1} }
+            `}</style>
         </div>
     );
 }
