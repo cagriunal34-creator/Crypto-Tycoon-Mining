@@ -246,10 +246,10 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
         boost_vip:                  2.0,    // VIP çarpanı
         boost_event:                1.5,    // Etkinlik çarpanı
         halving_block:          1050000,    // Halving referans bloğu
-        rewarded_ad_unit_id: 'ca-app-pub-6329108306834809/8774596958',
-        banner_ad_unit_id: '',
-        interstitial_ad_unit_id: '',
-        app_open_ad_unit_id: '',
+        rewarded_ad_unit_id: 'ca-app-pub-6329108306834809/5303235747',
+        banner_ad_unit_id: 'ca-app-pub-6329108306834809~2664629968',
+        interstitial_ad_unit_id: 'ca-app-pub-6329108306834809~2664629968',
+        app_open_ad_unit_id: 'ca-app-pub-6329108306834809~2664629968',
         ad_frequency_minutes: 5,
     });
     const [hashrateSettingsSaving, setHashrateSettingsSaving] = useState(false);

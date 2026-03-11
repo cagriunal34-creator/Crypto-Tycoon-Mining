@@ -332,10 +332,10 @@ export const INITIAL_STATE: GameState = {
   announcement: '',
   activeModal: null,
   globalSettings: {},
-  rewardedAdUnitId: 'ca-app-pub-6329108306834809/8774596958',
-  bannerAdUnitId: '',
-  interstitialAdUnitId: '',
-  appOpenAdUnitId: '',
+  rewardedAdUnitId: 'ca-app-pub-6329108306834809/5303235747',
+  bannerAdUnitId: 'ca-app-pub-6329108306834809~2664629968',
+  interstitialAdUnitId: 'ca-app-pub-6329108306834809~2664629968',
+  appOpenAdUnitId: 'ca-app-pub-6329108306834809~2664629968',
   adFrequencyMinutes: 5,
 };
 
