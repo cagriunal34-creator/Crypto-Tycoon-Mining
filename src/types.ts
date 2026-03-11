@@ -1,4 +1,4 @@
-export type Screen = 'panel' | 'contracts' | 'wallet' | 'referral' | 'settings' | 'inbox' | 'quests' | 'farm' | 'wheel' | 'battlepass' | 'marketplace' | 'vip' | 'infrastructure' | 'shop' | 'research';
+export type Screen = 'panel' | 'contracts' | 'wallet' | 'referral' | 'settings' | 'inbox' | 'quests' | 'farm' | 'wheel' | 'battlepass' | 'marketplace' | 'vip' | 'infrastructure' | 'shop' | 'research' | 'guild';
 
 export type LightingColor = 'emerald' | 'blue' | 'purple' | 'orange' | 'red';
 export type RigTier = 'Basic' | 'Pro' | 'Ultra';
@@ -66,6 +66,18 @@ export interface Guild {
   level: number;
   xp: number;
   xpToNextLevel: number;
+}
+
+export interface GuildGoal {
+  id: string;
+  label: string;
+  description: string;
+  requirement: number; // e.g., total hashrate or level
+  type: 'hashrate' | 'level' | 'members';
+  reward: {
+    type: 'btc' | 'tp' | 'multiplier';
+    value: number;
+  };
 }
 
 export type MiningEventType = 'flash_pool' | 'hash_storm' | 'energy_surge' | 'block_halving';

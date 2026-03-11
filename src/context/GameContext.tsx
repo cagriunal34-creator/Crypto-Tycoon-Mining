@@ -113,6 +113,7 @@ export interface GameState {
   // Guilds
   guilds: Guild[];
   userGuildId: string | null;
+  claimedGuildRewards: string[];
 
   // Transactions
   transactions: Transaction[];
@@ -282,6 +283,7 @@ export const INITIAL_STATE: GameState = {
 
   guilds: [],
   userGuildId: null,
+  claimedGuildRewards: [],
 
   transactions: [],
 
@@ -443,6 +445,7 @@ type Action =
   | { type: 'SET_MARKETPLACE'; listings: MarketListing[] }
   | { type: 'SET_LEADERBOARD'; leaders: any[] }
   | { type: 'SET_GUILDS'; guilds: Guild[] }
+  | { type: 'CLAIM_GUILD_REWARD'; rewardId: string }
   | { type: 'SET_AD_REWARD'; btc: number; tp: number; dailyLimit: number; duration: number; enabled: boolean }
   | { type: 'SET_GLOBAL_MULTIPLIER'; multiplier: number }
   | { type: 'SET_MAINTENANCE'; isMaintenance: boolean }
@@ -629,6 +632,7 @@ function gameReducer(state: GameState, action: Action): GameState {
     };
     case 'SET_MAINTENANCE': return { ...state, isMaintenance: action.isMaintenance };
     case 'SET_GUILDS': return { ...state, guilds: action.guilds };
+    case 'CLAIM_GUILD_REWARD': return { ...state, claimedGuildRewards: [...state.claimedGuildRewards, action.rewardId] };
     case 'SET_MARKETPLACE': return { ...state, marketListings: action.listings };
     case 'SET_LEADERBOARD': return { ...state, leaderboard: action.leaders };
     case 'SET_USD_RATE': return { ...state, usdRate: action.rate };
@@ -838,6 +842,7 @@ interface GameContextValue {
   joinGuildInFirestore: (guild: Guild) => Promise<void>;
   leaveGuildInFirestore: (guildId: string) => Promise<void>;
   donateToGuildInFirestore: (amount: number) => Promise<void>;
+  claimGuildReward: (rewardId: string, btcReward: number) => Promise<void>;
   // Admin Helpers
   adminSetBtc: (amount: number, userId?: string) => Promise<void>;
   adminSetTp: (amount: number, userId?: string) => Promise<void>;
@@ -855,6 +860,7 @@ const GameContext = createContext<GameContextValue | null>(null);
 
 export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(gameReducer, INITIAL_STATE);
+  const lastSyncedHashRef = useRef<number>(INITIAL_STATE.totalHashRate);
 
   const fetchTransactions = async (userId: string) => {
     try {
@@ -1274,6 +1280,27 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const syncInterval = setInterval(async () => {
       try {
+        // Update guild total hashrate if joined
+        if (state.userGuildId) {
+          try {
+            const { data: guild } = await supabase.from(TABLES.GUILDS).select('totalHash').eq('id', state.userGuildId).single();
+            if (guild) {
+              const lastSyncedHash = lastSyncedHashRef.current;
+              const currentHash = state.totalHashRate;
+              const hashDelta = currentHash - lastSyncedHash;
+
+              if (Math.abs(hashDelta) > 0.01) {
+                await supabase.from(TABLES.GUILDS).update({
+                  totalHash: Math.max(0, guild.totalHash + hashDelta)
+                }).eq('id', state.userGuildId);
+                lastSyncedHashRef.current = currentHash;
+              }
+            }
+          } catch (err) {
+            console.warn('Guild hashrate sync failed:', err);
+          }
+        }
+
         // Build sync object - only send fields if they are defined
         // Using snake_case for system fields and camelCase for user fields based on existing schema
         const syncData: any = {
@@ -1292,6 +1319,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           vip: state.vip,
           prestigeLevel: state.prestigeLevel,
           prestigeMultiplier: state.prestigeMultiplier,
+          claimedGuildRewards: state.claimedGuildRewards,
           updated_at: new Date().toISOString()
         };
 
@@ -1555,6 +1583,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       members: guild.members + 1,
       totalHash: guild.totalHash + state.totalHashRate
     }).eq('id', guild.id);
+
+    lastSyncedHashRef.current = state.totalHashRate;
   };
 
   const leaveGuildInFirestore = async (guildId: string) => {
@@ -1567,6 +1597,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       members: Math.max(0, guild.members - 1),
       totalHash: Math.max(0, guild.totalHash - state.totalHashRate)
     }).eq('id', guildId);
+
+    lastSyncedHashRef.current = 0;
   };
 
   const donateToGuildInFirestore = async (amount: number) => {
@@ -1591,6 +1623,23 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       level: newLevel,
       xpToNextLevel: nextXp
     }).eq('id', state.userGuildId);
+  };
+
+  const claimGuildReward = async (rewardId: string, btcReward: number) => {
+    if (!state.user) throw new Error("Auth required");
+    if (state.claimedGuildRewards.includes(rewardId)) throw new Error("Already claimed");
+
+    const newClaimed = [...state.claimedGuildRewards, rewardId];
+    const newBtc = state.btcBalance + btcReward;
+
+    const { error } = await supabase.from(TABLES.PROFILES).update({
+      claimedGuildRewards: newClaimed,
+      btcBalance: newBtc
+    }).eq('id', state.user.uid);
+
+    if (error) throw error;
+
+    dispatch({ type: 'CLAIM_GUILD_REWARD', rewardId });
   };
 
   // ─── Admin Helpers ────────────────────────────────────────────────────────
@@ -1799,6 +1848,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       dailyEarnedBtc: currentDailyEarned, dailyCapBtc, dailyEarnedPct, dailyCapReached, isVipCapExempt,
       listContractOnMarket, buyContractFromMarket, cancelMarketListing,
       createGuildInFirestore, joinGuildInFirestore, leaveGuildInFirestore, donateToGuildInFirestore,
+      claimGuildReward,
       adminSetBtc, adminSetTp, adminSetLevel, adminUpdateSettings, adminTriggerEvent,
       updateUserProfile, uploadAvatar, claimStreakReward, redeemPromoCode, markNotificationRead
     }}>

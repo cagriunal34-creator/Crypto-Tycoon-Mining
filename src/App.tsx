@@ -54,6 +54,7 @@ import VIPScreen from './components/VIPScreen';
 // import AdminPanel from './components/AdminPanel';
 import HackerAttack from './components/HackerAttack';
 import { InfrastructureScreen } from './components/InfrastructureScreen';
+import GuildScreen from './components/GuildScreen';
 
 
 function AppInner() {
@@ -156,6 +157,7 @@ function AppInner() {
       case 'vip': return <VIPScreen />;
       case 'infrastructure': return <InfrastructureScreen />;
       case 'research': return <ResearchTree />;
+      case 'guild': return <GuildScreen />;
       default: return <MiningPanel onOpenContracts={() => setActiveScreen('contracts')} onWatchAd={handleWatchAd} onOpenPrestige={() => setIsPrestigeOpen(true)} onNavigate={(screen) => setActiveScreen(screen as Screen)} />;
     }
   };
@@ -171,6 +173,7 @@ function AppInner() {
   ];
 
   const secondaryNav = [
+    { id: 'guild', label: 'Lonca', icon: Shield },
     { id: 'farm', label: 'Çiftlik', icon: Box },
     { id: 'wheel', label: 'Çark', icon: RotateCcw },
     { id: 'battlepass', label: 'Battle Pass', icon: Star },
