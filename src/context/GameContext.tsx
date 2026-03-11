@@ -624,11 +624,15 @@ function gameReducer(state: GameState, action: Action): GameState {
     case 'SET_TRANSACTIONS': return { ...state, transactions: action.transactions };
     case 'APPLY_REFERRAL_CODE': {
       if (state.redeemedReferralCode) return state;
+      // Admin panelinden ayarlanan referral ödüllerini kullan (referralBtcReward, referralTpReward)
+      const refBtcReward = (state.globalSettings as any)?.referralBtcReward ?? 0.0001;
+      const refTpReward  = (state.globalSettings as any)?.referralTpReward  ?? 1000;
       return {
         ...state,
-        tycoonPoints: state.tycoonPoints + 1000,
+        btcBalance:           state.btcBalance + refBtcReward,
+        tycoonPoints:         state.tycoonPoints + refTpReward,
         redeemedReferralCode: action.code,
-        globalMultiplier: state.globalMultiplier * 1.05
+        globalMultiplier:     state.globalMultiplier * 1.05
       };
     }
     case 'ADMIN_SET_BTC': return { ...state, btcBalance: action.amount };
@@ -982,14 +986,22 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (firebaseUser) {
         // 1. User'ı hemen set et
         dispatch({ type: 'SET_AUTH_USER', user: firebaseUser });
-        // 3. Yardımcıları kullanarak veri çek
-        await Promise.all([
-          fetchProfile(firebaseUser.uid, firebaseUser.displayName || undefined, firebaseUser.email || undefined),
-          fetchTransactions(firebaseUser.uid)
-        ]);
-        
-        // 4. Profil ve işlemler yüklendikten sonra isLoading'i kapat
+        // NOT: isLoading=false'ı burada AÇMIYORUZ.
+        // fetchProfile tamamlanınca aşağıda kapatılır (race condition önlemi).
+
+        // 2. Profil yükle ve ardından isLoading'i kapat
+        try {
+          await fetchProfile(
+            firebaseUser.uid,
+            firebaseUser.displayName || undefined,
+            firebaseUser.email    || undefined
+          );
+        } catch (_) { /* fetchProfile kendi içinde hata yönetiyor */ }
+        // Profil verileri state'e yazıldıktan sonra loading bayrağını indir
         dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
+
+        // 3. İşlemler (kritik değil, paralel çalışabilir)
+        fetchTransactions(firebaseUser.uid);
 
         // 4. Realtime profile subscription
         const profileSub = supabase
@@ -1009,7 +1021,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         // Kullanıcı çıkış yaptı
         dispatch({ type: 'SET_AUTH_USER', user: null });
-        dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false, isAdmin: false } as any });
+        dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
       }
     });
     
@@ -1145,10 +1157,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
           // v1 → global settings
           if (s.id === 'v1') {
+            // Tüm admin ayarları (botCount, miningDifficulty, referralBtcReward vs.) globalSettings'e yazılır
             dispatch({ type: 'SET_GLOBAL_SETTINGS', settings: s });
-            dispatch({ type: 'SET_MAINTENANCE', isMaintenance: s.isMaintenance });
+            dispatch({ type: 'SET_MAINTENANCE', isMaintenance: !!s.isMaintenance });
             if (s.announcement) dispatch({ type: 'SET_ANNOUNCEMENT', announcement: s.announcement });
-            dispatch({ type: 'SET_GLOBAL_MULTIPLIER', multiplier: s.globalMultiplier || 1.0 });
+            dispatch({ type: 'SET_GLOBAL_MULTIPLIER', multiplier: parseFloat(s.globalMultiplier) || 1.0 });
           }
 
           // hashrate_settings → hashrate konfigürasyonu anında güncelle
@@ -1233,15 +1246,29 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         // Sync current balances to Supabase profile
         await supabase.from(TABLES.PROFILES).update({
+          // Bakiyeler
           btcBalance: state.btcBalance,
           tycoonPoints: state.tycoonPoints,
           lastMiningTick: state.lastMiningTick,
+          totalHashRate: state.totalHashRate,
+          // Seviye & XP
           xp: state.xp,
           level: state.level,
+          // Enerji
           energyCells: state.energyCells,
+          // Günlük kazanç cap (admin analitik için)
           dailyEarningsBtc: state.dailyEarningsBtc,
+          dailyEarnedBtc: (state as any).dailyEarnedBtc ?? 0,
+          dailyAdEarnedBtc: (state as any).dailyAdEarnedBtc ?? 0,
           lastEarningsResetDate: state.lastEarningsResetDate,
+          // Giriş serisi
           streak: state.streak,
+          // VIP (admin paneli görebilsin)
+          vip: state.vip,
+          // Prestige
+          prestigeLevel: state.prestigeLevel,
+          prestigeMultiplier: state.prestigeMultiplier,
+          // Oyun ilerlemesi
           ownedContracts: state.ownedContracts,
           questProgress: state.questProgress,
           farmSettings: state.farmSettings,
@@ -1284,9 +1311,40 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       })
       .subscribe();
 
+    // ── Çekim durumu değişince kullanıcıya inbox bildirimi gönder ────────────
+    const wSub = supabase.channel(`withdrawals-user-${state.user.uid}`)
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: TABLES.WITHDRAWALS,
+        filter: `user_id=eq.${state.user.uid}`
+      }, (payload) => {
+        if (!payload.new) return;
+        const w = payload.new as any;
+        if (w.status === 'approved') {
+          dispatch({ type: 'PREPEND_INBOX_NOTIFICATION', notification: {
+            id: `w-ok-${w.id}-${Date.now()}`,
+            title: '✅ Çekim Onaylandı',
+            message: `${(w.amount || 0).toFixed(8)} BTC çekiminiz onaylandı ve işleme alındı.`,
+            type: 'success',
+            created_at: new Date().toISOString(),
+            read: false
+          }});
+        } else if (w.status === 'rejected') {
+          dispatch({ type: 'PREPEND_INBOX_NOTIFICATION', notification: {
+            id: `w-rej-${w.id}-${Date.now()}`,
+            title: '❌ Çekim Reddedildi',
+            message: 'Çekim talebiniz reddedildi. Detaylar için destek ekibiyle iletişime geçin.',
+            type: 'warning',
+            created_at: new Date().toISOString(),
+            read: false
+          }});
+        }
+      })
+      .subscribe();
+
     return () => {
       pSub.unsubscribe();
       tSub.unsubscribe();
+      wSub.unsubscribe();
     };
   }, [state.user?.uid]);
 

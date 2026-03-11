@@ -106,7 +106,8 @@ type AdminTab = 'overview' |
     'info_app' | 'info_server' | 'info_cache' | 'info_update' |
     'report_request' | 'subscribers' |
     'market' | 'guilds' | 'referrals' | 'bots' | 'webhooks' | 'security' | 'economy' | 'activities' | 'cheats' | 'settings' | 'logs' |
-    'leaderboard' | 'vip_management' | 'promo_codes' | 'game_events' | 'db_explorer' | 'google_ads';
+    'leaderboard' | 'vip_management' | 'promo_codes' | 'game_events' | 'db_explorer' | 'google_ads' |
+    'withdrawals' | 'players' | 'banned';
 
 // Menu Categories structure is now handled inside the component for dynamic badges
 
@@ -120,6 +121,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
         adminUpdateSettings,
         adminTriggerEvent
     } = useGame();
+    const handleUpdateSettings = adminUpdateSettings;
     const { notify } = useNotify();
 
     const [activeTab, setActiveTab] = useState<AdminTab>('overview');
@@ -130,6 +132,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
     const [allGuilds, setAllGuilds] = useState<any[]>([]);
     const [allTransactions, setAllTransactions] = useState<any[]>([]);
     const [adminLogs, setAdminLogs] = useState<any[]>([]);
+    const [selectedLogDetail, setSelectedLogDetail] = useState<any>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [loading, setLoading] = useState(false);
     const [modalTab, setModalTab] = useState<'profile' | 'miners' | 'transactions'>('profile');
@@ -586,6 +589,16 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                 setLiveActivityFeed(prev => [{ id: payload.new.id, type: 'withdrawal', msg: `${profile?.username || 'Kullanıcı'}: Çekim talebi`, time: new Date(), color: 'text-amber-400' }, ...prev].slice(0, 30));
             })
             .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: TABLES.PROFILES }, async (payload) => {
+                // VIP satın alındı → activity feed'e ekle
+                if (payload.new?.vip?.isActive && !payload.old?.vip?.isActive) {
+                    setLiveActivityFeed(prev => [{
+                        id: `vip-${Date.now()}`,
+                        type: 'vip',
+                        msg: `${payload.new.username || 'Kullanıcı'} → VIP ${(payload.new.vip?.tier || 'silver').toUpperCase()} satın aldı!`,
+                        time: new Date(),
+                        color: 'text-amber-400'
+                    }, ...prev].slice(0, 30));
+                }
                 if (payload.new.isBanned && !payload.old?.isBanned) {
                     setLiveActivityFeed(prev => [{ id: `ban-${payload.new.id}`, type: 'ban', msg: `${payload.new.username || 'Kullanıcı'}: Hesap askıya alındı`, time: new Date(), color: 'text-red-400' }, ...prev].slice(0, 30));
                 }
@@ -664,6 +677,10 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                 if (p.eventType === 'INSERT') setPromoCodes(prev => [p.new, ...prev]);
                 if (p.eventType === 'UPDATE') setPromoCodes(prev => prev.map(c => c.id === p.new.id ? p.new : c));
                 if (p.eventType === 'DELETE') setPromoCodes(prev => prev.filter(c => c.id !== p.old.id));
+            })
+            // ── Aboneler realtime (yeni kayıt anında badge güncellenir) ──────
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'subscribers' }, (p) => {
+                if (p.new) setSubscribers(prev => [p.new, ...prev]);
             })
             .subscribe();
         return () => { supabase.removeChannel(ch); };
@@ -2670,7 +2687,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                                     </div>
                                                 </div>
                                             </div>
-                                            <button onClick={() => console.log(log.details)} className="p-3 rounded-xl bg-white border border-zinc-200 text-zinc-400 hover:text-indigo-600 hover:border-indigo-200 transition-all opacity-0 group-hover:opacity-100 shadow-sm"><Eye size={16} /></button>
+                                            <button onClick={() => setSelectedLogDetail(log)} title="Detayı Gör" className="p-3 rounded-xl bg-white border border-zinc-200 text-zinc-400 hover:text-indigo-600 hover:border-indigo-200 transition-all opacity-0 group-hover:opacity-100 shadow-sm"><Eye size={16} /></button>
                                         </div>
                                     ))}
                                     {adminLogs.length === 0 && <div className="p-20 text-center text-zinc-400 font-bold uppercase text-[10px] tracking-widest italic">Güvenlik günlüğü bulunamadı</div>}
@@ -2994,14 +3011,27 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                     </div>
 
                                     <div className="grid grid-cols-2 gap-8">
-                                        <button className="p-8 rounded-[2rem] bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 transition-all group flex flex-col gap-4 text-left shadow-sm">
+                                        <button
+                                            onClick={() => {
+                                                const newCount = Math.min(500, (state.globalSettings.botCount || 0) + 50);
+                                                adminUpdateSettings({ botCount: newCount, botMode: 'hyper_liquidity' });
+                                                notify({ type: 'success', title: '⚡ Hiper Likidite Aktif', message: `Bot sayısı ${newCount}'e yükseltildi. Düşük ilanlar taranıyor.` });
+                                            }}
+                                            className="p-8 rounded-[2rem] bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 active:scale-95 transition-all group flex flex-col gap-4 text-left shadow-sm">
                                             <TrendingUp className="text-indigo-600 group-hover:scale-110 transition-transform" size={28} />
                                             <div>
                                                 <p className="text-zinc-800 font-black text-xs uppercase tracking-widest italic">Hiper Likidite</p>
                                                 <p className="text-[9px] text-zinc-400 font-bold mt-1 leading-relaxed">Botları düşük seviyeli ilanları anında temizlemeye zorlar.</p>
                                             </div>
                                         </button>
-                                        <button className="p-8 rounded-[2rem] bg-emerald-50 border border-emerald-100 hover:bg-emerald-100 transition-all group flex flex-col gap-4 text-left shadow-sm">
+                                        <button
+                                            onClick={() => {
+                                                const cur = parseFloat(state.globalSettings.miningDifficulty) || 1.0;
+                                                const next = Math.min(10.0, parseFloat((cur + 0.5).toFixed(1)));
+                                                adminUpdateSettings({ miningDifficulty: next });
+                                                notify({ type: 'info', title: '⚙️ Zorluk Artırıldı', message: `Madencilik zorluğu ${next}x'e ayarlandı. Tüm kullanıcılara anlık yansır.` });
+                                            }}
+                                            className="p-8 rounded-[2rem] bg-emerald-50 border border-emerald-100 hover:bg-emerald-100 active:scale-95 transition-all group flex flex-col gap-4 text-left shadow-sm">
                                             <Zap className="text-emerald-600 group-hover:scale-110 transition-transform" size={28} />
                                             <div>
                                                 <p className="text-zinc-800 font-black text-xs uppercase tracking-widest italic">Zorluk Ayarı</p>
@@ -5350,6 +5380,53 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                     )}
 
                 </div>
+
+            {/* ── Log Detay Modal ──────────────────────────────────── */}
+            {selectedLogDetail && (
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setSelectedLogDetail(null)}>
+                    <div className="w-full max-w-xl mx-4 bg-white rounded-[2rem] shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between px-6 py-5 border-b border-zinc-100 bg-zinc-50">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
+                                    <Terminal size={18}/>
+                                </div>
+                                <div>
+                                    <p className="text-[11px] font-black text-zinc-800 uppercase tracking-widest">İşlem Detayı</p>
+                                    <p className="text-[9px] font-bold text-zinc-400 uppercase">{selectedLogDetail.action?.replace(/_/g,' ')}</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setSelectedLogDetail(null)} className="p-2 rounded-xl hover:bg-zinc-100 text-zinc-400 transition-colors"><X size={18}/></button>
+                        </div>
+                        <div className="p-6 space-y-4 max-h-[65vh] overflow-y-auto">
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="p-4 bg-zinc-50 border border-zinc-100 rounded-2xl">
+                                    <p className="text-[8px] font-black text-zinc-400 uppercase mb-1">Admin</p>
+                                    <p className="text-zinc-800 font-black text-sm">{selectedLogDetail.admin_username || '—'}</p>
+                                </div>
+                                <div className="p-4 bg-zinc-50 border border-zinc-100 rounded-2xl">
+                                    <p className="text-[8px] font-black text-zinc-400 uppercase mb-1">Hedef ID</p>
+                                    <p className="text-zinc-800 font-black text-xs font-mono truncate">{selectedLogDetail.target_id || '—'}</p>
+                                </div>
+                                <div className="p-4 bg-zinc-50 border border-zinc-100 rounded-2xl col-span-2">
+                                    <p className="text-[8px] font-black text-zinc-400 uppercase mb-1">Tarih / Saat</p>
+                                    <p className="text-zinc-800 font-black">{new Date(selectedLogDetail.created_at).toLocaleString('tr-TR')}</p>
+                                </div>
+                            </div>
+                            {selectedLogDetail.details && (
+                                <div className="bg-zinc-900 rounded-2xl p-5">
+                                    <p className="text-[8px] font-black text-zinc-500 uppercase mb-3">JSON Veri</p>
+                                    <pre className="text-emerald-400 font-mono text-[10px] whitespace-pre-wrap overflow-auto max-h-52">
+                                        {JSON.stringify(selectedLogDetail.details, null, 2)}
+                                    </pre>
+                                </div>
+                            )}
+                            {!selectedLogDetail.details && (
+                                <div className="p-8 text-center text-zinc-400 text-[10px] font-bold uppercase">Bu işlem için detay verisi bulunmuyor</div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
             </main>
         </div>
     );
