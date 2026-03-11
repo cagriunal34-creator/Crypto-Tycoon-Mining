@@ -105,7 +105,7 @@ type AdminTab = 'overview' |
     'info_app' | 'info_server' | 'info_cache' | 'info_update' |
     'report_request' | 'subscribers' |
     'market' | 'guilds' | 'referrals' | 'bots' | 'webhooks' | 'security' | 'economy' | 'activities' | 'cheats' | 'settings' | 'logs' |
-    'leaderboard' | 'vip_management' | 'promo_codes' | 'game_events' | 'db_explorer';
+    'leaderboard' | 'vip_management' | 'promo_codes' | 'game_events' | 'db_explorer' | 'ads_settings';
 
 // Menu Categories structure is now handled inside the component for dynamic badges
 
@@ -247,9 +247,9 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
         boost_event:                1.5,    // Etkinlik çarpanı
         halving_block:          1050000,    // Halving referans bloğu
         rewarded_ad_unit_id: 'ca-app-pub-6329108306834809/5303235747',
-        banner_ad_unit_id: 'ca-app-pub-6329108306834809~2664629968',
-        interstitial_ad_unit_id: 'ca-app-pub-6329108306834809~2664629968',
-        app_open_ad_unit_id: 'ca-app-pub-6329108306834809~2664629968',
+        banner_ad_unit_id: 'ca-app-pub-6329108306834809/3631061424',
+        interstitial_ad_unit_id: 'ca-app-pub-6329108306834809/1622865249',
+        app_open_ad_unit_id: 'ca-app-pub-6329108306834809/1220520508',
         ad_frequency_minutes: 5,
     });
     const [hashrateSettingsSaving, setHashrateSettingsSaving] = useState(false);
@@ -324,6 +324,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                 { id: 'game_events' as AdminTab, label: 'Oyun Etkinlikleri', icon: <Flame size={16} /> },
                 { id: 'promo_codes' as AdminTab, label: 'Promo Kodlar', icon: <Gift size={16} /> },
                 { id: 'leaderboard' as AdminTab, label: 'Sıralama Tablosu', icon: <Award size={16} /> },
+                { id: 'ads_settings' as AdminTab, label: 'Reklam Ayarları', icon: <Play size={16} /> },
             ]
         },
         {
@@ -2332,64 +2333,121 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                                 </div>
                                             ))}
                                         </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
-                                        {/* Reklam Yapılandırması */}
-                                        <div className="p-5 bg-indigo-50 rounded-2xl border border-indigo-100 space-y-3">
-                                            <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest flex items-center gap-2">
-                                                <Play size={10}/> Reklam Yapılandırması
+                    {activeTab === 'ads_settings' && (
+                        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
+                            <div className="bg-white border border-zinc-200 rounded-[2rem] overflow-hidden shadow-sm">
+                                <div className="flex items-center justify-between px-8 py-5 bg-gradient-to-r from-indigo-50 via-white to-white border-b border-zinc-100">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-600/30">
+                                            <Play size={20} className="text-white"/>
+                                        </div>
+                                        <div>
+                                            <h3 className="font-black text-sm text-zinc-800 uppercase tracking-widest">Google Ads Yönetimi</h3>
+                                            <p className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest mt-0.5">
+                                                Tüm reklam birimlerini ve gösterim sıklığını buradan ayarlayın
                                             </p>
-                                            <div>
-                                                <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Ödüllü Geçiş Reklamı ID</p>
-                                                <input
-                                                    type="text"
-                                                    value={hashrateSettings.rewarded_ad_unit_id || ''}
-                                                    onChange={e => { setHashrateSettings((p:any)=>({...p,rewarded_ad_unit_id:e.target.value})); setHashrateChanged(true); }}
-                                                    className="w-full h-10 px-4 bg-white border border-zinc-200 rounded-xl font-mono text-[10px] font-bold text-zinc-800 focus:outline-none focus:border-indigo-300 transition-all"
-                                                    placeholder="ca-app-pub-..."
-                                                />
-                                            </div>
-                                            <div className="grid grid-cols-2 gap-3">
+                                        </div>
+                                    </div>
+                                    <button
+                                        disabled={!hashrateChanged || hashrateSettingsSaving}
+                                        onClick={handleSaveHashrateSettings}
+                                        className="h-11 px-6 rounded-2xl bg-indigo-600 text-white font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95 flex items-center gap-2 shadow-lg shadow-indigo-600/20 disabled:opacity-50">
+                                        {hashrateSettingsSaving ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
+                                        Değişiklikleri Yayınla
+                                    </button>
+                                </div>
+
+                                <div className="p-8 space-y-8">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                        <div className="space-y-6">
+                                            <div className="p-6 bg-indigo-50/50 rounded-3xl border border-indigo-100 space-y-4">
+                                                <h4 className="text-[10px] font-black text-indigo-600 uppercase tracking-widest flex items-center gap-2">
+                                                    <Gift size={14}/> Ödüllü Reklamlar
+                                                </h4>
                                                 <div>
-                                                    <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Banner Reklam ID</p>
+                                                    <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Ödülllü Geçiş Reklamı ID (Rewarded Interstitial)</p>
                                                     <input
                                                         type="text"
-                                                        value={hashrateSettings.banner_ad_unit_id || ''}
-                                                        onChange={e => { setHashrateSettings((p:any)=>({...p,banner_ad_unit_id:e.target.value})); setHashrateChanged(true); }}
-                                                        className="w-full h-10 px-4 bg-white border border-zinc-200 rounded-xl font-mono text-[10px] font-bold text-zinc-800 focus:outline-none focus:border-indigo-300 transition-all"
-                                                        placeholder="ca-app-pub-..."
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Geçiş Reklamı ID</p>
-                                                    <input
-                                                        type="text"
-                                                        value={hashrateSettings.interstitial_ad_unit_id || ''}
-                                                        onChange={e => { setHashrateSettings((p:any)=>({...p,interstitial_ad_unit_id:e.target.value})); setHashrateChanged(true); }}
-                                                        className="w-full h-10 px-4 bg-white border border-zinc-200 rounded-xl font-mono text-[10px] font-bold text-zinc-800 focus:outline-none focus:border-indigo-300 transition-all"
+                                                        value={hashrateSettings.rewarded_ad_unit_id || ''}
+                                                        onChange={e => { setHashrateSettings((p:any)=>({...p,rewarded_ad_unit_id:e.target.value})); setHashrateChanged(true); }}
+                                                        className="w-full h-12 px-4 bg-white border border-zinc-200 rounded-xl font-mono text-xs font-bold text-zinc-800 focus:outline-none focus:border-indigo-300 transition-all"
                                                         placeholder="ca-app-pub-..."
                                                     />
                                                 </div>
                                             </div>
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <div>
-                                                    <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Uygulama Açılış ID</p>
-                                                    <input
-                                                        type="text"
-                                                        value={hashrateSettings.app_open_ad_unit_id || ''}
-                                                        onChange={e => { setHashrateSettings((p:any)=>({...p,app_open_ad_unit_id:e.target.value})); setHashrateChanged(true); }}
-                                                        className="w-full h-10 px-4 bg-white border border-zinc-200 rounded-xl font-mono text-[10px] font-bold text-zinc-800 focus:outline-none focus:border-indigo-300 transition-all"
-                                                        placeholder="ca-app-pub-..."
-                                                    />
+
+                                            <div className="p-6 bg-zinc-50 rounded-3xl border border-zinc-200 space-y-4">
+                                                <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-widest flex items-center gap-2">
+                                                    <Box size={14}/> Diğer Formatlar
+                                                </h4>
+                                                <div className="space-y-4">
+                                                    <div>
+                                                        <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Banner Reklam ID</p>
+                                                        <input
+                                                            type="text"
+                                                            value={hashrateSettings.banner_ad_unit_id || ''}
+                                                            onChange={e => { setHashrateSettings((p:any)=>({...p,banner_ad_unit_id:e.target.value})); setHashrateChanged(true); }}
+                                                            className="w-full h-12 px-4 bg-white border border-zinc-200 rounded-xl font-mono text-xs font-bold text-zinc-800 focus:outline-none focus:border-indigo-300 transition-all"
+                                                            placeholder="ca-app-pub-..."
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Geçiş Reklamı ID (Interstitial)</p>
+                                                        <input
+                                                            type="text"
+                                                            value={hashrateSettings.interstitial_ad_unit_id || ''}
+                                                            onChange={e => { setHashrateSettings((p:any)=>({...p,interstitial_ad_unit_id:e.target.value})); setHashrateChanged(true); }}
+                                                            className="w-full h-12 px-4 bg-white border border-zinc-200 rounded-xl font-mono text-xs font-bold text-zinc-800 focus:outline-none focus:border-indigo-300 transition-all"
+                                                            placeholder="ca-app-pub-..."
+                                                        />
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Reklam Sıklığı (Dakika)</p>
-                                                    <input
-                                                        type="number"
-                                                        value={hashrateSettings.ad_frequency_minutes || 5}
-                                                        onChange={e => { setHashrateSettings((p:any)=>({...p,ad_frequency_minutes:parseInt(e.target.value)||5})); setHashrateChanged(true); }}
-                                                        className="w-full h-10 px-4 bg-white border border-zinc-200 rounded-xl font-mono text-[10px] font-bold text-zinc-800 focus:outline-none focus:border-indigo-300 transition-all"
-                                                    />
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-6">
+                                            <div className="p-6 bg-zinc-50 rounded-3xl border border-zinc-200 space-y-4">
+                                                <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-widest flex items-center gap-2">
+                                                    <Zap size={14}/> Uygulama Akışı
+                                                </h4>
+                                                <div className="space-y-4">
+                                                    <div>
+                                                        <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Uygulama Açılış ID (App Open)</p>
+                                                        <input
+                                                            type="text"
+                                                            value={hashrateSettings.app_open_ad_unit_id || ''}
+                                                            onChange={e => { setHashrateSettings((p:any)=>({...p,app_open_ad_unit_id:e.target.value})); setHashrateChanged(true); }}
+                                                            className="w-full h-12 px-4 bg-white border border-zinc-200 rounded-xl font-mono text-xs font-bold text-zinc-800 focus:outline-none focus:border-indigo-300 transition-all"
+                                                            placeholder="ca-app-pub-..."
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Reklam Sıklığı (Dakika)</p>
+                                                        <input
+                                                            type="number"
+                                                            value={hashrateSettings.ad_frequency_minutes || 5}
+                                                            onChange={e => { setHashrateSettings((p:any)=>({...p,ad_frequency_minutes:parseInt(e.target.value)||5})); setHashrateChanged(true); }}
+                                                            className="w-full h-12 px-4 bg-white border border-zinc-200 rounded-xl font-mono text-xs font-bold text-zinc-800 focus:outline-none focus:border-indigo-300 transition-all"
+                                                        />
+                                                        <p className="text-[8px] text-zinc-400 mt-2 italic font-medium">* Otomatik geçiş reklamlarının hangi aralıklarla çıkacağını belirler.</p>
+                                                    </div>
                                                 </div>
+                                            </div>
+
+                                            <div className="p-6 bg-amber-50 rounded-3xl border border-amber-100 space-y-3">
+                                                <div className="flex items-center gap-2 text-amber-600 font-black text-[10px] uppercase tracking-widest">
+                                                    <AlertTriangle size={14}/> Önemli Not
+                                                </div>
+                                                <p className="text-[9px] text-amber-700 leading-relaxed">
+                                                    Reklam kimliklerini değiştirdikten sonra "Değişiklikleri Yayınla" butonuna basmayı unutmayın. 
+                                                    Uygulama bu ayarları gerçek zamanlı olarak alacaktır. Reklamların görünmesi için AdMob panelinizde reklam birimlerinin aktif olması ve uygulamanızın onaylanmış olması gerekebilir.
+                                                </p>
                                             </div>
                                         </div>
                                     </div>
