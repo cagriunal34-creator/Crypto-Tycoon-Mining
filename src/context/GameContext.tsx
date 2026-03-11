@@ -691,6 +691,37 @@ function gameReducer(state: GameState, action: Action): GameState {
         }
       };
     }
+    case 'CLAIM_STREAK_REWARD': {
+      const today = new Date().toISOString().split('T')[0];
+      const lastClaimDate = state.streak.lastClaim ? new Date(state.streak.lastClaim).toISOString().split('T')[0] : null;
+      if (lastClaimDate === today) return state;
+
+      const currentDayIndex = state.streak.count % 7;
+      const reward = [
+        { type: 'tp', value: 100 },
+        { type: 'tp', value: 250 },
+        { type: 'btc', value: 0.000001 },
+        { type: 'tp', value: 500 },
+        { type: 'energy', value: 5 },
+        { type: 'tp', value: 1000 },
+        { type: 'btc', value: 0.00001 },
+      ][currentDayIndex];
+
+      let newState = {
+        ...state,
+        streak: {
+          count: state.streak.count + 1,
+          lastClaim: Date.now()
+        },
+        loginStreak: state.streak.count + 1 // Keep both for now (legacy compatibility)
+      };
+
+      if (reward.type === 'tp') newState.tycoonPoints += reward.value;
+      if (reward.type === 'btc') newState.btcBalance += reward.value;
+      if (reward.type === 'energy') newState.energyCells = Math.min(state.maxEnergyCells, state.energyCells + reward.value);
+
+      return newState;
+    }
     case 'SET_MODAL': return { ...state, activeModal: action.modal };
     case 'UPDATE_PROFILE': return { ...state, ...action.updates };
     default: return state;
@@ -832,6 +863,32 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             level: 1,
             xp: 0,
             rankTitle: 'Garaj Madencisi',
+            streak: { count: 0, lastClaim: 0 },
+            ownedContracts: [],
+            questProgress: {
+              adsWatched: 0,
+              contractsPurchased: 0,
+              referralsDone: 0,
+              claimedQuestIds: []
+            },
+            farmSettings: {
+              activeRigs: 0,
+              maxRigs: 8,
+              rigStatuses: Array(8).fill({
+                efficiency: 0,
+                isBroken: false,
+                lastRepairAt: 0
+              })
+            },
+            researchedNodes: [],
+            battlePass: {
+              level: 1,
+              xp: 0,
+              isPremium: false,
+              claimedRewardIds: []
+            },
+            dailyEarningsBtc: 0,
+            lastEarningsResetDate: new Date().toISOString().split('T')[0]
           })
           .select()
           .single();
@@ -1044,6 +1101,13 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           energyCells: state.energyCells,
           dailyEarningsBtc: state.dailyEarningsBtc,
           lastEarningsResetDate: state.lastEarningsResetDate,
+          streak: state.streak,
+          ownedContracts: state.ownedContracts,
+          questProgress: state.questProgress,
+          farmSettings: state.farmSettings,
+          researchedNodes: state.researchedNodes,
+          battlePass: state.battlePass,
+          redeemedReferralCode: state.redeemedReferralCode,
           updated_at: new Date().toISOString()
         }).eq('id', state.user.uid);
         
@@ -1051,10 +1115,15 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch (error) {
         console.error('Sync error:', error);
       }
-    }, 30000); // 30 seconds
+    }, 15000); // 15 seconds
 
     return () => clearInterval(syncInterval);
-  }, [state.user?.uid, state.isLoading, state.btcBalance, state.tycoonPoints, state.xp, state.level, state.energyCells]);
+  }, [
+    state.user?.uid, state.isLoading, 
+    state.btcBalance, state.tycoonPoints, state.xp, state.level, state.energyCells,
+    state.streak, state.ownedContracts, state.questProgress, state.farmSettings,
+    state.researchedNodes, state.battlePass
+  ]);
 
   // User Data Subscriptions
   useEffect(() => {
