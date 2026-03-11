@@ -247,6 +247,10 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
         boost_event:                1.5,    // Etkinlik çarpanı
         halving_block:          1050000,    // Halving referans bloğu
         rewarded_ad_unit_id: 'ca-app-pub-6329108306834809/8774596958',
+        banner_ad_unit_id: '',
+        interstitial_ad_unit_id: '',
+        app_open_ad_unit_id: '',
+        ad_frequency_minutes: 5,
     });
     const [hashrateSettingsSaving, setHashrateSettingsSaving] = useState(false);
     const [hashrateChanged,        setHashrateChanged]        = useState(false);
@@ -943,6 +947,10 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                 boost_event:              hashrateSettings.boost_event,
                 halving_block:            hashrateSettings.halving_block,
                 rewarded_ad_unit_id:      hashrateSettings.rewarded_ad_unit_id,
+                banner_ad_unit_id:        hashrateSettings.banner_ad_unit_id,
+                interstitial_ad_unit_id:  hashrateSettings.interstitial_ad_unit_id,
+                app_open_ad_unit_id:      hashrateSettings.app_open_ad_unit_id,
+                ad_frequency_minutes:     hashrateSettings.ad_frequency_minutes,
             });
             setHashrateChanged(false);
             await logAdminAction('update_hashrate_settings', 'global', hashrateSettings);
@@ -2339,6 +2347,49 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                                     className="w-full h-10 px-4 bg-white border border-zinc-200 rounded-xl font-mono text-[10px] font-bold text-zinc-800 focus:outline-none focus:border-indigo-300 transition-all"
                                                     placeholder="ca-app-pub-..."
                                                 />
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div>
+                                                    <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Banner Reklam ID</p>
+                                                    <input
+                                                        type="text"
+                                                        value={hashrateSettings.banner_ad_unit_id || ''}
+                                                        onChange={e => { setHashrateSettings((p:any)=>({...p,banner_ad_unit_id:e.target.value})); setHashrateChanged(true); }}
+                                                        className="w-full h-10 px-4 bg-white border border-zinc-200 rounded-xl font-mono text-[10px] font-bold text-zinc-800 focus:outline-none focus:border-indigo-300 transition-all"
+                                                        placeholder="ca-app-pub-..."
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Geçiş Reklamı ID</p>
+                                                    <input
+                                                        type="text"
+                                                        value={hashrateSettings.interstitial_ad_unit_id || ''}
+                                                        onChange={e => { setHashrateSettings((p:any)=>({...p,interstitial_ad_unit_id:e.target.value})); setHashrateChanged(true); }}
+                                                        className="w-full h-10 px-4 bg-white border border-zinc-200 rounded-xl font-mono text-[10px] font-bold text-zinc-800 focus:outline-none focus:border-indigo-300 transition-all"
+                                                        placeholder="ca-app-pub-..."
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div>
+                                                    <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Uygulama Açılış ID</p>
+                                                    <input
+                                                        type="text"
+                                                        value={hashrateSettings.app_open_ad_unit_id || ''}
+                                                        onChange={e => { setHashrateSettings((p:any)=>({...p,app_open_ad_unit_id:e.target.value})); setHashrateChanged(true); }}
+                                                        className="w-full h-10 px-4 bg-white border border-zinc-200 rounded-xl font-mono text-[10px] font-bold text-zinc-800 focus:outline-none focus:border-indigo-300 transition-all"
+                                                        placeholder="ca-app-pub-..."
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Reklam Sıklığı (Dakika)</p>
+                                                    <input
+                                                        type="number"
+                                                        value={hashrateSettings.ad_frequency_minutes || 5}
+                                                        onChange={e => { setHashrateSettings((p:any)=>({...p,ad_frequency_minutes:parseInt(e.target.value)||5})); setHashrateChanged(true); }}
+                                                        className="w-full h-10 px-4 bg-white border border-zinc-200 rounded-xl font-mono text-[10px] font-bold text-zinc-800 focus:outline-none focus:border-indigo-300 transition-all"
+                                                    />
+                                                </div>
                                             </div>
                                         </div>
                                     </div>

@@ -189,6 +189,10 @@ export interface GameState {
   activeModal: string | null;
   globalSettings: any;
   rewardedAdUnitId: string;
+  bannerAdUnitId: string;
+  interstitialAdUnitId: string;
+  appOpenAdUnitId: string;
+  adFrequencyMinutes: number;
 }
 
 // ─── Initial State ────────────────────────────────────────────────────────────
@@ -329,6 +333,10 @@ export const INITIAL_STATE: GameState = {
   activeModal: null,
   globalSettings: {},
   rewardedAdUnitId: 'ca-app-pub-6329108306834809/8774596958',
+  bannerAdUnitId: '',
+  interstitialAdUnitId: '',
+  appOpenAdUnitId: '',
+  adFrequencyMinutes: 5,
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────

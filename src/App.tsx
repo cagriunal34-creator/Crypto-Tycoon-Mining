@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AdRewardModal from './components/AdRewardModal';
+import AdBanner from './components/AdBanner';
 import { LoginScreen } from './components/LoginScreen';
 import { db, requestForToken, onMessageListener } from './lib/firebase';
 import { doc, getDoc, setDoc, collection, query, orderBy, limit } from 'firebase/firestore';
@@ -85,18 +86,31 @@ function AppInner() {
 
   // 🕒 Interstitial Ad Logic (Auto Popup)
   useEffect(() => {
+    if (!state.interstitialAdUnitId) return; // Only if configured
+
     const checkInterval = setInterval(() => {
       // Trigger if interval met AND not already watching/menu
+      const freqMs = (state.adFrequencyMinutes || 5) * 60000;
       if (state && state.lastInterstitialAdAt !== undefined &&
-        Date.now() - state.lastInterstitialAdAt >= (state.interstitialAdInterval || 300000) &&
+        Date.now() - state.lastInterstitialAdAt >= freqMs &&
         !isWatchingAd && !menuOpen) {
-        setIsWatchingAd(true);
-        dispatch({ type: 'RESET_INTERSTITIAL_TIMER' });
+        
+        // Show the ad
+        if ((window as any).adsbygoogle) {
+            try {
+                // For interstitial we might need a specific call, 
+                // but usually AdSense Auto-ads handles this if enabled.
+                // However, we can trigger the Reward modal which also handles the interstitial ID if we want rewards.
+                // If the user wants "automatic" ads, we show them.
+                setIsWatchingAd(true);
+                dispatch({ type: 'RESET_INTERSTITIAL_TIMER' });
+            } catch (e) { console.error(e); }
+        }
       }
-    }, 5000); // Check every 5s for performance
+    }, 10000);
 
     return () => clearInterval(checkInterval);
-  }, [state.lastInterstitialAdAt, state.interstitialAdInterval, isWatchingAd, menuOpen, dispatch]);
+  }, [state.lastInterstitialAdAt, state.interstitialAdUnitId, state.adFrequencyMinutes, isWatchingAd, menuOpen, dispatch]);
 
   const handleHackerSuccess = () => {
     setShowHackerAttack(false);
@@ -196,6 +210,29 @@ function AppInner() {
       initFirebaseExtras();
     }
   }, [state.user, notify]);
+
+  // 🕒 App Open Ad Logic
+  useEffect(() => {
+    if (state.user && state.appOpenAdUnitId && (window as any).adsbygoogle) {
+        try {
+            // App Open Ads are typically triggered on load or app resume
+            // For AdSense, we can often trigger a full-page modal
+            const adsbygoogle = (window as any).adsbygoogle || [];
+            if (adsbygoogle.push) {
+                console.info("Triggering App Open Ad...");
+                // Note: Actual AdSense implementation for App Open might vary by region/account, 
+                // but this represents the intent.
+                adsbygoogle.push({
+                    google_ad_client: "ca-pub-6329108306834809",
+                    google_ad_unit_id: state.appOpenAdUnitId.split('/')[1] || state.appOpenAdUnitId,
+                    google_ad_modality: "app-open" 
+                });
+            }
+        } catch (e) {
+            console.error("App Open Ad Failed:", e);
+        }
+    }
+  }, [!!state.user, state.appOpenAdUnitId]);
 
   // 💾 User state is now managed by Supabase (GameContext)
   // Firebase syncing removed to prevent data conflicts
@@ -382,6 +419,9 @@ function AppInner() {
           </motion.div>
         </AnimatePresence>
       </main>
+
+      {/* ── Ad Banner ─────────────────────────────────────────── */}
+      <AdBanner className="mx-4 mb-2 z-[40]" />
 
       {/* ── Bottom Nav ─────────────────────────────────────────── */}
       <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto px-2 py-2 z-50 backdrop-blur-xl"
