@@ -982,12 +982,14 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (firebaseUser) {
         // 1. User'ı hemen set et
         dispatch({ type: 'SET_AUTH_USER', user: firebaseUser });
-        // 2. isLoading'i kapat
-        dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
-
         // 3. Yardımcıları kullanarak veri çek
-        fetchProfile(firebaseUser.uid, firebaseUser.displayName || undefined, firebaseUser.email || undefined);
-        fetchTransactions(firebaseUser.uid);
+        await Promise.all([
+          fetchProfile(firebaseUser.uid, firebaseUser.displayName || undefined, firebaseUser.email || undefined),
+          fetchTransactions(firebaseUser.uid)
+        ]);
+        
+        // 4. Profil ve işlemler yüklendikten sonra isLoading'i kapat
+        dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
 
         // 4. Realtime profile subscription
         const profileSub = supabase
@@ -1007,7 +1009,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         // Kullanıcı çıkış yaptı
         dispatch({ type: 'SET_AUTH_USER', user: null });
-        dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
+        dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false, isAdmin: false } as any });
       }
     });
     

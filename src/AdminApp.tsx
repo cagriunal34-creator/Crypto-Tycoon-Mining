@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { GameProvider, useGame } from './context/GameContext';
-import { NotificationProvider, useNotify } from './context/NotificationContext';
+import { NotificationProvider } from './context/NotificationContext';
 import { ThemeProvider } from './context/ThemeContext';
 import AdminPanel from './admin/AdminPortal';
 import AmbientBackground from './components/AmbientBackground';
 import { supabase, TABLES } from './lib/supabase';
-import { RefreshCw, ShieldAlert, Lock, LogIn, LogOut } from 'lucide-react';
+import { RefreshCw, ShieldAlert, LogIn, LogOut } from 'lucide-react';
 import { signInWithGoogle, firebaseSignOut } from './lib/firebase';
 
 function AdminAuthGuard({ children }: { children: React.ReactNode }) {
@@ -91,7 +91,7 @@ function AdminAuthGuard({ children }: { children: React.ReactNode }) {
                                     }
                                     localStorage.setItem('admin_bypass', 'true');
                                     alert("Yetki Tanımlandı! Panel Açılıyor...");
-                                    window.location.reload();
+                                    setTimeout(() => window.location.reload(), 500);
                                 }}
                                 className="mt-6 w-full py-3 bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 font-black text-[9px] uppercase tracking-[0.2em] rounded-xl hover:bg-emerald-500 hover:text-white transition-all active:scale-95"
                             >
