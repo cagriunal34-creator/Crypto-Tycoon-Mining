@@ -100,6 +100,9 @@ export interface GameState {
 
   // User
   username: string;
+  email: string;
+  phone: string;
+  avatarUrl: string;
   userId: string;
   rankTitle: string;
   isAdmin: boolean;
@@ -233,6 +236,9 @@ export const INITIAL_STATE: GameState = {
   redeemedReferralCode: null,
 
   username: '',
+  email: '',
+  phone: '',
+  avatarUrl: '',
   userId: '',
   rankTitle: 'Yeni Madenci',
   isAdmin: false,
@@ -380,7 +386,8 @@ type Action =
   | { type: 'LUCKY_WHEEL_SPIN'; cost: number }
   | { type: 'CLAIM_WHEEL_REWARD'; reward: { type: string; value: number | string; label: string } }
   | { type: 'WATCH_AD' }
-  | { type: 'SET_MODAL'; modal: string | null };
+  | { type: 'SET_MODAL'; modal: string | null }
+  | { type: 'UPDATE_PROFILE'; updates: Partial<{ username: string; email: string; phone: string; avatarUrl: string }> };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -604,6 +611,7 @@ function gameReducer(state: GameState, action: Action): GameState {
       }
     };
     case 'SET_MODAL': return { ...state, activeModal: action.modal };
+    case 'UPDATE_PROFILE': return { ...state, ...action.updates };
     default: return state;
   }
 }
@@ -636,6 +644,8 @@ interface GameContextValue {
   adminSetLevel: (level: number, userId?: string) => Promise<void>;
   adminUpdateSettings: (updates: any) => Promise<void>;
   adminTriggerEvent: (eventType: string) => Promise<void>;
+  updateUserProfile: (updates: Partial<{ username: string; email: string; phone: string; avatarUrl: string }>) => Promise<void>;
+  uploadAvatar: (file: File) => Promise<string | null>;
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -1161,7 +1171,32 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       lastEventTrigger: eventType,
       lastEventAt: Date.now()
     }).eq('id', 'v1');
+  };
+
+  const updateUserProfile = async (updates: Partial<{ username: string; email: string; phone: string; avatarUrl: string }>) => {
+    if (!state.user) throw new Error("Auth required");
+    const { error } = await supabase.from(TABLES.PROFILES).update(updates).eq('id', state.user.uid);
     if (error) throw error;
+    dispatch({ type: 'UPDATE_PROFILE', updates });
+  };
+
+  const uploadAvatar = async (file: File) => {
+    if (!state.user) throw new Error("Auth required");
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${state.user.uid}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+    const filePath = `avatars/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(filePath, file);
+
+    if (uploadError) throw uploadError;
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('avatars')
+      .getPublicUrl(filePath);
+
+    return publicUrl;
   };
 
   return (
@@ -1170,7 +1205,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       effectiveHashRate: state.totalHashRate * energyScale, energyScale, currentBtcPerSecond, canPrestige: state.level >= 10, isVipActive: false, vipBtcBonus: 1.0,
       listContractOnMarket, buyContractFromMarket, cancelMarketListing,
       createGuildInFirestore, joinGuildInFirestore, leaveGuildInFirestore, donateToGuildInFirestore,
-      adminSetBtc, adminSetTp, adminSetLevel, adminUpdateSettings, adminTriggerEvent
+      adminSetBtc, adminSetTp, adminSetLevel, adminUpdateSettings, adminTriggerEvent,
+      updateUserProfile, uploadAvatar
     }}>
       {children}
     </GameContext.Provider>

@@ -1826,13 +1826,14 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                                     <th className="p-4">Kullanıcı</th>
                                                     <th className="p-4">Bakiye (BTC)</th>
                                                     <th className="p-4">Seviye</th>
+                                                    <th className="p-4">İletişim</th>
                                                     <th className="p-4">Durum</th>
                                                     <th className="p-4 text-right">İşlem</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-zinc-50">
                                                 {players.filter(p => {
-                                                    const matchesSearch = !searchTerm || (p.username || '').toLowerCase().includes(searchTerm.toLowerCase()) || (p.id || '').includes(searchTerm) || (p.email || '').toLowerCase().includes(searchTerm.toLowerCase());
+                                                    const matchesSearch = !searchTerm || (p.username || '').toLowerCase().includes(searchTerm.toLowerCase()) || (p.id || '').includes(searchTerm) || (p.email || '').toLowerCase().includes(searchTerm.toLowerCase()) || (p.phone || '').includes(searchTerm);
                                                     if (!matchesSearch) return false;
                                                     if (playerFilterStatus === 'active') return !p.isBanned;
                                                     if (playerFilterStatus === 'banned') return p.isBanned;
@@ -1868,7 +1869,10 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                                                     player.vip?.isActive ? "bg-amber-50 border-amber-100 text-amber-600" :
                                                                     "bg-zinc-100 border-zinc-200 text-zinc-500 group-hover:bg-indigo-50 group-hover:border-indigo-100 group-hover:text-indigo-600"
                                                                 )}>
-                                                                    {(player.username?.charAt(0) || '?').toUpperCase()}
+                                                                    {player.avatarUrl 
+                                                                        ? <img src={player.avatarUrl} className="w-full h-full rounded-xl object-cover" alt="avatar"/>
+                                                                        : (player.username?.charAt(0) || '?').toUpperCase()
+                                                                    }
                                                                 </div>
                                                                 <div>
                                                                     <p className="text-zinc-800 font-bold text-sm tracking-tight leading-none">{player.username}</p>
@@ -1881,6 +1885,16 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                                         </td>
                                                         <td className="p-4">
                                                             <span className="text-indigo-600 font-black text-xs">LVL {player.level || 1}</span>
+                                                        </td>
+                                                        <td className="p-4">
+                                                            <div className="flex flex-col">
+                                                                <span className="text-[9px] font-bold text-zinc-500 flex items-center gap-1">
+                                                                    <Mail size={8} /> {player.email || '—'}
+                                                                </span>
+                                                                <span className="text-[9px] font-bold text-zinc-500 flex items-center gap-1">
+                                                                    <Smartphone size={8} /> {player.phone || '—'}
+                                                                </span>
+                                                            </div>
                                                         </td>
                                                         <td className="p-4">
                                                             {player.isBanned ? (
@@ -2015,6 +2029,10 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                                                 <Mail size={10} className="text-zinc-400"/>
                                                                 {currentPlayer.email || '—'}
                                                             </div>
+                                                            <div className="flex items-center gap-1.5 text-[9px] text-zinc-500 font-bold uppercase tracking-widest">
+                                                                <Smartphone size={10} className="text-zinc-400"/>
+                                                                {currentPlayer.phone || '—'}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -2075,6 +2093,8 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                                         <InputGroup label="BTC Cüzdan Bakiyesi" value={currentPlayer.btcBalance?.toString()} onChange={(v) => handleUpdatePlayer(currentPlayer.id, { btcBalance: parseFloat(v) })} icon={<Bitcoin className="text-orange-500" size={18} />} placeholder="0.0" light />
                                                         <InputGroup label="Tycoon Puanı (TP)" value={currentPlayer.tycoonPoints?.toString()} onChange={(v) => handleUpdatePlayer(currentPlayer.id, { tycoonPoints: parseInt(v) })} icon={<Database className="text-indigo-500" size={18} />} placeholder="0" light />
+                                                        <InputGroup label="E-posta Adresi" value={currentPlayer.email || ''} onChange={(v) => handleUpdatePlayer(currentPlayer.id, { email: v })} icon={<Mail className="text-pink-500" size={18} />} placeholder="email@example.com" light />
+                                                        <InputGroup label="Telefon Numarası" value={currentPlayer.phone || ''} onChange={(v) => handleUpdatePlayer(currentPlayer.id, { phone: v })} icon={<Smartphone className="text-emerald-500" size={18} />} placeholder="+90 ..." light />
                                                         <InputGroup label="Mevcut Seviye" value={currentPlayer.level?.toString()} onChange={(v) => handleUpdatePlayer(currentPlayer.id, { level: parseInt(v) })} icon={<TrendingUp className="text-blue-500" size={18} />} placeholder="1" light />
                                                         <InputGroup label="Deneyim (XP)" value={currentPlayer.xp?.toString()} onChange={(v) => handleUpdatePlayer(currentPlayer.id, { xp: parseInt(v) })} icon={<Zap className="text-amber-500" size={18} />} placeholder="0" light />
                                                     </div>

@@ -1,21 +1,31 @@
 import React, { useState } from 'react';
 import {
   User, Globe, Mail, Shield, FileText, LogOut, Trash2,
-  ChevronRight, Heart, MessageSquare, Palette, Check, Crown, Star
+  ChevronRight, Heart, MessageSquare, Palette, Check, Crown, Star, Smartphone
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { useTheme } from '../context/ThemeContext';
 import { useGame } from '../context/GameContext';
+import { useNotify } from '../context/NotificationContext';
 import ThemeCard from './ThemeCard';
 
 type Tab = 'account' | 'themes';
 
 export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: string) => void }) {
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState<Tab>('account');
   const { theme, setTheme, allThemes } = useTheme();
-  const { state } = useGame();
+  const { state, updateUserProfile, uploadAvatar } = useGame();
+  const { notify } = useNotify();
   const [justChanged, setJustChanged] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState({
+    username: state.username,
+    email: state.email,
+    phone: state.phone
+  });
+  const [isUploading, setIsUploading] = useState(false);
 
   const a1 = theme.vars['--ct-a1'];
   const a2 = theme.vars['--ct-a2'];
@@ -163,33 +173,153 @@ export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: st
 
             {/* Profile */}
             <div className="flex flex-col items-center space-y-4 py-6">
-              <div className="relative">
-                <div className="absolute -inset-1 rounded-full blur-md opacity-50"
+              <div className="relative group">
+                <div className="absolute -inset-1 rounded-full blur-md opacity-50 transition-opacity group-hover:opacity-100"
                   style={{ background: `linear-gradient(135deg, ${a1}, ${a2})` }} />
-                <div className="relative w-24 h-24 rounded-full p-0.5"
+                <button 
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
+                  className="relative w-24 h-24 rounded-full p-0.5 transition-transform hover:scale-105 active:scale-95 disabled:opacity-50"
                   style={{ background: `linear-gradient(135deg, ${a1}, ${a2})` }}>
                   <div className="w-full h-full rounded-full bg-[#050505] flex items-center justify-center overflow-hidden">
-                    <img
-                      src="https://picsum.photos/seed/cagara50/200/200"
-                      alt="Profile"
-                      className="w-full h-full object-cover opacity-80"
-                      referrerPolicy="no-referrer"
-                    />
+                    {state.avatarUrl ? (
+                      <img
+                        src={state.avatarUrl}
+                        alt="Profile"
+                        className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className="text-3xl font-black" style={{ color: a1 }}>
+                        {state.username?.slice(0, 1).toUpperCase() || 'M'}
+                      </div>
+                    )}
+                    {isUploading && (
+                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      </div>
+                    )}
                   </div>
-                </div>
-                <div className="absolute bottom-0 right-0 w-8 h-8 rounded-full border-4 border-[#050505] flex items-center justify-center"
+                </button>
+                <input 
+                  ref={fileInputRef} 
+                  type="file" 
+                  accept="image/*" 
+                  className="hidden" 
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      try {
+                        setIsUploading(true);
+                        const url = await uploadAvatar(file);
+                        if (url) {
+                          await updateUserProfile({ avatarUrl: url });
+                          notify({ type: 'success', title: 'Başarılı', message: 'Profil resmi güncellendi.' });
+                        }
+                      } catch (err) {
+                        console.error("Avatar upload failed:", err);
+                        notify({ type: 'warning', title: 'Hata', message: 'Resim yüklenemedi.' });
+                      } finally {
+                        setIsUploading(false);
+                      }
+                    }
+                  }}
+                />
+                <div className="absolute bottom-0 right-0 w-8 h-8 rounded-full border-4 border-[#050505] flex items-center justify-center pointer-events-none"
                   style={{ background: `linear-gradient(135deg, ${a1}, ${a2})` }}>
                   <User size={14} className="text-black" />
                 </div>
               </div>
-              <div className="text-center">
-                <h2 className="text-xl font-black tracking-tight" style={{ color: 'var(--ct-text, #fff)' }}>CryptoMiner21</h2>
-                <p className="text-xs" style={{ color: 'var(--ct-muted, #71717a)' }}>kullanici@email.com</p>
-              </div>
-              <button className="px-6 py-2 rounded-full text-xs font-bold transition-all"
-                style={{ border: `1px solid ${a1}35`, color: a1, background: `${a1}08` }}>
-                Profili Düzenle
-              </button>
+
+              {isEditing ? (
+                <div className="w-full max-w-[280px] space-y-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase tracking-widest px-1" style={{ color: 'var(--ct-muted, #71717a)' }}>Kullanıcı Adı</label>
+                    <input 
+                      type="text"
+                      className="w-full px-4 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.08] text-sm focus:outline-none focus:border-white/20"
+                      style={{ color: 'var(--ct-text, #fff)' }}
+                      value={editForm.username}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, username: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase tracking-widest px-1" style={{ color: 'var(--ct-muted, #71717a)' }}>E-posta</label>
+                    <input 
+                      type="email"
+                      className="w-full px-4 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.08] text-sm focus:outline-none focus:border-white/20"
+                      style={{ color: 'var(--ct-text, #fff)' }}
+                      value={editForm.email}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, email: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase tracking-widest px-1" style={{ color: 'var(--ct-muted, #71717a)' }}>Telefon</label>
+                    <input 
+                      type="tel"
+                      className="w-full px-4 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.08] text-sm focus:outline-none focus:border-white/20"
+                      style={{ color: 'var(--ct-text, #fff)' }}
+                      placeholder="+90 5XX XXX XX XX"
+                      value={editForm.phone}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, phone: e.target.value }))}
+                    />
+                  </div>
+                  <div className="flex gap-2 pt-2">
+                    <button 
+                      onClick={() => {
+                        setIsEditing(false);
+                      }}
+                      className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-white/[0.05] border border-white/[0.05] hover:bg-white/[0.1] transition-all"
+                      style={{ color: 'var(--ct-text, #fff)' }}>
+                      İptal
+                    </button>
+                    <button 
+                      onClick={async () => {
+                        try {
+                          await updateUserProfile(editForm);
+                          setIsEditing(false);
+                          notify({ type: 'success', title: 'Başarılı', message: 'Profil bilgileriniz güncellendi.' });
+                        } catch (err) {
+                          console.error("Profile update failed:", err);
+                          notify({ type: 'warning', title: 'Hata', message: 'Profil güncellenemedi.' });
+                        }
+                      }}
+                      className="flex-1 py-2.5 rounded-xl text-xs font-bold transition-all"
+                      style={{ background: a1, color: '#000' }}>
+                      Kaydet
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="text-center">
+                    <h2 className="text-xl font-black tracking-tight" style={{ color: 'var(--ct-text, #fff)' }}>
+                      {state.username || 'Madenci'}
+                    </h2>
+                    <div className="flex items-center justify-center gap-1.5 mt-1" style={{ color: 'var(--ct-muted, #71717a)' }}>
+                      <Mail size={10} />
+                      <p className="text-xs">{state.email || 'E-posta belirtilmemiş'}</p>
+                    </div>
+                    <div className="flex items-center justify-center gap-1.5 mt-1" style={{ color: 'var(--ct-muted, #71717a)' }}>
+                      <Smartphone size={10} />
+                      <p className="text-[10px]">{state.phone || 'Telefon belirtilmemiş'}</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      setEditForm({
+                        username: state.username,
+                        email: state.email,
+                        phone: state.phone
+                      });
+                      setIsEditing(true);
+                    }}
+                    className="px-6 py-2 rounded-full text-xs font-bold transition-all"
+                    style={{ border: `1px solid ${a1}35`, color: a1, background: `${a1}08` }}>
+                    Profili Düzenle
+                  </button>
+                </>
+              )}
             </div>
 
             {/* Hesap Ayarları */}
