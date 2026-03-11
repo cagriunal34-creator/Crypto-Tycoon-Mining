@@ -463,7 +463,7 @@ type Action =
   | { type: 'APPLY_REFERRAL_CODE'; code: string }
   | { type: 'ADMIN_RESET_GAME' }
   | { type: 'PRESTIGE' }
-  | { type: 'CLAIM_QUEST'; questId: string; reward: { tp?: number; speedBoost?: number } }
+  | { type: 'CLAIM_QUEST'; questId: string; reward: { tp?: number; speedBoost?: number; hashRate?: number } }
   | { type: 'VIP_ACTIVATE'; tier: 'silver' | 'gold'; days: number; cost: number }
   | { type: 'UPDATE_FARM'; settings: Partial<FarmSettings> }
   | { type: 'PURCHASE_CONTRACT'; contract: OwnedContract; cost: number }
@@ -674,6 +674,7 @@ function gameReducer(state: GameState, action: Action): GameState {
     case 'CLAIM_QUEST': return {
       ...state,
       tycoonPoints: state.tycoonPoints + (action.reward.tp || 0),
+      totalHashRate: state.totalHashRate + (action.reward.hashRate || 0),
       questProgress: {
         ...state.questProgress,
         claimedQuestIds: [...state.questProgress.claimedQuestIds, action.questId]

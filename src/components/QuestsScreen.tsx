@@ -5,103 +5,76 @@
 
 import React from 'react';
 import {
-  CheckCircle, Gift, Zap, Users, PlayCircle, Award, Star, Lock
+  CheckCircle, Gift, Zap, Users, PlayCircle, Award, Star, Lock, Trophy
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
 import { useGame } from '../context/GameContext';
 import { useNotify } from '../context/NotificationContext';
 
-interface QuestDef {
-  id: string;
-  title: string;
-  description: string;
-  reward: { tp?: number; speedBoost?: number; unit: string };
-  target: number;
-  getProgress: (state: any) => number;
-  icon: React.ElementType;
-}
-
-const QUEST_DEFS: QuestDef[] = [
-  {
-    id: 'q_ads',
-    title: 'Reklam İzle',
-    description: 'Bugün 3 reklam izleyerek enerji topla.',
-    reward: { tp: 50, unit: 'TP' },
-    target: 3,
-    getProgress: s => s.questProgress?.adsWatched || 0,
-    icon: PlayCircle,
-  },
-  {
-    id: 'q_contract',
-    title: 'Sözleşme Sahibi Ol',
-    description: 'Herhangi bir madencilik sözleşmesi satın al.',
-    reward: { tp: 150, unit: 'TP' },
-    target: 1,
-    getProgress: s => s.questProgress?.contractsPurchased || 0,
-    icon: Zap,
-  },
-  {
-    id: 'q_referral',
-    title: 'Referans Gücü',
-    description: '1 arkadaşını uygulamaya davet et.',
-    reward: { tp: 250, unit: 'TP' },
-    target: 1,
-    getProgress: s => s.questProgress?.referralsDone || 0,
-    icon: Users,
-  },
-  {
-    id: 'q_streak',
-    title: 'Sadık Madenci',
-    description: 'Uygulamayı 3 gün üst üste ziyaret et.',
-    reward: { speedBoost: 10, unit: '% Hız' },
-    target: 3,
-    getProgress: s => s.loginStreak || 0,
-    icon: Award,
-  },
-];
+import { ALL_QUESTS, QuestDef } from '../constants/questData';
 
 export default function QuestsScreen() {
   const { state, dispatch } = useGame();
   const { notify } = useNotify();
   const claimed = state.questProgress?.claimedQuestIds || [];
 
+  // Filter hashrate quests: show all base quests + 5 next available hashrate quests
+  const baseQuests = ALL_QUESTS.filter(q => !q.category);
+  const hashQuests = ALL_QUESTS.filter(q => q.category === 'hashrate');
+  
+  const nextHashQuests = hashQuests
+    .filter(q => !claimed.includes(q.id))
+    .slice(0, 5);
+
+  const displayQuests = [...baseQuests, ...nextHashQuests];
+
   const handleClaim = (quest: QuestDef) => {
     dispatch({
       type: 'CLAIM_QUEST',
       questId: quest.id,
-      reward: { tp: quest.reward.tp, speedBoost: quest.reward.speedBoost },
+      reward: { 
+        tp: quest.reward.tp, 
+        speedBoost: quest.reward.speedBoost,
+        hashRate: quest.reward.hashRate 
+      },
     });
     notify({
       type: 'success',
       title: 'Ödül Alındı!',
-      message: `+${quest.reward.tp || quest.reward.speedBoost} ${quest.reward.unit} kazandın.`,
+      message: `+${quest.reward.tp || quest.reward.speedBoost || quest.reward.hashRate} ${quest.reward.unit} kazandın.`,
     });
   };
 
   return (
     <div className="space-y-6 pt-2 pb-8">
       <div className="space-y-1">
-        <h2 className="text-2xl font-black tracking-tight">Günlük Görevler</h2>
-        <p className="text-xs text-zinc-500">Görevleri tamamla, ekstra ödülleri topla.</p>
+        <h2 className="text-2xl font-black tracking-tight">Görevler</h2>
+        <p className="text-xs text-zinc-500">Görevleri tamamla, 1000 GH/s hedefine ulaş!</p>
       </div>
 
       {/* Progress summary */}
-      <div className="glass-card rounded-2xl p-4 flex items-center justify-between">
-        <div>
-          <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest">Tamamlanan</p>
-          <p className="text-2xl font-black">{claimed.length} <span className="text-zinc-600 text-base">/ {QUEST_DEFS.length}</span></p>
+      <div className="glass-card rounded-[2rem] p-6 bg-gradient-to-br from-emerald-500/10 to-transparent border border-white/10">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-[0.2em] mb-1">Toplam İlerleme</p>
+            <p className="text-3xl font-black text-white">{claimed.length} <span className="text-zinc-600 text-lg">/ {ALL_QUESTS.length}</span></p>
+          </div>
+          <div className="p-4 bg-emerald-500/10 rounded-2xl border border-emerald-500/20">
+            <Trophy size={24} className="text-emerald-500" />
+          </div>
         </div>
-        <div className="w-24 h-2 bg-white/5 rounded-full overflow-hidden">
+        <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
           <motion.div
-            animate={{ width: `${(claimed.length / QUEST_DEFS.length) * 100}%` }}
-            className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-full"
+            initial={{ width: 0 }}
+            animate={{ width: `${(claimed.length / ALL_QUESTS.length) * 100}%` }}
+            className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.3)]"
           />
         </div>
       </div>
 
       <div className="grid gap-3">
-        {QUEST_DEFS.map(quest => {
+        {displayQuests.map(quest => {
           const Icon = quest.icon;
           const progress = quest.getProgress(state);
           const isCompleted = progress >= quest.target;
@@ -112,11 +85,17 @@ export default function QuestsScreen() {
             <div
               key={quest.id}
               className={cn(
-                'glass-card rounded-2xl p-4 border transition-all duration-300',
+                'glass-card rounded-2xl p-4 border transition-all duration-300 relative overflow-hidden',
                 isCompleted && !isClaimed ? 'border-emerald-500/50 bg-emerald-500/5' :
                 isClaimed ? 'border-white/5 opacity-60' : 'border-white/5'
               )}
             >
+              {quest.category === 'hashrate' && (
+                <div className="absolute top-0 right-0 px-3 py-1 bg-emerald-500/10 rounded-bl-xl border-l border-b border-white/5">
+                  <span className="text-[8px] font-black text-emerald-500 uppercase tracking-widest">Hash Gücü</span>
+                </div>
+              )}
+
               <div className="flex items-start justify-between mb-4">
                 <div className="flex gap-3">
                   <div className={cn(
@@ -133,7 +112,7 @@ export default function QuestsScreen() {
                 </div>
                 <div className="text-right shrink-0 ml-2">
                   <div className="text-xs font-black text-emerald-500">
-                    +{quest.reward.tp || quest.reward.speedBoost} {quest.reward.unit}
+                    +{quest.reward.tp || quest.reward.speedBoost || quest.reward.hashRate} {quest.reward.unit}
                   </div>
                   <p className="text-[8px] text-zinc-500 font-bold uppercase tracking-widest">Ödül</p>
                 </div>
@@ -141,7 +120,7 @@ export default function QuestsScreen() {
 
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
-                  <span className="text-[10px] text-zinc-500 font-bold">{Math.min(progress, quest.target)} / {quest.target}</span>
+                  <span className="text-[10px] text-zinc-500 font-bold">{Math.min(progress, quest.target).toLocaleString()} / {quest.target.toLocaleString()}</span>
                   <span className="text-[10px] text-zinc-500 font-bold">%{Math.round(pct)}</span>
                 </div>
                 <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
