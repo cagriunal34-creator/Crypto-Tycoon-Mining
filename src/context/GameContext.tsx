@@ -470,6 +470,7 @@ type Action =
   | { type: 'SET_ACTIVE_GAME_EVENTS'; events: ActiveGameEvent[] }
   | { type: 'SET_INBOX_NOTIFICATIONS'; notifications: InboxNotification[] }
   | { type: 'MARK_NOTIFICATION_READ'; id: string }
+  | { type: 'PREPEND_INBOX_NOTIFICATION'; notification: InboxNotification }
   | { type: 'REDEEM_PROMO_CODE'; code: string; btc: number; tp: number };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -777,6 +778,10 @@ function gameReducer(state: GameState, action: Action): GameState {
     case 'MARK_NOTIFICATION_READ': return {
       ...state,
       inboxNotifications: state.inboxNotifications.map(n => n.id === action.id ? { ...n, read: true } : n)
+    };
+    case 'PREPEND_INBOX_NOTIFICATION': return {
+      ...state,
+      inboxNotifications: [action.notification, ...state.inboxNotifications]
     };
     case 'REDEEM_PROMO_CODE': return {
       ...state,
@@ -1204,12 +1209,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }, (payload) => {
           if (payload.new) {
             const n = payload.new as any;
-            // Mevcut bildirimlerin üzerine ekle (tekrarlanmaması için check edebiliriz ama INSERT event sadece yeni gelendir)
-            dispatch({
-              type: 'SET_INBOX_NOTIFICATIONS',
-              notifications: [{ ...n, read: false }, ...state.inboxNotifications]
-            });
-            // Toast notification tetiklemek için bir modal veya sese gerek duyulabilir ama şu an sadece listeye ekliyoruz
+            // Mevcut bildirimlerin başına ekle (reducer'da state.inboxNotifications ile merge)
+            dispatch({ type: 'PREPEND_INBOX_NOTIFICATION', notification: { ...n, read: false } });
           }
         })
         .subscribe();
@@ -1645,13 +1646,13 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, message: 'Bir hata oluştu. Lütfen tekrar dene.' };
     }
   };
-
+  
   const markNotificationRead = async (id: string) => {
     try {
-       await supabase.from(TABLES.NOTIFICATIONS).update({ read: true }).eq('id', id);
-       dispatch({ type: 'MARK_NOTIFICATION_READ', id });
+      await supabase.from(TABLES.NOTIFICATIONS).update({ read: true }).eq('id', id);
+      dispatch({ type: 'MARK_NOTIFICATION_READ', id });
     } catch (e) {
-       console.error('Notification mark read error:', e);
+      console.error('Notification mark read error:', e);
     }
   };
 
