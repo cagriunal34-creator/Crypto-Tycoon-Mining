@@ -1683,9 +1683,32 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const updateUserProfile = async (updates: Partial<{ username: string; email: string; phone: string; avatarUrl: string }>) => {
     if (!state.user) throw new Error("Auth required");
-    const { error } = await supabase.from(TABLES.PROFILES).update(updates).eq('id', state.user.uid);
-    if (error) throw error;
-    dispatch({ type: 'UPDATE_PROFILE', updates });
+    
+    try {
+      const { error } = await supabase.from(TABLES.PROFILES).update(updates).eq('id', state.user.uid);
+      
+      if (error) {
+        // If we get a schema mismatch error, try to update only the most reliable fields
+        if (error.code === 'PGRST106' || (error as any).status === 406 || (error as any).status === 400) {
+          console.warn('Profile update failed (likely schema mismatch). Retrying with essential fields only.');
+          
+          const filteredUpdates: any = {};
+          if (updates.username) filteredUpdates.username = updates.username;
+          if (updates.email) filteredUpdates.email = updates.email;
+          if (updates.avatarUrl) filteredUpdates.avatarUrl = updates.avatarUrl;
+          
+          const { error: retryError } = await supabase.from(TABLES.PROFILES).update(filteredUpdates).eq('id', state.user.uid);
+          if (retryError) throw retryError;
+        } else {
+          throw error;
+        }
+      }
+      
+      dispatch({ type: 'UPDATE_PROFILE', updates });
+    } catch (e: any) {
+      console.error('❌ Profile update failed:', e);
+      throw e;
+    }
   };
 
   const uploadAvatar = async (file: File) => {

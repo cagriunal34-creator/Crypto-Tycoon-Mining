@@ -279,9 +279,14 @@ export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: st
                           await updateUserProfile(editForm);
                           setIsEditing(false);
                           notify({ type: 'success', title: 'Başarılı', message: 'Profil bilgileriniz güncellendi.' });
-                        } catch (err) {
+                        } catch (err: any) {
                           console.error("Profile update failed:", err);
-                          notify({ type: 'warning', title: 'Hata', message: 'Profil güncellenemedi.' });
+                          const errorMsg = err.message || "Bilinmeyen bir hata oluştu.";
+                          notify({ 
+                            type: 'warning', 
+                            title: 'Hata', 
+                            message: `Profil güncellenemedi: ${errorMsg}` 
+                          });
                         }
                       }}
                       className="flex-1 py-2.5 rounded-xl text-xs font-bold transition-all"
