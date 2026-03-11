@@ -58,7 +58,33 @@ export default function WithdrawModal({ isOpen, onClose, onSuccess, balance }: W
     try {
       const numAmount = parseFloat(amount);
 
-      // 1. Create Withdrawal Request
+      // 1. Fetch LATEST balance from DB (Security check to prevent race conditions)
+      const { data: profile, error: profileErr } = await supabase
+        .from(TABLES.PROFILES)
+        .select('btcBalance')
+        .eq('id', state.user.id)
+        .single();
+
+      if (profileErr || !profile) {
+        throw new Error('Profil bilgileri alınamadı.');
+      }
+
+      const dbBalance = profile.btcBalance || 0;
+      if (dbBalance < numAmount) {
+        setErrors({ amount: `Yetersiz bakiye. Mevcut: ${dbBalance.toFixed(8)} BTC` });
+        return;
+      }
+
+      const newBalance = dbBalance - numAmount;
+
+      // 2. Update Profile Balance (Deduct first to "lock" it)
+      const { error: updateErr } = await supabase.from(TABLES.PROFILES)
+        .update({ btcBalance: newBalance })
+        .eq('id', state.user.id);
+
+      if (updateErr) throw updateErr;
+
+      // 3. Create Withdrawal Request
       await supabase.from(TABLES.WITHDRAWALS).insert({
         user_id: state.user.id,
         username: state.username,
@@ -69,7 +95,7 @@ export default function WithdrawModal({ isOpen, onClose, onSuccess, balance }: W
         updated_at: new Date().toISOString()
       });
 
-      // 2. Add to User Transactions (for their history)
+      // 4. Add to User Transactions
       await supabase.from(TABLES.TRANSACTIONS).insert({
         user_id: state.user.id,
         amount: -numAmount,
@@ -78,18 +104,13 @@ export default function WithdrawModal({ isOpen, onClose, onSuccess, balance }: W
         timestamp: new Date().toISOString()
       });
 
+      // 5. Update Local State (Frontend sync)
       dispatch({
         type: 'REMOVE_BTC',
         amount: numAmount,
         label: 'BTC Çekim Talebi',
         txId: `wd-${Date.now()}`
       });
-
-      // 3. Update Profile Balance Immediately (Persistence)
-      const newBalance = Math.max(0, balance - numAmount);
-      await supabase.from(TABLES.PROFILES)
-        .update({ btcBalance: newBalance })
-        .eq('id', state.user.id);
 
       onSuccess();
     } catch (error) {
