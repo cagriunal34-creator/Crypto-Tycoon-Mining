@@ -121,7 +121,6 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
         adminUpdateSettings,
         adminTriggerEvent
     } = useGame();
-    const handleUpdateSettings = adminUpdateSettings;
     const { notify } = useNotify();
 
     const [activeTab, setActiveTab] = useState<AdminTab>('overview');

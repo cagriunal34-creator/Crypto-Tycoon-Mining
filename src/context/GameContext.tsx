@@ -77,7 +77,7 @@ export interface InboxNotification {
   id: string;
   title: string;
   body: string;
-  type: string; // 'info' | 'warning' | 'reward' | 'system'
+  type: string; // 'info' | 'warning' | 'reward' | 'system' | 'success'
   target_id: string;
   created_at: string;
   read: boolean;
@@ -749,7 +749,7 @@ function gameReducer(state: GameState, action: Action): GameState {
       if (lastClaimDate === today) return state;
 
       const currentDayIndex = state.streak.count % 7;
-      const reward = [
+      const rewards = [
         { type: 'tp', value: 100 },
         { type: 'tp', value: 250 },
         { type: 'btc', value: 0.000001 },
@@ -757,15 +757,19 @@ function gameReducer(state: GameState, action: Action): GameState {
         { type: 'energy', value: 5 },
         { type: 'tp', value: 1000 },
         { type: 'btc', value: 0.00001 },
-      ][currentDayIndex];
+      ];
+      const reward = rewards[currentDayIndex];
+
+      const newStreakCount = state.streak.count + 1;
+      const newLastClaim = Date.now();
 
       let newState = {
         ...state,
         streak: {
-          count: state.streak.count + 1,
-          lastClaim: Date.now()
+          count: newStreakCount,
+          lastClaim: newLastClaim
         },
-        loginStreak: state.streak.count + 1 // Keep both for now (legacy compatibility)
+        loginStreak: newStreakCount
       };
 
       if (reward.type === 'tp') newState.tycoonPoints += reward.value;
@@ -906,8 +910,21 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .maybeSingle();
 
       if (profile && !error) {
-        const { id, user: _u, isLoading: _l, ...rest } = profile as any;
-        const gameData = { ...rest, userId: id };
+        const { id, user: _u, isLoading: _i, ...rest } = profile as any;
+        
+        // Ensure streak object exists with defaults
+        const rawStreak = rest.streak || {};
+        const streak = {
+          count: rawStreak.count ?? rest.loginStreak ?? 0,
+          lastClaim: rawStreak.lastClaim ?? 0
+        };
+
+        const gameData = { 
+          ...rest, 
+          userId: id,
+          streak: streak,
+          loginStreak: streak.count
+        };
         
         // Referral code yoksa üret ve güncelle
         if (!profile.referralCode) {
@@ -1323,8 +1340,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           dispatch({ type: 'PREPEND_INBOX_NOTIFICATION', notification: {
             id: `w-ok-${w.id}-${Date.now()}`,
             title: '✅ Çekim Onaylandı',
-            message: `${(w.amount || 0).toFixed(8)} BTC çekiminiz onaylandı ve işleme alındı.`,
+            body: `${(w.amount || 0).toFixed(8)} BTC çekiminiz onaylandı ve işleme alındı.`,
             type: 'success',
+            target_id: state.user.uid,
             created_at: new Date().toISOString(),
             read: false
           }});
@@ -1332,8 +1350,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           dispatch({ type: 'PREPEND_INBOX_NOTIFICATION', notification: {
             id: `w-rej-${w.id}-${Date.now()}`,
             title: '❌ Çekim Reddedildi',
-            message: 'Çekim talebiniz reddedildi. Detaylar için destek ekibiyle iletişime geçin.',
+            body: 'Çekim talebiniz reddedildi. Detaylar için destek ekibiyle iletişime geçin.',
             type: 'warning',
+            target_id: state.user.uid,
             created_at: new Date().toISOString(),
             read: false
           }});
@@ -1587,46 +1606,52 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const claimStreakReward = async () => {
     if (!state.user) return;
     
-    // 1. Reducer işlemi (state'i anında günceller)
-    dispatch({ type: 'CLAIM_STREAK_REWARD' });
-    
-    // 2. Side effect: Ödülü hesapla (tekrar hesaplıyoruz çünkü newState henüz elimizde değil veya o anki state'i kullanabiliriz)
-    const currentDayIndex = state.streak.count % 7;
-    const rewards = [
-        { type: 'tp', value: 100 },
-        { type: 'tp', value: 250 },
-        { type: 'btc', value: 0.000001 },
-        { type: 'tp', value: 500 },
-        { type: 'energy', value: 5 },
-        { type: 'tp', value: 1000 },
-        { type: 'btc', value: 0.00001 },
-    ];
-    const reward = rewards[currentDayIndex];
-    
-    const newStreak = {
-      count: state.streak.count + 1,
-      lastClaim: Date.now()
-    };
-    
-    let newTp = state.tycoonPoints;
-    let newBtc = state.btcBalance;
-    let newEnergy = state.energyCells;
-    
-    if (reward.type === 'tp') newTp += reward.value;
-    if (reward.type === 'btc') newBtc += reward.value;
-    if (reward.type === 'energy') newEnergy = Math.min(state.maxEnergyCells, state.energyCells + reward.value);
+    try {
+      // 1. Ödülü hesapla (State henüz güncellenmediği için mevcut state'i kullanıyoruz)
+      const currentDayIndex = state.streak.count % 7;
+      const rewards = [
+          { type: 'tp', value: 100 },
+          { type: 'tp', value: 250 },
+          { type: 'btc', value: 0.000001 },
+          { type: 'tp', value: 500 },
+          { type: 'energy', value: 5 },
+          { type: 'tp', value: 1000 },
+          { type: 'btc', value: 0.00001 },
+      ];
+      const reward = rewards[currentDayIndex];
+      
+      const newStreak = {
+        count: state.streak.count + 1,
+        lastClaim: Date.now()
+      };
+      
+      let newTp = state.tycoonPoints;
+      let newBtc = state.btcBalance;
+      let newEnergy = state.energyCells;
+      
+      if (reward.type === 'tp') newTp += reward.value;
+      if (reward.type === 'btc') newBtc += reward.value;
+      if (reward.type === 'energy') newEnergy = Math.min(state.maxEnergyCells, state.energyCells + reward.value);
 
-    // 3. Veritabanına anında yaz (Sync bekleme)
-    await supabase.from(TABLES.PROFILES).update({
-      streak: newStreak,
-      loginStreak: newStreak.count,
-      tycoonPoints: newTp,
-      btcBalance: newBtc,
-      energyCells: newEnergy,
-      updated_at: new Date().toISOString()
-    }).eq('id', state.user.uid);
-    
-    console.info('🎁 Günlük ödül veritabanına kaydedildi:', newStreak.count);
+      // 2. Önce veritabanına yaz (Persistence First)
+      const { error } = await supabase.from(TABLES.PROFILES).update({
+        streak: newStreak,
+        loginStreak: newStreak.count,
+        tycoonPoints: newTp,
+        btcBalance: newBtc,
+        energyCells: newEnergy,
+        updated_at: new Date().toISOString()
+      }).eq('id', state.user.uid);
+
+      if (error) throw error;
+      
+      // 3. Veritabanı başarılıysa state'i güncelle
+      dispatch({ type: 'CLAIM_STREAK_REWARD' });
+      console.info('🎁 Günlük ödül başarıyla kaydedildi ve state güncellendi:', newStreak.count);
+    } catch (e: any) {
+      console.error('❌ Ödül talep hatası:', e);
+      throw e;
+    }
   };
 
   const updateUserProfile = async (updates: Partial<{ username: string; email: string; phone: string; avatarUrl: string }>) => {
