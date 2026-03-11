@@ -790,33 +790,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
       }
     });
-  
-    // ── Periodic Balance Sync (Real-time update) ───────────────
-    useEffect(() => {
-      if (!state.user?.uid || state.isLoading) return;
-  
-      const syncInterval = setInterval(async () => {
-        try {
-          // Sync current balances to Supabase profile
-          await supabase.from(TABLES.PROFILES).update({
-            btcBalance: state.btcBalance,
-            tycoonPoints: state.tycoonPoints,
-            lastMiningTick: state.lastMiningTick,
-            xp: state.xp,
-            level: state.level,
-            energyCells: state.energyCells,
-            updated_at: new Date().toISOString()
-          }).eq('id', state.user.uid);
-          
-          console.info('🔄 Veriler senkronize edildi (Periyodik)');
-        } catch (error) {
-          console.error('Sync error:', error);
-        }
-      }, 30000); // 30 seconds
-  
-      return () => clearInterval(syncInterval);
-    }, [state.user?.uid, state.isLoading, state.btcBalance, state.tycoonPoints, state.xp, state.level, state.energyCells]);
-  
+    
     // ── Global Data (auth gerektirmiyor) ────────────────────────
     const loadGlobal = async () => {
       try {
@@ -934,6 +908,32 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       globalSub.unsubscribe();
     };
   }, []);
+
+  // ── Periodic Balance Sync (Real-time update) ───────────────
+  useEffect(() => {
+    if (!state.user?.uid || state.isLoading) return;
+
+    const syncInterval = setInterval(async () => {
+      try {
+        // Sync current balances to Supabase profile
+        await supabase.from(TABLES.PROFILES).update({
+          btcBalance: state.btcBalance,
+          tycoonPoints: state.tycoonPoints,
+          lastMiningTick: state.lastMiningTick,
+          xp: state.xp,
+          level: state.level,
+          energyCells: state.energyCells,
+          updated_at: new Date().toISOString()
+        }).eq('id', state.user.uid);
+        
+        console.info('🔄 Veriler senkronize edildi (Periyodik)');
+      } catch (error) {
+        console.error('Sync error:', error);
+      }
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(syncInterval);
+  }, [state.user?.uid, state.isLoading, state.btcBalance, state.tycoonPoints, state.xp, state.level, state.energyCells]);
 
   // User Data Subscriptions
   useEffect(() => {
