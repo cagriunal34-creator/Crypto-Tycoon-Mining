@@ -1078,13 +1078,48 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
         setBulkActionLoading(false);
     };
 
+    const handleWithdrawalStatusChange = async (id: string, newStatus: 'approved' | 'rejected' | 'on_hold' | 'pending') => {
+        const cleanId = id.trim();
+        try {
+            // 1. Fetch withdrawal details to get amount and userId
+            const { data: wd } = await supabase.from(TABLES.WITHDRAWALS).select('*').eq('id', cleanId).single();
+            if (!wd) throw new Error('Çekim talebi bulunamadı.');
+
+            // 2. If rejecting from a state that was previously 'pending', 'approved', or 'on_hold'
+            // and we had deducted it (which we do now on request), we must REFUND it if status is 'rejected'
+            if (newStatus === 'rejected') {
+                const { data: profile } = await supabase.from(TABLES.PROFILES).select('btcBalance').eq('id', wd.user_id).single();
+                if (profile) {
+                    const newBalance = (profile.btcBalance || 0) + wd.amount;
+                    await supabase.from(TABLES.PROFILES).update({ btcBalance: newBalance }).eq('id', wd.user_id);
+                    // Add refund transaction
+                    await supabase.from(TABLES.TRANSACTIONS).insert({
+                        user_id: wd.user_id,
+                        amount: wd.amount,
+                        type: 'transfer_in',
+                        description: `İade: Çekim Reddedildi (#${cleanId.substring(0,6)})`,
+                        timestamp: new Date().toISOString()
+                    });
+                }
+            }
+
+            // 3. Update status
+            await supabase.from(TABLES.WITHDRAWALS).update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', cleanId);
+            
+            notify({ type: 'success', title: 'Güncellendi', message: `Talep durumu '${newStatus}' olarak güncellendi.` });
+        } catch (e: any) {
+            console.error('Withdrawal update error:', e);
+            notify({ type: 'warning', title: 'Hata', message: `Güncelleme başarısız: ${e.message}` });
+        }
+    };
+
     const handleBulkWithdrawalReject = async () => {
         setBulkActionLoading(true);
         try {
             for (const id of selectedWithdrawalIds) {
-                await supabase.from(TABLES.WITHDRAWALS).update({ status: 'rejected', updated_at: new Date().toISOString() }).eq('id', id.trim());
+                await handleWithdrawalStatusChange(id, 'rejected');
             }
-            notify({ type: 'warning', title: 'Toplu Red', message: `${selectedWithdrawalIds.size} çekim reddedildi.` });
+            notify({ type: 'warning', title: 'Toplu Red', message: `${selectedWithdrawalIds.size} çekim reddedildi ve iade edildi.` });
             setSelectedWithdrawalIds(new Set());
         } catch (e) { notify({ type: 'warning', title: 'Hata', message: 'Toplu red başarısız.' }); }
         setBulkActionLoading(false);
@@ -3302,21 +3337,21 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                                             {req.status === 'pending' && (
                                                                 <>
                                                                     <button
-                                                                        onClick={() => supabase.from(TABLES.WITHDRAWALS).update({ status: 'approved', updated_at: new Date().toISOString() }).eq('id', (req.id as string).trim())}
+                                                                        onClick={() => handleWithdrawalStatusChange(req.id, 'approved')}
                                                                         className="p-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-500/10 transition-all active:scale-95"
                                                                         title="Onayla"
                                                                     >
                                                                         <CheckCircle2 size={14} />
                                                                     </button>
                                                                     <button
-                                                                        onClick={() => supabase.from(TABLES.WITHDRAWALS).update({ status: 'on_hold', updated_at: new Date().toISOString() }).eq('id', (req.id as string).trim())}
+                                                                        onClick={() => handleWithdrawalStatusChange(req.id, 'on_hold')}
                                                                         className="p-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-500/10 transition-all active:scale-95"
                                                                         title="Beklet"
                                                                     >
                                                                         <Clock size={14} />
                                                                     </button>
                                                                     <button
-                                                                        onClick={() => supabase.from(TABLES.WITHDRAWALS).update({ status: 'rejected', updated_at: new Date().toISOString() }).eq('id', (req.id as string).trim())}
+                                                                        onClick={() => handleWithdrawalStatusChange(req.id, 'rejected')}
                                                                         className="p-2.5 rounded-xl bg-zinc-900 hover:bg-red-600 shadow-lg transition-all active:scale-95"
                                                                         title="İptal Et"
                                                                     >
@@ -3326,7 +3361,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                                             )}
                                                             {req.status !== 'pending' && (
                                                                 <button
-                                                                    onClick={() => supabase.from(TABLES.WITHDRAWALS).update({ status: 'pending', updated_at: new Date().toISOString() }).eq('id', (req.id as string).trim())}
+                                                                    onClick={() => handleWithdrawalStatusChange(req.id, 'pending')}
                                                                     className="px-4 py-2 rounded-xl bg-zinc-100 text-[9px] font-black uppercase text-zinc-500 hover:text-zinc-900 hover:bg-zinc-200 transition-all"
                                                                 >
                                                                     Geri Al

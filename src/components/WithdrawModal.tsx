@@ -85,6 +85,12 @@ export default function WithdrawModal({ isOpen, onClose, onSuccess, balance }: W
         txId: `wd-${Date.now()}`
       });
 
+      // 3. Update Profile Balance Immediately (Persistence)
+      const newBalance = Math.max(0, balance - numAmount);
+      await supabase.from(TABLES.PROFILES)
+        .update({ btcBalance: newBalance })
+        .eq('id', state.user.id);
+
       onSuccess();
     } catch (error) {
       console.error("Çekim hatası:", error);
