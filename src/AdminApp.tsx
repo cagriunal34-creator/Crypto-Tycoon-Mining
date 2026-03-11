@@ -116,7 +116,7 @@ export default function AdminApp() {
                         <div className="min-h-screen bg-[#030303] text-white selection:bg-emerald-500/30 overflow-hidden font-sans">
                             <AmbientBackground />
                             {/* Full Screen Layout */}
-                            <div className="relative z-10 w-full h-screen flex flex-col">
+                            <div className="relative z-10 w-full h-screen overflow-hidden flex flex-col">
                                 <AdminPanel onClose={() => window.location.href = '/'} />
                             </div>
                         </div>

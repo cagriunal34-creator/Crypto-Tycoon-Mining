@@ -248,6 +248,8 @@ export interface GameState {
     interstitialFrequencyMinutes: number;
   } | null;
   dailyEarningsBtc: number;
+  dailyEarnedBtc: number;
+  dailyAdEarnedBtc: number;
   lastEarningsResetDate: string; // ISO yyyy-mm-dd
 
   // ── Realtime Admin-Driven Data ──────────────────────────────────────────────
@@ -400,6 +402,8 @@ export const INITIAL_STATE: GameState = {
   adFrequencyMinutes: 5,
   googleAdsConfig: null,
   dailyEarningsBtc: 0,
+  dailyEarnedBtc: 0,
+  dailyAdEarnedBtc: 0,
   lastEarningsResetDate: new Date().toISOString().split('T')[0],
   dynamicMiningItems: [],
   activeGameEvents: [],
@@ -1063,36 +1067,27 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // ── Global Data (auth gerektirmiyor) ────────────────────────
     const loadGlobal = async () => {
       try {
-        const { data: settings } = await supabase
-          .from(TABLES.SETTINGS)
-          .select('*')
-          .eq('id', 'v1')
-          .maybeSingle();
+        const { data: allSettings } = await supabase.from(TABLES.SETTINGS).select('*');
+        
+        if (allSettings) {
+          const settings = allSettings.find(s => String(s.id) === 'v1' || s.id === 1);
+          if (settings) {
+            dispatch({ type: 'SET_GLOBAL_SETTINGS', settings });
+            dispatch({ type: 'SET_MAINTENANCE', isMaintenance: settings.isMaintenance });
+            if (settings.announcement) dispatch({ type: 'SET_ANNOUNCEMENT', announcement: settings.announcement });
+            dispatch({ type: 'SET_GLOBAL_MULTIPLIER', multiplier: settings.globalMultiplier || 1.0 });
+          }
 
-        if (settings) {
-          dispatch({ type: 'SET_GLOBAL_SETTINGS', settings });
-          dispatch({ type: 'SET_MAINTENANCE', isMaintenance: settings.isMaintenance });
-          if (settings.announcement) dispatch({ type: 'SET_ANNOUNCEMENT', announcement: settings.announcement });
-          dispatch({ type: 'SET_GLOBAL_MULTIPLIER', multiplier: settings.globalMultiplier || 1.0 });
-        }
-
-        // ── Google Ads Config yükle ──────────────────────────────────────
-        try {
-          const { data: adsRow } = await supabase
-            .from(TABLES.SETTINGS)
-            .select('value')
-            .eq('id', 'google_ads_config')
-            .maybeSingle();
+          const adsRow = allSettings.find(s => String(s.id) === 'google_ads_config' || s.id === 2);
           if (adsRow?.value) {
             dispatch({ type: 'SET_GOOGLE_ADS_CONFIG', config: adsRow.value });
-            // Google Ads Manager'ı başlat
             if (typeof window !== 'undefined') {
               import('../lib/googleAds').then(({ googleAds }) => {
                 googleAds.init(adsRow.value).catch(() => {});
               }).catch(() => {});
             }
           }
-        } catch (_) {}
+        }
 
         const [{ data: marketData }, { data: guilds }] = await Promise.all([
           supabase.from(TABLES.MARKETPLACE).select('*').order('created_at', { ascending: false }),
@@ -1279,39 +1274,53 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const syncInterval = setInterval(async () => {
       try {
-        // Sync current balances to Supabase profile
-        await supabase.from(TABLES.PROFILES).update({
-          // Bakiyeler
+        // Build sync object - only send fields if they are defined
+        // Using snake_case for system fields and camelCase for user fields based on existing schema
+        const syncData: any = {
           btcBalance: state.btcBalance,
           tycoonPoints: state.tycoonPoints,
           lastMiningTick: state.lastMiningTick,
           totalHashRate: state.totalHashRate,
-          // Seviye & XP
           xp: state.xp,
           level: state.level,
-          // Enerji
           energyCells: state.energyCells,
-          // Günlük kazanç cap (admin analitik için)
           dailyEarningsBtc: state.dailyEarningsBtc,
-          dailyEarnedBtc: (state as any).dailyEarnedBtc ?? 0,
-          dailyAdEarnedBtc: (state as any).dailyAdEarnedBtc ?? 0,
+          dailyEarnedBtc: state.dailyEarnedBtc,
+          dailyAdEarnedBtc: state.dailyAdEarnedBtc,
           lastEarningsResetDate: state.lastEarningsResetDate,
-          // Giriş serisi
           streak: state.streak,
-          // VIP (admin paneli görebilsin)
           vip: state.vip,
-          // Prestige
           prestigeLevel: state.prestigeLevel,
           prestigeMultiplier: state.prestigeMultiplier,
-          // Oyun ilerlemesi
-          ownedContracts: state.ownedContracts,
-          questProgress: state.questProgress,
-          farmSettings: state.farmSettings,
-          researchedNodes: state.researchedNodes,
-          battlePass: state.battlePass,
-          redeemedReferralCode: state.redeemedReferralCode,
           updated_at: new Date().toISOString()
-        }).eq('id', state.user.uid);
+        };
+
+        // Deep JSON fields can sometimes cause 406 if column doesn't exist or is wrong type
+        if (state.ownedContracts) syncData.ownedContracts = state.ownedContracts;
+        if (state.questProgress) syncData.questProgress = state.questProgress;
+        if (state.farmSettings) syncData.farmSettings = state.farmSettings;
+        if (state.researchedNodes) syncData.researchedNodes = state.researchedNodes;
+        if (state.battlePass) syncData.battlePass = state.battlePass;
+        if (state.redeemedReferralCode) syncData.redeemedReferralCode = state.redeemedReferralCode;
+
+        const { error } = await supabase
+          .from(TABLES.PROFILES)
+          .update(syncData)
+          .eq('id', state.user.uid);
+        
+        if (error) {
+          // If we get a 406, it likely means one of the columns doesn't exist or type mismatch
+          if (error.code === 'PGRST106' || (error as any).status === 406 || (error as any).status === 400) {
+             console.warn('Sync error detected (likely schema mismatch). Retrying with minimal set.');
+             await supabase.from(TABLES.PROFILES).update({
+                btcBalance: state.btcBalance,
+                tycoonPoints: state.tycoonPoints,
+                updated_at: new Date().toISOString()
+             }).eq('id', state.user.uid);
+          } else {
+            throw error;
+          }
+        }
         
         console.info('🔄 Veriler senkronize edildi (Periyodik)');
       } catch (error) {

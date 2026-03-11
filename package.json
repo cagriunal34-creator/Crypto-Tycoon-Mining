@@ -16,6 +16,7 @@
     "@vitejs/plugin-react": "^5.0.4",
     "axios": "^1.13.6",
     "clsx": "^2.1.1",
+    "feather-icons-react": "^1.0.0",
     "firebase": "10.13.0",
     "lucide-react": "^0.546.0",
     "motion": "^12.34.4",

@@ -16,7 +16,7 @@ export default function AppOpenAd() {
   const [visible, setVisible] = useState(false);
   const [countdown, setCountdown] = useState(CLOSE_DELAY);
   const [adShown, setAdShown] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setInterval>>();
+  const timerRef = useRef<any>(null);
   const shownRef = useRef(false);
 
   const cfg = (state as any).googleAdsConfig;

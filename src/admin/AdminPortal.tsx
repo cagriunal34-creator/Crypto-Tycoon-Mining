@@ -1,4 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
+// Duralux theme CSS — place these files in src/styles/
+import '../styles/duralux-theme.css';
+import '../styles/admin-duralux-overrides.css';
+
 import {
     ShieldCheck,
     Terminal,
@@ -96,18 +100,17 @@ import {
 } from 'recharts';
 
 type AdminTab = 'overview' |
-    'players_active' | 'players_banned' | 'players_email_unverified' | 'players_mobile_unverified' | 'players_kyc_unverified' | 'players_kyc_pending' | 'players_balance' | 'players_all' | 'players_notification' |
+    'players' | 'players_active' | 'players_banned' | 'players_email_unverified' | 'players_mobile_unverified' | 'players_kyc_unverified' | 'players_kyc_pending' | 'players_balance' | 'players_all' | 'players_notification' | 'banned' |
     'currencies' | 'mining_plans' | 'mining_paths' | 'mining_items' |
     'deposits_initiated' | 'deposits_pending' | 'deposits_approved' | 'deposits_success' | 'deposits_rejected' | 'deposits_all' |
-    'withdrawals_pending' | 'withdrawals_approved' | 'withdrawals_rejected' | 'withdrawals_all' |
+    'withdrawals' | 'withdrawals_pending' | 'withdrawals_approved' | 'withdrawals_rejected' | 'withdrawals_all' |
     'system_settings' | 'orders' | 'transactions_all' | 'referral_bonus' |
     'reports_login' | 'reports_notifications' |
     'support_pending' | 'support_closed' | 'support_answered' | 'support_all' |
     'info_app' | 'info_server' | 'info_cache' | 'info_update' |
     'report_request' | 'subscribers' |
     'market' | 'guilds' | 'referrals' | 'bots' | 'webhooks' | 'security' | 'economy' | 'activities' | 'cheats' | 'settings' | 'logs' |
-    'leaderboard' | 'vip_management' | 'promo_codes' | 'game_events' | 'db_explorer' | 'google_ads' |
-    'withdrawals' | 'players' | 'banned';
+    'leaderboard' | 'vip_management' | 'promo_codes' | 'game_events' | 'db_explorer' | 'google_ads';
 
 // Menu Categories structure is now handled inside the component for dynamic badges
 
@@ -131,7 +134,6 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
     const [allGuilds, setAllGuilds] = useState<any[]>([]);
     const [allTransactions, setAllTransactions] = useState<any[]>([]);
     const [adminLogs, setAdminLogs] = useState<any[]>([]);
-    const [selectedLogDetail, setSelectedLogDetail] = useState<any>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [loading, setLoading] = useState(false);
     const [modalTab, setModalTab] = useState<'profile' | 'miners' | 'transactions'>('profile');
@@ -588,16 +590,6 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                 setLiveActivityFeed(prev => [{ id: payload.new.id, type: 'withdrawal', msg: `${profile?.username || 'Kullanıcı'}: Çekim talebi`, time: new Date(), color: 'text-amber-400' }, ...prev].slice(0, 30));
             })
             .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: TABLES.PROFILES }, async (payload) => {
-                // VIP satın alındı → activity feed'e ekle
-                if (payload.new?.vip?.isActive && !payload.old?.vip?.isActive) {
-                    setLiveActivityFeed(prev => [{
-                        id: `vip-${Date.now()}`,
-                        type: 'vip',
-                        msg: `${payload.new.username || 'Kullanıcı'} → VIP ${(payload.new.vip?.tier || 'silver').toUpperCase()} satın aldı!`,
-                        time: new Date(),
-                        color: 'text-amber-400'
-                    }, ...prev].slice(0, 30));
-                }
                 if (payload.new.isBanned && !payload.old?.isBanned) {
                     setLiveActivityFeed(prev => [{ id: `ban-${payload.new.id}`, type: 'ban', msg: `${payload.new.username || 'Kullanıcı'}: Hesap askıya alındı`, time: new Date(), color: 'text-red-400' }, ...prev].slice(0, 30));
                 }
@@ -676,10 +668,6 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                 if (p.eventType === 'INSERT') setPromoCodes(prev => [p.new, ...prev]);
                 if (p.eventType === 'UPDATE') setPromoCodes(prev => prev.map(c => c.id === p.new.id ? p.new : c));
                 if (p.eventType === 'DELETE') setPromoCodes(prev => prev.filter(c => c.id !== p.old.id));
-            })
-            // ── Aboneler realtime (yeni kayıt anında badge güncellenir) ──────
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'subscribers' }, (p) => {
-                if (p.new) setSubscribers(prev => [p.new, ...prev]);
             })
             .subscribe();
         return () => { supabase.removeChannel(ch); };
@@ -1079,228 +1067,480 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
     const totalBtc = players.reduce((acc, p) => acc + (p.btcBalance || 0), 0);
     const totalTp = players.reduce((acc, p) => acc + (p.tycoonPoints || 0), 0);
     const vipCount = players.filter(p => p.vip?.isActive).length;
+    // ─── Duralux CSS + deps injection ───────────────────────────
+    useEffect(() => {
+        const injectLink = (id: string, href: string) => {
+            if (document.getElementById(id)) return;
+            const el = document.createElement('link');
+            el.id = id; el.rel = 'stylesheet'; el.href = href;
+            document.head.appendChild(el);
+        };
+        const injectScript = (id: string, src: string) => {
+            if (document.getElementById(id)) return;
+            const el = document.createElement('script');
+            el.id = id; el.src = src; el.defer = true;
+            document.body.appendChild(el);
+        };
+        injectLink('bs5-css',        'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css');
+        injectLink('bs5-icons-css',  'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css');
+        injectLink('feather-css',    'https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.css');
+        injectScript('bs5-js',       'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js');
+        injectScript('feather-js',   'https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js');
+
+        // Duralux body class
+        document.documentElement.classList.add('app-navigation-dark');
+        return () => { document.documentElement.classList.remove('app-navigation-dark'); };
+    }, []);
+
+    // ─── Dark mode toggle ────────────────────────────────────────
+    const [isDark, setIsDark] = useState(() => {
+        return document.documentElement.classList.contains('app-skin-dark');
+    });
+    const toggleDarkMode = () => {
+        if (isDark) {
+            document.documentElement.classList.remove('app-skin-dark');
+            localStorage.setItem('skinTheme', 'light');
+        } else {
+            document.documentElement.classList.add('app-skin-dark');
+            localStorage.setItem('skinTheme', 'dark');
+        }
+        setIsDark(v => !v);
+    };
+
+    // ─── Sidebar mini toggle ─────────────────────────────────────
+    const [sidebarMini, setSidebarMini] = useState(false);
+    const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+    const toggleSidebar = () => {
+        const next = !sidebarMini;
+        setSidebarMini(next);
+        if (next) document.documentElement.classList.add('minimenu');
+        else document.documentElement.classList.remove('minimenu');
+    };
+
+    // ─── Category icon map ───────────────────────────────────────
+    const CAT_ICONS: Record<string, string> = {
+        dashboard:       'bi-speedometer2',
+        manage_users:    'bi-people-fill',
+        finance_ops:     'bi-bank2',
+        ecosystem:       'bi-cpu-fill',
+        finance_detail:  'bi-cash-coin',
+        support_section: 'bi-headset',
+        system_security: 'bi-shield-lock-fill',
+        ads_section:     'bi-megaphone-fill',
+        system_info:     'bi-info-circle-fill',
+    };
+
+    const activeLabel = MENU_CATEGORIES.flatMap(c => c.items).find(i => i.id === activeTab)?.label || 'Genel Bakış';
+    const activeCat   = MENU_CATEGORIES.find(c => c.items.some(i => i.id === activeTab))?.title || 'Kontrol Paneli';
 
     return (
-        <div className="flex h-screen w-full bg-[#f8f9fa] text-zinc-600 font-sans overflow-hidden">
-            {/* 🏰 Premium Sidebar */}
-            <aside className="w-72 h-full bg-[#161c2d] border-r border-white/5 flex flex-col z-20 shrink-0 overflow-y-auto custom-scrollbar">
-                <div className="p-6">
-                    <div className="flex items-center gap-3 mb-8 px-2">
-                        <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                            <ShieldCheck className="text-white" size={24} />
+        <>
+            {/* ══════════════════════════════════════════════════════
+                DURALUX HEADER
+            ══════════════════════════════════════════════════════ */}
+            <header className="nxl-header" style={{ zIndex: 1025 }}>
+                <div className="header-wrapper">
+
+                    {/* LEFT */}
+                    <div className="header-left d-flex align-items-center gap-3">
+                        {/* Mobile hamburger */}
+                        <a href="#" className="nxl-head-mobile-toggler d-lg-none"
+                            onClick={e => { e.preventDefault(); setMobileSidebarOpen(v => !v); }}>
+                            <div className={`hamburger hamburger--arrowturn ${mobileSidebarOpen ? 'is-active' : ''}`}>
+                                <div className="hamburger-box"><div className="hamburger-inner" /></div>
+                            </div>
+                        </a>
+
+                        {/* Desktop sidebar collapse */}
+                        <div className="nxl-navigation-toggle d-none d-lg-flex">
+                            <a href="#" onClick={e => { e.preventDefault(); toggleSidebar(); }}>
+                                <i className={`bi ${sidebarMini ? 'bi-arrow-right-square' : 'bi-arrow-left-square'} fs-5`} />
+                            </a>
                         </div>
-                        <div>
-                            <h1 className="text-white font-black text-lg tracking-tighter uppercase leading-none">Tycoon</h1>
-                            <p className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest mt-1">Admin Panel</p>
+
+                        {/* Breadcrumb */}
+                        <div className="d-none d-md-flex align-items-center gap-2 ms-2">
+                            <span className="fw-bold text-muted" style={{ fontSize: 12 }}>
+                                {activeCat}
+                            </span>
+                            <i className="bi bi-chevron-right text-muted" style={{ fontSize: 10 }} />
+                            <span className="fw-bold" style={{ fontSize: 12 }}>
+                                {activeLabel}
+                            </span>
                         </div>
                     </div>
 
-                    <div className="space-y-8">
-                        {MENU_CATEGORIES.map((cat) => {
-                            const isOpen = openCategories.includes(cat.id);
-                            const isSingleItem = cat.items.length === 1;
-                            const isCatActive = cat.items.some(i => i.id === activeTab);
-                            return (
-                                <div key={cat.id} className="space-y-1">
-                                    <button
-                                        onClick={() => isSingleItem ? setActiveTab(cat.items[0].id as AdminTab) : toggleCategory(cat.id)}
-                                        className={cn(
-                                            "w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all group mb-1",
-                                            cat.color ? `${cat.color} text-white shadow-lg shadow-black/20` : "hover:bg-white/5 text-zinc-500",
-                                            isSingleItem && isCatActive ? "ring-2 ring-white/30" : ""
-                                        )}
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <span className={cn("transition-all", isSingleItem && isCatActive ? "scale-110 text-white" : "")}>
-                                                {cat.items[0]?.icon}
-                                            </span>
-                                            <p className="text-[10px] font-black uppercase tracking-[0.15em]">
-                                                {cat.title}
-                                            </p>
-                                        </div>
-                                        {!isSingleItem && (
-                                            <div className="text-white/40 group-hover:text-white transition-colors">
-                                                {isOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                                            </div>
-                                        )}
-                                    </button>
+                    {/* RIGHT */}
+                    <div className="header-right ms-auto">
+                        <div className="d-flex align-items-center gap-1">
 
-                                    {!isSingleItem && isOpen && (
-                                        <div className="space-y-0.5 animate-in slide-in-from-top-1 duration-200">
-                                            {cat.items.map(item => (
-                                                <div key={String(item.id)}>
-                                                    <SidebarLink
-                                                        active={activeTab === item.id}
-                                                        onClick={() => setActiveTab(item.id as AdminTab)}
-                                                        icon={item.icon}
-                                                        label={item.label}
-                                                        badge={(item as any).badge}
-                                                        sub
-                                                    />
+                            {/* Search */}
+                            <div className="nxl-h-item d-none d-md-flex align-items-center">
+                                <div className="position-relative">
+                                    <i className="bi bi-search position-absolute" style={{ left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 13, opacity: 0.5 }} />
+                                    <input
+                                        className="form-control form-control-sm ps-5"
+                                        placeholder="Ara..."
+                                        style={{ width: 200, borderRadius: 20 }}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Fullscreen */}
+                            <div className="nxl-h-item">
+                                <button className="nxl-head-link btn btn-link p-2"
+                                    onClick={() => {
+                                        if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+                                        else document.exitFullscreen?.();
+                                    }}>
+                                    <i className="bi bi-fullscreen fs-5" />
+                                </button>
+                            </div>
+
+                            {/* Dark mode */}
+                            <div className="nxl-h-item">
+                                <button className="nxl-head-link btn btn-link p-2" onClick={toggleDarkMode}>
+                                    <i className={`bi ${isDark ? 'bi-sun-fill text-warning' : 'bi-moon-fill'} fs-5`} />
+                                </button>
+                            </div>
+
+                            {/* Maintenance mode warning */}
+                            {state.globalSettings.isMaintenance && (
+                                <div className="nxl-h-item">
+                                    <button
+                                        onClick={() => handleUpdateSettings({ isMaintenance: false })}
+                                        className="btn btn-sm btn-danger fw-bold d-flex align-items-center gap-1">
+                                        <i className="bi bi-tools" />
+                                        <span className="d-none d-md-inline" style={{ fontSize: 11 }}>Bakım Modu</span>
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* Notifications */}
+                            <div className="dropdown nxl-h-item">
+                                <button className="nxl-head-link btn btn-link p-2 position-relative"
+                                    data-bs-toggle="dropdown" data-bs-auto-close="outside">
+                                    <i className="bi bi-bell-fill fs-5" />
+                                    {tickets.filter(t => t.status === 'open').length > 0 && (
+                                        <span className="badge bg-danger nxl-h-badge" style={{ fontSize: 9, minWidth: 16, height: 16, padding: '0 4px' }}>
+                                            {tickets.filter(t => t.status === 'open').length}
+                                        </span>
+                                    )}
+                                </button>
+                                <div className="dropdown-menu dropdown-menu-end nxl-h-dropdown" style={{ width: 340, maxHeight: 420, overflowY: 'auto' }}>
+                                    <div className="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
+                                        <h6 className="fw-bold mb-0">Bildirimler</h6>
+                                        <button className="btn btn-sm btn-soft-success py-0" style={{ fontSize: 11 }}
+                                            onClick={() => setActiveTab('support_all')}>
+                                            Tümünü Gör
+                                        </button>
+                                    </div>
+                                    {tickets.filter(t => t.status === 'open').slice(0, 6).map(t => (
+                                        <a key={t.id} href="#" className="dropdown-item d-flex align-items-start gap-3 py-2"
+                                            onClick={e => { e.preventDefault(); setActiveTab('support_all'); }}>
+                                            <div className="flex-shrink-0 d-flex align-items-center justify-content-center rounded-circle bg-soft-warning text-warning fw-black"
+                                                style={{ width: 36, height: 36, fontSize: 13 }}>
+                                                {(t.username || 'U').charAt(0).toUpperCase()}
+                                            </div>
+                                            <div className="flex-grow-1 overflow-hidden">
+                                                <div className="fw-bold text-dark" style={{ fontSize: 12 }}>{t.username || 'Kullanıcı'}</div>
+                                                <div className="text-muted text-truncate" style={{ fontSize: 11 }}>
+                                                    {(t.message || '').slice(0, 55)}…
                                                 </div>
-                                            ))}
+                                            </div>
+                                            <span className="text-muted flex-shrink-0" style={{ fontSize: 10 }}>
+                                                {t.created_at ? new Date(t.created_at).toLocaleDateString('tr-TR') : ''}
+                                            </span>
+                                        </a>
+                                    ))}
+                                    {tickets.filter(t => t.status === 'open').length === 0 && (
+                                        <div className="text-center py-4 text-muted" style={{ fontSize: 12 }}>
+                                            <i className="bi bi-check-circle fs-4 d-block mb-2 text-success" />
+                                            Açık destek talebi yok
                                         </div>
                                     )}
                                 </div>
-                            );
-                        })}
-                    </div>
-                </div>
+                            </div>
 
-                <div className="mt-auto p-6 border-t border-white/5 bg-black/10">
-                    <button onClick={onClose} className="w-full h-12 rounded-xl border border-white/5 bg-white/5 text-[9px] font-black uppercase tracking-widest text-zinc-400 hover:text-white hover:bg-white/10 transition-all flex items-center justify-center gap-3 active:scale-95">
-                        <LogOut size={16} /> Paneli Kapat
-                    </button>
-                </div>
-            </aside>
-
-            {/* 🖥️ Ana Panel */}
-            <main className="flex-1 h-full overflow-y-auto custom-scrollbar bg-[#f0f2f5] relative">
-                <header className="sticky top-0 z-20 w-full px-6 py-3 bg-[#1a2035] flex items-center justify-between gap-4">
-                    {/* Sol: arama */}
-                    <div className="relative w-56">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" size={13}/>
-                        <input placeholder="Search here..." className="w-full h-9 pl-9 pr-4 bg-white/5 border border-white/10 rounded-lg text-[11px] text-white/80 placeholder:text-white/30 focus:outline-none focus:border-white/25 focus:bg-white/10 transition-all"/>
-                    </div>
-
-                    {/* Sağ: aksiyonlar */}
-                    <div className="flex items-center gap-1 ml-auto">
-                        {/* Ayarlar butonu */}
-                        <button
-                            onClick={() => setActiveTab('settings')}
-                            title="Sistem Ayarları"
-                            className={cn(
-                                "w-9 h-9 rounded-lg flex items-center justify-center transition-all",
-                                activeTab === 'settings' ? "bg-white/20 text-white" : "text-white/50 hover:bg-white/10 hover:text-white"
-                            )}>
-                            <SettingsIcon size={16}/>
-                        </button>
-
-                        {/* Bildirimler */}
-                        <button className="relative w-9 h-9 rounded-lg flex items-center justify-center text-white/50 hover:bg-white/10 hover:text-white transition-all">
-                            <Bell size={16}/>
-                            {tickets.filter(t=>t.status==='open').length > 0 && (
-                                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500"/>
-                            )}
-                        </button>
-
-                        {/* Bakım modu göstergesi */}
-                        {state.globalSettings.isMaintenance && (
-                            <button onClick={() => handleUpdateSettings({ isMaintenance: false })}
-                                className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-red-500/20 border border-red-500/30 text-red-400 text-[9px] font-black uppercase hover:bg-red-500 hover:text-white transition-all">
-                                <Lock size={11}/> Bakım Modu
-                            </button>
-                        )}
-
-                        <div className="w-px h-5 bg-white/10 mx-1"/>
-
-                        {/* Admin profil butonu */}
-                        <div className="relative">
-                            <button
-                                onClick={() => setShowAdminMenu(v => !v)}
-                                className={cn(
-                                    "flex items-center gap-2 h-9 px-3 rounded-lg transition-all",
-                                    showAdminMenu ? "bg-white/20" : "hover:bg-white/10"
-                                )}>
-                                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center font-black text-white text-xs shadow-lg">
-                                    {(state.username?.charAt(0) || 'A').toUpperCase()}
+                            {/* Live feed */}
+                            <div className="nxl-h-item d-none d-xl-flex align-items-center">
+                                <div className="d-flex align-items-center gap-2 px-3 py-1 rounded-pill"
+                                    style={{ background: 'rgba(52,84,209,0.08)', fontSize: 11 }}>
+                                    <span className="rounded-circle bg-success d-inline-block" style={{ width: 7, height: 7 }} />
+                                    <span className="fw-bold text-primary">
+                                        {players.filter(p => !p.isBanned).length} aktif kullanıcı
+                                    </span>
                                 </div>
-                                <div className="hidden lg:block text-left">
-                                    <p className="text-white text-[10px] font-black leading-none">{state.username || 'Admin'}</p>
-                                    <p className="text-white/40 text-[8px] font-bold leading-none mt-0.5">Süper Admin</p>
-                                </div>
-                                <ChevronDown size={12} className={cn("text-white/40 transition-transform", showAdminMenu && "rotate-180")}/>
-                            </button>
+                            </div>
 
-                            {showAdminMenu && (
-                                <>
-                                    <div className="fixed inset-0 z-30" onClick={() => setShowAdminMenu(false)}/>
-                                    <div className="absolute right-0 top-full mt-2 w-52 bg-white rounded-2xl shadow-2xl border border-zinc-100 overflow-hidden z-40 animate-in fade-in slide-in-from-top-2 duration-150">
-                                        <div className="p-4 bg-gradient-to-br from-indigo-50 to-violet-50 border-b border-zinc-100">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center font-black text-white text-sm">
-                                                    {(state.username?.charAt(0) || 'A').toUpperCase()}
-                                                </div>
-                                                <div>
-                                                    <p className="font-black text-zinc-800 text-sm">{state.username || 'Admin'}</p>
-                                                    <p className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest">Süper Admin</p>
-                                                </div>
+                            {/* Profile dropdown */}
+                            <div className="dropdown nxl-h-item">
+                                <button className="btn btn-link p-0 d-flex align-items-center gap-2"
+                                    data-bs-toggle="dropdown" data-bs-auto-close="outside">
+                                    <div className="d-flex align-items-center justify-content-center rounded-circle fw-black text-white"
+                                        style={{ width: 36, height: 36, fontSize: 14, background: 'linear-gradient(135deg, #3454d1, #6f42c1)', boxShadow: '0 2px 8px rgba(52,84,209,0.4)' }}>
+                                        {(state.username?.charAt(0) || 'A').toUpperCase()}
+                                    </div>
+                                    <div className="d-none d-md-block text-start">
+                                        <div className="fw-bold lh-1" style={{ fontSize: 13 }}>{state.username || 'Admin'}</div>
+                                        <div className="text-muted lh-1 mt-1" style={{ fontSize: 10 }}>Süper Admin</div>
+                                    </div>
+                                    <i className="bi bi-chevron-down text-muted d-none d-md-block" style={{ fontSize: 11 }} />
+                                </button>
+                                <div className="dropdown-menu dropdown-menu-end nxl-h-dropdown" style={{ width: 260 }}>
+                                    <div className="dropdown-header p-3 border-bottom">
+                                        <div className="d-flex align-items-center gap-3">
+                                            <div className="d-flex align-items-center justify-content-center rounded-circle fw-black text-white flex-shrink-0"
+                                                style={{ width: 48, height: 48, fontSize: 18, background: 'linear-gradient(135deg, #3454d1, #6f42c1)' }}>
+                                                {(state.username?.charAt(0) || 'A').toUpperCase()}
+                                            </div>
+                                            <div>
+                                                <div className="fw-bold text-dark" style={{ fontSize: 14 }}>{state.username || 'Admin'}</div>
+                                                <span className="badge bg-soft-success text-success mt-1" style={{ fontSize: 10 }}>
+                                                    Süper Admin
+                                                </span>
                                             </div>
                                         </div>
-                                        <div className="p-2">
-                                            <button
-                                                onClick={() => { setShowAdminMenu(false); setActiveTab('players_all'); }}
-                                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-zinc-50 transition-colors text-left">
-                                                <div className="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600"><User size={13}/></div>
-                                                <span className="text-xs font-bold text-zinc-700">Profil</span>
-                                            </button>
-                                            <button
-                                                onClick={() => { setShowAdminMenu(false); setShowPasswordModal(true); }}
-                                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-zinc-50 transition-colors text-left">
-                                                <div className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600"><Key size={13}/></div>
-                                                <span className="text-xs font-bold text-zinc-700">Şifre Değiştir</span>
-                                            </button>
-                                            <div className="my-1 border-t border-zinc-100"/>
-                                            <button
-                                                onClick={() => { setShowAdminMenu(false); onClose(); }}
-                                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-red-50 transition-colors text-left">
-                                                <div className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center text-red-500"><LogOut size={13}/></div>
-                                                <span className="text-xs font-bold text-red-500">Çıkış Yap</span>
-                                            </button>
-                                        </div>
                                     </div>
-                                </>
-                            )}
+                                    <div className="py-2">
+                                        <a href="#" className="dropdown-item d-flex align-items-center gap-2"
+                                            onClick={e => { e.preventDefault(); setActiveTab('players_all'); }}>
+                                            <i className="bi bi-people-fill text-primary" />
+                                            <span>Tüm Kullanıcılar</span>
+                                            <span className="badge bg-soft-primary text-primary ms-auto">{players.length}</span>
+                                        </a>
+                                        <a href="#" className="dropdown-item d-flex align-items-center gap-2"
+                                            onClick={e => { e.preventDefault(); setActiveTab('withdrawals_all'); }}>
+                                            <i className="bi bi-cash-coin text-warning" />
+                                            <span>Para Çekme</span>
+                                            <span className="badge bg-soft-warning text-warning ms-auto">{withdrawals.filter(w => w.status === 'pending').length}</span>
+                                        </a>
+                                        <a href="#" className="dropdown-item d-flex align-items-center gap-2"
+                                            onClick={e => { e.preventDefault(); setActiveTab('support_all'); }}>
+                                            <i className="bi bi-headset text-success" />
+                                            <span>Destek Talepleri</span>
+                                            <span className="badge bg-soft-success text-success ms-auto">{tickets.filter(t => t.status === 'open').length}</span>
+                                        </a>
+                                        <div className="dropdown-divider" />
+                                        <a href="#" className="dropdown-item d-flex align-items-center gap-2"
+                                            onClick={e => { e.preventDefault(); setActiveTab('settings'); }}>
+                                            <i className="bi bi-gear-fill text-muted" />
+                                            <span>Sistem Ayarları</span>
+                                        </a>
+                                        <a href="#" className="dropdown-item d-flex align-items-center gap-2"
+                                            onClick={e => { e.preventDefault(); setShowPasswordModal(true); }}>
+                                            <i className="bi bi-key-fill text-muted" />
+                                            <span>Şifre Değiştir</span>
+                                        </a>
+                                        <div className="dropdown-divider" />
+                                        <a href="#" className="dropdown-item d-flex align-items-center gap-2 text-danger"
+                                            onClick={e => { e.preventDefault(); onClose(); }}>
+                                            <i className="bi bi-box-arrow-right" />
+                                            <span>Çıkış Yap</span>
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+
                         </div>
                     </div>
-                </header>
+                </div>
+            </header>
+            {/* ══════════════ END HEADER ══════════════ */}
 
-                {/* Şifre Değiştir Modal */}
-                {showPasswordModal && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-                        <div className="w-full max-w-sm bg-white rounded-3xl shadow-2xl p-8 space-y-5 animate-in fade-in zoom-in-95 duration-200">
-                            <div className="flex items-center justify-between">
-                                <h3 className="font-black text-zinc-800 text-sm uppercase tracking-widest flex items-center gap-2"><Key size={14} className="text-amber-500"/> Şifre Değiştir</h3>
-                                <button onClick={() => setShowPasswordModal(false)} className="text-zinc-400 hover:text-zinc-700 transition-colors"><X size={16}/></button>
+            {/* ══════════════════════════════════════════════════════
+                DURALUX SIDEBAR
+            ══════════════════════════════════════════════════════ */}
+            <nav className={`nxl-navigation ${mobileSidebarOpen ? 'mob-navigation-active' : ''}`}
+                style={{ zIndex: 1026 }}>
+                <div className="navbar-wrapper">
+
+                    {/* Logo */}
+                    <div className="m-header">
+                        <a href="#" className="b-brand d-flex align-items-center gap-2"
+                            onClick={e => { e.preventDefault(); setActiveTab('overview'); }}>
+                            <div className="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
+                                style={{ width: 34, height: 34, background: 'linear-gradient(135deg, #3454d1, #6f42c1)' }}>
+                                <ShieldCheck size={18} className="text-white" />
                             </div>
-                            <div className="space-y-3">
-                                <div>
-                                    <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">Yeni Şifre</p>
-                                    <input type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)}
-                                        placeholder="••••••••" className="w-full h-11 px-4 bg-zinc-50 border border-zinc-200 rounded-xl text-sm font-bold text-zinc-800 focus:outline-none focus:border-amber-300"/>
-                                </div>
-                                <div>
-                                    <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">Şifre Tekrar</p>
-                                    <input type="password" value={newPasswordConfirm} onChange={e=>setNewPasswordConfirm(e.target.value)}
-                                        placeholder="••••••••" className="w-full h-11 px-4 bg-zinc-50 border border-zinc-200 rounded-xl text-sm font-bold text-zinc-800 focus:outline-none focus:border-amber-300"/>
-                                </div>
+                            <span className="fw-black text-uppercase logo-lg" style={{ fontSize: 14, letterSpacing: 1 }}>
+                                Tycoon Admin
+                            </span>
+                            <span className="fw-black text-uppercase logo-sm" style={{ fontSize: 11 }}>TA</span>
+                        </a>
+                    </div>
+
+                    {/* Nav items */}
+                    <div className="navbar-content">
+                        <ul className="nxl-navbar">
+
+                            {MENU_CATEGORIES.map((cat) => {
+                                const isSingle   = cat.items.length === 1;
+                                const isCatActive = cat.items.some(i => i.id === activeTab);
+                                const iconClass  = CAT_ICONS[cat.id] || 'bi-circle';
+                                const isOpen     = openCategories.includes(cat.id);
+
+                                if (isSingle) {
+                                    return (
+                                        <li key={cat.id} className={`nxl-item${isCatActive ? ' active' : ''}`}>
+                                            <a href="#" className="nxl-link"
+                                                onClick={e => { e.preventDefault(); setActiveTab(cat.items[0].id as AdminTab); }}>
+                                                <span className="nxl-micon"><i className={`bi ${iconClass}`} /></span>
+                                                <span className="nxl-mtext">{cat.title}</span>
+                                            </a>
+                                        </li>
+                                    );
+                                }
+
+                                return (
+                                    <li key={cat.id}
+                                        className={`nxl-item nxl-hasmenu${isCatActive ? ' active nxl-trigger' : ''}${isOpen ? ' nxl-trigger' : ''}`}>
+                                        <a href="#" className="nxl-link"
+                                            onClick={e => { e.preventDefault(); toggleCategory(cat.id); }}>
+                                            <span className="nxl-micon"><i className={`bi ${iconClass}`} /></span>
+                                            <span className="nxl-mtext">{cat.title}</span>
+                                            {/* badge: sum of item badges */}
+                                            {(() => {
+                                                const total = cat.items.reduce((s, i) => s + ((i as any).badge || 0), 0);
+                                                return total > 0
+                                                    ? <span className="badge bg-danger ms-auto me-2" style={{ fontSize: 9 }}>{total}</span>
+                                                    : null;
+                                            })()}
+                                            <span className="nxl-arrow"><ChevronRight size={14} /></span>
+                                        </a>
+                                        <ul className={`nxl-submenu${isOpen || isCatActive ? ' nxl-menu-visible' : ' nxl-menu-hidden'}`}>
+                                            {cat.items.map(item => (
+                                                <li key={String(item.id)} className={`nxl-item${activeTab === item.id ? ' active' : ''}`}>
+                                                    <a href="#" className="nxl-link"
+                                                        onClick={e => { e.preventDefault(); setActiveTab(item.id as AdminTab); }}>
+                                                        <span className="nxl-mtext">{item.label}</span>
+                                                        {(item as any).badge ? (
+                                                            <span className="badge bg-soft-danger text-danger ms-auto" style={{ fontSize: 9 }}>
+                                                                {(item as any).badge}
+                                                            </span>
+                                                        ) : null}
+                                                    </a>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </li>
+                                );
+                            })}
+
+                            {/* Divider + close */}
+                            <li className="nxl-item nxl-caption mt-2">
+                                <label>Yönetim</label>
+                            </li>
+                            <li className="nxl-item">
+                                <a href="#" className="nxl-link text-danger"
+                                    onClick={e => { e.preventDefault(); onClose(); }}>
+                                    <span className="nxl-micon"><LogOut size={16} /></span>
+                                    <span className="nxl-mtext">Paneli Kapat</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                {/* Mobile overlay */}
+                <div onClick={() => setMobileSidebarOpen(false)}
+                    className={mobileSidebarOpen ? 'nxl-menu-overlay' : ''} />
+            </nav>
+            {/* ══════════════ END SIDEBAR ══════════════ */}
+
+            {/* ══════════════════════════════════════════════════════
+                MAIN CONTENT
+            ══════════════════════════════════════════════════════ */}
+            <main className="nxl-container">
+                <div className="nxl-content">
+
+                    {/* Page header */}
+                    <div className="page-header">
+                        <div className="page-header-left d-flex align-items-center gap-3">
+                            <div className="page-header-title">
+                                <h5 className="m-b-10 fw-black text-uppercase">{activeLabel}</h5>
+                                <ul className="breadcrumb">
+                                    <li className="breadcrumb-item">
+                                        <a href="#" onClick={e => { e.preventDefault(); setActiveTab('overview'); }}>
+                                            <Home size={13} />
+                                        </a>
+                                    </li>
+                                    <li className="breadcrumb-item">{activeCat}</li>
+                                    <li className="breadcrumb-item active">{activeLabel}</li>
+                                </ul>
                             </div>
-                            {newPassword && newPasswordConfirm && newPassword !== newPasswordConfirm && (
-                                <p className="text-[9px] text-red-500 font-bold">Şifreler eşleşmiyor!</p>
-                            )}
-                            <div className="flex gap-3 pt-1">
-                                <button onClick={() => setShowPasswordModal(false)} className="flex-1 h-11 rounded-xl bg-zinc-100 text-zinc-600 font-black text-[9px] uppercase hover:bg-zinc-200 transition-all">İptal</button>
-                                <button
-                                    disabled={!newPassword || newPassword !== newPasswordConfirm}
-                                    onClick={async () => {
-                                        try {
-                                            if (state.user?.uid) {
-                                                await supabase.from(TABLES.PROFILES).update({ password_hash: newPassword }).eq('id', state.user.uid);
-                                            }
-                                            notify({ type: 'success', title: 'Şifre Güncellendi', message: 'Yeni şifreniz kaydedildi.' });
-                                            setShowPasswordModal(false); setNewPassword(''); setNewPasswordConfirm('');
-                                        } catch { notify({ type: 'warning', title: 'Hata', message: 'Şifre güncellenemedi.' }); }
-                                    }}
-                                    className="flex-1 h-11 rounded-xl bg-amber-500 text-white font-black text-[9px] uppercase hover:bg-amber-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-                                    Kaydet
-                                </button>
+                        </div>
+
+                        {/* Page header right — quick stats */}
+                        <div className="page-header-right ms-auto d-none d-xl-flex align-items-center gap-3">
+                            <div className="d-flex align-items-center gap-2 px-3 py-2 rounded-3 border" style={{ fontSize: 12 }}>
+                                <Users size={14} className="text-primary" />
+                                <span className="fw-bold">{players.length}</span>
+                                <span className="text-muted">kullanıcı</span>
+                            </div>
+                            <div className="d-flex align-items-center gap-2 px-3 py-2 rounded-3 border" style={{ fontSize: 12 }}>
+                                <Upload size={14} className="text-warning" />
+                                <span className="fw-bold">{withdrawals.filter(w => w.status === 'pending').length}</span>
+                                <span className="text-muted">bekleyen çekim</span>
+                            </div>
+                            <div className="d-flex align-items-center gap-2 px-3 py-2 rounded-3 border" style={{ fontSize: 12 }}>
+                                <LifeBuoy size={14} className="text-success" />
+                                <span className="fw-bold">{tickets.filter(t => t.status === 'open').length}</span>
+                                <span className="text-muted">açık ticket</span>
                             </div>
                         </div>
                     </div>
-                )}
 
-                <div className="p-8 space-y-8 max-w-[1600px] mx-auto pb-32">
+                    {/* ── Password Modal ── */}
+                    {showPasswordModal && (
+                        <div className="modal d-block" tabIndex={-1}
+                            style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)', zIndex: 9999 }}>
+                            <div className="modal-dialog modal-dialog-centered">
+                                <div className="modal-content border-0 shadow-lg">
+                                    <div className="modal-header">
+                                        <h5 className="modal-title fw-black d-flex align-items-center gap-2">
+                                            <Key size={16} className="text-warning" /> Şifre Değiştir
+                                        </h5>
+                                        <button type="button" className="btn-close" onClick={() => setShowPasswordModal(false)} />
+                                    </div>
+                                    <div className="modal-body">
+                                        <div className="mb-3">
+                                            <label className="form-label fw-bold" style={{ fontSize: 12 }}>Yeni Şifre</label>
+                                            <input type="password" className="form-control" value={newPassword}
+                                                onChange={e => setNewPassword(e.target.value)} placeholder="••••••••" />
+                                        </div>
+                                        <div className="mb-3">
+                                            <label className="form-label fw-bold" style={{ fontSize: 12 }}>Şifre Tekrar</label>
+                                            <input type="password" className="form-control" value={newPasswordConfirm}
+                                                onChange={e => setNewPasswordConfirm(e.target.value)} placeholder="••••••••" />
+                                        </div>
+                                        {newPassword && newPasswordConfirm && newPassword !== newPasswordConfirm && (
+                                            <div className="alert alert-danger py-2" style={{ fontSize: 12 }}>Şifreler eşleşmiyor!</div>
+                                        )}
+                                    </div>
+                                    <div className="modal-footer">
+                                        <button className="btn btn-secondary" onClick={() => setShowPasswordModal(false)}>İptal</button>
+                                        <button className="btn btn-warning fw-bold"
+                                            disabled={!newPassword || newPassword !== newPasswordConfirm}
+                                            onClick={async () => {
+                                                try {
+                                                    if (state.user?.uid) {
+                                                        await supabase.from(TABLES.PROFILES).update({ password_hash: newPassword }).eq('id', state.user.uid);
+                                                    }
+                                                    notify({ type: 'success', title: 'Şifre Güncellendi', message: 'Yeni şifreniz kaydedildi.' });
+                                                    setShowPasswordModal(false); setNewPassword(''); setNewPasswordConfirm('');
+                                                } catch { notify({ type: 'warning', title: 'Hata', message: 'Şifre güncellenemedi.' }); }
+                                            }}>
+                                            <i className="bi bi-check-lg me-1" /> Kaydet
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
+                    {/* ── TAB CONTENT WRAPPER ── */}
+                    <div className="main-content">
                     {activeTab === 'overview' && (
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
@@ -1441,26 +1681,29 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                             </select>
                                         </div>
                                     </div>
-                                    <div className="h-52">
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <AreaChart data={kpiData}>
-                                                <defs>
-                                                    <linearGradient id="gradReturn" x1="0" y1="0" x2="0" y2="1">
-                                                        <stop offset="5%" stopColor="#6366f1" stopOpacity={0.15}/>
-                                                        <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
-                                                    </linearGradient>
-                                                </defs>
-                                                <CartesianGrid strokeDasharray="3 3" stroke="#f4f4f5" vertical={false}/>
-                                                <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#a1a1aa' }} axisLine={false} tickLine={false}/>
-                                                <YAxis tick={{ fontSize: 9, fill: '#a1a1aa' }} axisLine={false} tickLine={false}/>
-                                                <Tooltip contentStyle={{ background:'#fff', border:'1px solid #e4e4e7', borderRadius:'12px', fontSize:'10px', fontWeight:'700' }}/>
-                                                <Area type="monotone" dataKey="revenue" stroke="#6366f1" strokeWidth={2.5} fill="url(#gradReturn)" name="Gelir"/>
-                                            </AreaChart>
-                                        </ResponsiveContainer>
+                                    <div className="h-52 w-full">
+                                        {kpiData && kpiData.length > 0 ? (
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <AreaChart data={kpiData}>
+                                                    <defs>
+                                                        <linearGradient id="gradReturn" x1="0" y1="0" x2="0" y2="1">
+                                                            <stop offset="5%" stopColor="#6366f1" stopOpacity={0.15}/>
+                                                            <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                                                        </linearGradient>
+                                                    </defs>
+                                                    <CartesianGrid strokeDasharray="3 3" stroke="#f4f4f5" vertical={false}/>
+                                                    <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#a1a1aa' }} axisLine={false} tickLine={false}/>
+                                                    <YAxis tick={{ fontSize: 9, fill: '#a1a1aa' }} axisLine={false} tickLine={false}/>
+                                                    <Tooltip contentStyle={{ background:'#fff', border:'1px solid #e4e4e7', borderRadius:'12px', fontSize:'10px', fontWeight:'700' }}/>
+                                                    <Area type="monotone" dataKey="revenue" stroke="#6366f1" strokeWidth={2.5} fill="url(#gradReturn)" name="Gelir"/>
+                                                </AreaChart>
+                                            </ResponsiveContainer>
+                                        ) : (
+                                            <div className="h-full flex items-center justify-center">
+                                                <p className="text-zinc-400 text-[9px] font-bold uppercase tracking-widest">Veri bekleniyor...</p>
+                                            </div>
+                                        )}
                                     </div>
-                                    {kpiData.every(d=>d.revenue===0) && (
-                                        <p className="text-center text-zinc-400 text-[9px] font-bold uppercase -mt-20 relative z-10">No data available</p>
-                                    )}
                                 </div>
 
                                 {/* Transactions Chart */}
@@ -1476,26 +1719,29 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                             </select>
                                         </div>
                                     </div>
-                                    <div className="h-52">
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <AreaChart data={kpiData}>
-                                                <defs>
-                                                    <linearGradient id="gradTx" x1="0" y1="0" x2="0" y2="1">
-                                                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.15}/>
-                                                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                                                    </linearGradient>
-                                                </defs>
-                                                <CartesianGrid strokeDasharray="3 3" stroke="#f4f4f5" vertical={false}/>
-                                                <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#a1a1aa' }} axisLine={false} tickLine={false}/>
-                                                <YAxis tick={{ fontSize: 9, fill: '#a1a1aa' }} axisLine={false} tickLine={false}/>
-                                                <Tooltip contentStyle={{ background:'#fff', border:'1px solid #e4e4e7', borderRadius:'12px', fontSize:'10px', fontWeight:'700' }}/>
-                                                <Area type="monotone" dataKey="newUsers" stroke="#10b981" strokeWidth={2.5} fill="url(#gradTx)" name="İşlem"/>
-                                            </AreaChart>
-                                        </ResponsiveContainer>
+                                    <div className="h-52 w-full">
+                                        {kpiData && kpiData.length > 0 ? (
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <AreaChart data={kpiData}>
+                                                    <defs>
+                                                        <linearGradient id="gradTx" x1="0" y1="0" x2="0" y2="1">
+                                                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.15}/>
+                                                            <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                                                        </linearGradient>
+                                                    </defs>
+                                                    <CartesianGrid strokeDasharray="3 3" stroke="#f4f4f5" vertical={false}/>
+                                                    <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#a1a1aa' }} axisLine={false} tickLine={false}/>
+                                                    <YAxis tick={{ fontSize: 9, fill: '#a1a1aa' }} axisLine={false} tickLine={false}/>
+                                                    <Tooltip contentStyle={{ background:'#fff', border:'1px solid #e4e4e7', borderRadius:'12px', fontSize:'10px', fontWeight:'700' }}/>
+                                                    <Area type="monotone" dataKey="newUsers" stroke="#10b981" strokeWidth={2.5} fill="url(#gradTx)" name="İşlem"/>
+                                                </AreaChart>
+                                            </ResponsiveContainer>
+                                        ) : (
+                                            <div className="h-full flex items-center justify-center">
+                                                <p className="text-zinc-400 text-[9px] font-bold uppercase tracking-widest">Veri bekleniyor...</p>
+                                            </div>
+                                        )}
                                     </div>
-                                    {kpiData.every(d=>d.newUsers===0) && (
-                                        <p className="text-center text-zinc-400 text-[9px] font-bold uppercase -mt-20 relative z-10">No data available</p>
-                                    )}
                                 </div>
                             </div>
 
@@ -1535,15 +1781,17 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                 ].map((chart, ci) => (
                                     <div key={ci} className="bg-white border border-zinc-200 rounded-2xl p-5 shadow-sm">
                                         <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-4">{chart.title}</p>
-                                        <div className="flex justify-center">
-                                            <PieChart width={180} height={180}>
-                                                <Pie data={chart.data} cx={85} cy={85} innerRadius={50} outerRadius={85} paddingAngle={2} dataKey="value">
-                                                    {chart.data.map((entry, index) => (
-                                                        <Cell key={index} fill={entry.color}/>
-                                                    ))}
-                                                </Pie>
-                                                <Tooltip contentStyle={{ background:'#fff', border:'1px solid #e4e4e7', borderRadius:'12px', fontSize:'10px', fontWeight:'700' }}/>
-                                            </PieChart>
+                                        <div className="flex justify-center h-44 w-full">
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <PieChart>
+                                                    <Pie data={chart.data} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2} dataKey="value">
+                                                        {chart.data.map((entry, index) => (
+                                                            <Cell key={index} fill={entry.color}/>
+                                                        ))}
+                                                    </Pie>
+                                                    <Tooltip contentStyle={{ background:'#fff', border:'1px solid #e4e4e7', borderRadius:'12px', fontSize:'10px', fontWeight:'700' }}/>
+                                                </PieChart>
+                                            </ResponsiveContainer>
                                         </div>
                                         <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-3">
                                             {chart.data.map((d, di) => (
@@ -2686,7 +2934,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                                     </div>
                                                 </div>
                                             </div>
-                                            <button onClick={() => setSelectedLogDetail(log)} title="Detayı Gör" className="p-3 rounded-xl bg-white border border-zinc-200 text-zinc-400 hover:text-indigo-600 hover:border-indigo-200 transition-all opacity-0 group-hover:opacity-100 shadow-sm"><Eye size={16} /></button>
+                                            <button onClick={() => console.log(log.details)} className="p-3 rounded-xl bg-white border border-zinc-200 text-zinc-400 hover:text-indigo-600 hover:border-indigo-200 transition-all opacity-0 group-hover:opacity-100 shadow-sm"><Eye size={16} /></button>
                                         </div>
                                     ))}
                                     {adminLogs.length === 0 && <div className="p-20 text-center text-zinc-400 font-bold uppercase text-[10px] tracking-widest italic">Güvenlik günlüğü bulunamadı</div>}
@@ -3010,27 +3258,14 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                     </div>
 
                                     <div className="grid grid-cols-2 gap-8">
-                                        <button
-                                            onClick={() => {
-                                                const newCount = Math.min(500, (state.globalSettings.botCount || 0) + 50);
-                                                adminUpdateSettings({ botCount: newCount, botMode: 'hyper_liquidity' });
-                                                notify({ type: 'success', title: '⚡ Hiper Likidite Aktif', message: `Bot sayısı ${newCount}'e yükseltildi. Düşük ilanlar taranıyor.` });
-                                            }}
-                                            className="p-8 rounded-[2rem] bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 active:scale-95 transition-all group flex flex-col gap-4 text-left shadow-sm">
+                                        <button className="p-8 rounded-[2rem] bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 transition-all group flex flex-col gap-4 text-left shadow-sm">
                                             <TrendingUp className="text-indigo-600 group-hover:scale-110 transition-transform" size={28} />
                                             <div>
                                                 <p className="text-zinc-800 font-black text-xs uppercase tracking-widest italic">Hiper Likidite</p>
                                                 <p className="text-[9px] text-zinc-400 font-bold mt-1 leading-relaxed">Botları düşük seviyeli ilanları anında temizlemeye zorlar.</p>
                                             </div>
                                         </button>
-                                        <button
-                                            onClick={() => {
-                                                const cur = parseFloat(state.globalSettings.miningDifficulty) || 1.0;
-                                                const next = Math.min(10.0, parseFloat((cur + 0.5).toFixed(1)));
-                                                adminUpdateSettings({ miningDifficulty: next });
-                                                notify({ type: 'info', title: '⚙️ Zorluk Artırıldı', message: `Madencilik zorluğu ${next}x'e ayarlandı. Tüm kullanıcılara anlık yansır.` });
-                                            }}
-                                            className="p-8 rounded-[2rem] bg-emerald-50 border border-emerald-100 hover:bg-emerald-100 active:scale-95 transition-all group flex flex-col gap-4 text-left shadow-sm">
+                                        <button className="p-8 rounded-[2rem] bg-emerald-50 border border-emerald-100 hover:bg-emerald-100 transition-all group flex flex-col gap-4 text-left shadow-sm">
                                             <Zap className="text-emerald-600 group-hover:scale-110 transition-transform" size={28} />
                                             <div>
                                                 <p className="text-zinc-800 font-black text-xs uppercase tracking-widest italic">Zorluk Ayarı</p>
@@ -5378,60 +5613,26 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                         </div>
                     )}
 
-                </div>
+                    </div>{/* main-content */}
+                </div>{/* nxl-content */}
+            </main>{/* nxl-container */}
 
-            {/* ── Log Detay Modal ──────────────────────────────────── */}
-            {selectedLogDetail && (
-                <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setSelectedLogDetail(null)}>
-                    <div className="w-full max-w-xl mx-4 bg-white rounded-[2rem] shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center justify-between px-6 py-5 border-b border-zinc-100 bg-zinc-50">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
-                                    <Terminal size={18}/>
-                                </div>
-                                <div>
-                                    <p className="text-[11px] font-black text-zinc-800 uppercase tracking-widest">İşlem Detayı</p>
-                                    <p className="text-[9px] font-bold text-zinc-400 uppercase">{selectedLogDetail.action?.replace(/_/g,' ')}</p>
-                                </div>
-                            </div>
-                            <button onClick={() => setSelectedLogDetail(null)} className="p-2 rounded-xl hover:bg-zinc-100 text-zinc-400 transition-colors"><X size={18}/></button>
-                        </div>
-                        <div className="p-6 space-y-4 max-h-[65vh] overflow-y-auto">
-                            <div className="grid grid-cols-2 gap-3">
-                                <div className="p-4 bg-zinc-50 border border-zinc-100 rounded-2xl">
-                                    <p className="text-[8px] font-black text-zinc-400 uppercase mb-1">Admin</p>
-                                    <p className="text-zinc-800 font-black text-sm">{selectedLogDetail.admin_username || '—'}</p>
-                                </div>
-                                <div className="p-4 bg-zinc-50 border border-zinc-100 rounded-2xl">
-                                    <p className="text-[8px] font-black text-zinc-400 uppercase mb-1">Hedef ID</p>
-                                    <p className="text-zinc-800 font-black text-xs font-mono truncate">{selectedLogDetail.target_id || '—'}</p>
-                                </div>
-                                <div className="p-4 bg-zinc-50 border border-zinc-100 rounded-2xl col-span-2">
-                                    <p className="text-[8px] font-black text-zinc-400 uppercase mb-1">Tarih / Saat</p>
-                                    <p className="text-zinc-800 font-black">{new Date(selectedLogDetail.created_at).toLocaleString('tr-TR')}</p>
-                                </div>
-                            </div>
-                            {selectedLogDetail.details && (
-                                <div className="bg-zinc-900 rounded-2xl p-5">
-                                    <p className="text-[8px] font-black text-zinc-500 uppercase mb-3">JSON Veri</p>
-                                    <pre className="text-emerald-400 font-mono text-[10px] whitespace-pre-wrap overflow-auto max-h-52">
-                                        {JSON.stringify(selectedLogDetail.details, null, 2)}
-                                    </pre>
-                                </div>
-                            )}
-                            {!selectedLogDetail.details && (
-                                <div className="p-8 text-center text-zinc-400 text-[10px] font-bold uppercase">Bu işlem için detay verisi bulunmuyor</div>
-                            )}
-                        </div>
-                    </div>
+            {/* ══════════ FOOTER ══════════ */}
+            <footer className="d-flex align-items-center justify-content-between px-4 py-2 border-top"
+                style={{ fontSize: 11, color: '#7587a7', background: '#fff', marginLeft: 280 }}>
+                <span><strong>Tycoon Admin Panel</strong> &copy; {new Date().getFullYear()}</span>
+                <div className="d-flex align-items-center gap-3">
+                    <span className="d-flex align-items-center gap-1">
+                        <span className="rounded-circle bg-success d-inline-block" style={{ width: 6, height: 6 }} />
+                        {players.filter(p => !p.isBanned).length} aktif
+                    </span>
+                    <span>{withdrawals.filter(w => w.status === 'pending').length} bekleyen çekim</span>
                 </div>
-            )}
-            </main>
-        </div>
+            </footer>
+        </>
     );
 }
 
-// ═══════════════════════════════════════════════════════════════
 //  AdminBatteryPreview
 //  Admin panelindeki Economy sekmesinde canlı pil animasyonu
 //  drainHours: tam dolunun kaç saniyede biteceği (preview 60sn loop)

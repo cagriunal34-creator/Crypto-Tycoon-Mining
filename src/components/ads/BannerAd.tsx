@@ -4,7 +4,7 @@
  * Position: 'top' | 'bottom' (sticky)
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { useGame } from '../context/GameContext';
+import { useGame } from '../../context/GameContext';
 
 interface BannerAdProps {
   slotId?: string;
@@ -23,7 +23,7 @@ export default function BannerAd({
   const insRef = useRef<HTMLModElement>(null);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
-  const refreshTimerRef = useRef<ReturnType<typeof setInterval>>();
+  const refreshTimerRef = useRef<any>(null);
 
   const cfg = (state as any).googleAdsConfig;
   const publisherId = cfg?.publisherId || state.bannerAdUnitId?.split('/')[0] || '';

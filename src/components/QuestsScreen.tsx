@@ -29,7 +29,7 @@ const QUEST_DEFS: QuestDef[] = [
     description: 'Bugün 3 reklam izleyerek enerji topla.',
     reward: { tp: 50, unit: 'TP' },
     target: 3,
-    getProgress: s => s.questProgress.adsWatched,
+    getProgress: s => s.questProgress?.adsWatched || 0,
     icon: PlayCircle,
   },
   {
@@ -38,7 +38,7 @@ const QUEST_DEFS: QuestDef[] = [
     description: 'Herhangi bir madencilik sözleşmesi satın al.',
     reward: { tp: 150, unit: 'TP' },
     target: 1,
-    getProgress: s => s.questProgress.contractsPurchased,
+    getProgress: s => s.questProgress?.contractsPurchased || 0,
     icon: Zap,
   },
   {
@@ -47,7 +47,7 @@ const QUEST_DEFS: QuestDef[] = [
     description: '1 arkadaşını uygulamaya davet et.',
     reward: { tp: 250, unit: 'TP' },
     target: 1,
-    getProgress: s => s.questProgress.referralsDone,
+    getProgress: s => s.questProgress?.referralsDone || 0,
     icon: Users,
   },
   {
@@ -56,7 +56,7 @@ const QUEST_DEFS: QuestDef[] = [
     description: 'Uygulamayı 3 gün üst üste ziyaret et.',
     reward: { speedBoost: 10, unit: '% Hız' },
     target: 3,
-    getProgress: s => s.loginStreak,
+    getProgress: s => s.loginStreak || 0,
     icon: Award,
   },
 ];
@@ -64,7 +64,7 @@ const QUEST_DEFS: QuestDef[] = [
 export default function QuestsScreen() {
   const { state, dispatch } = useGame();
   const { notify } = useNotify();
-  const claimed = state.questProgress.claimedQuestIds;
+  const claimed = state.questProgress?.claimedQuestIds || [];
 
   const handleClaim = (quest: QuestDef) => {
     dispatch({

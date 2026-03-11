@@ -45,7 +45,8 @@ function ChangeIcon({ change }: { change: LeaderEntry['change'] }) {
 export default function SocialScreen() {
   const {
     state, dispatch, donateToGuildInFirestore,
-    leaveGuildInFirestore, createGuildInFirestore, joinGuildInFirestore
+    leaveGuildInFirestore, createGuildInFirestore, joinGuildInFirestore,
+    redeemPromoCode
   } = useGame();
   const { notify } = useNotify();
   const [activeTab, setActiveTab] = React.useState<LeaderboardTab>('weekly');
@@ -136,7 +137,7 @@ export default function SocialScreen() {
     if (!promoCode.trim()) return;
     setPromoLoading(true);
     setPromoResult(null);
-    const result = await state.redeemPromoCode(promoCode.trim());
+    const result = await redeemPromoCode(promoCode.trim());
     setPromoResult(result);
     if (result.success) {
       notify({ type: 'success', title: 'Promo Kodu Kullanıldı!', message: result.message });
@@ -462,73 +463,74 @@ export default function SocialScreen() {
         </div>
       </div>
 
-      {/* Redeem Code Section */}
-      {!state.redeemedReferralCode && (
-        <div className="glass-card rounded-xl p-4 space-y-3 border border-white/5">
+      {/* Promo Code & Redeem Code Integrated Section */}
+      <div className="space-y-4">
+        {!state.redeemedReferralCode && (
+          <div className="glass-card rounded-xl p-4 space-y-3 border border-emerald-500/20 bg-emerald-500/5">
+            <div className="flex items-center gap-2">
+              <Zap size={16} className="text-yellow-400" />
+              <h3 className="text-sm font-black">Referans Kodu Gir</h3>
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={redeemCode}
+                onChange={(e) => setRedeemCode(e.target.value)}
+                placeholder="Arkadaşının kodu..."
+                className="flex-1 bg-black/30 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-emerald-500/50 transition-colors"
+              />
+              <button
+                onClick={handleRedeemCode}
+                disabled={!redeemCode.trim()}
+                className="px-4 py-2 bg-emerald-500 text-black font-bold text-xs rounded-xl hover:brightness-110 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Uygula
+              </button>
+            </div>
+            <p className="text-[10px] text-zinc-500">
+              Bir arkadaşının kodunu girerek <span className="text-emerald-400 font-bold">1000 TP</span> ve <span className="text-emerald-400 font-bold">%5 Hız Bonusu</span> kazanabilirsin.
+            </p>
+          </div>
+        )}
+
+        <div className="glass-card rounded-xl p-4 space-y-3 border border-white/5 bg-white/[0.02]">
           <div className="flex items-center gap-2">
-            <Zap size={16} className="text-yellow-400" />
-            <h3 className="text-sm font-black">Referans Kodu Gir</h3>
+            <Tag size={16} className="text-emerald-400" />
+            <h3 className="text-sm font-black">Promosyon Kodu</h3>
           </div>
           <div className="flex gap-2">
             <input
               type="text"
-              value={redeemCode}
-              onChange={(e) => setRedeemCode(e.target.value)}
-              placeholder="Arkadaşının kodu..."
+              value={promoCode}
+              onChange={(e) => { setPromoCode(e.target.value.toUpperCase()); setPromoResult(null); }}
+              placeholder="PROMO KODUNU GİR..."
               className="flex-1 bg-black/30 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-emerald-500/50 transition-colors"
             />
             <button
-              onClick={handleRedeemCode}
-              disabled={!redeemCode.trim()}
-              className="px-4 py-2 bg-emerald-500 text-black font-bold text-xs rounded-xl hover:brightness-110 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={handleRedeemPromo}
+              disabled={!promoCode.trim() || promoLoading}
+              className="px-4 py-2 bg-emerald-500 text-black font-bold text-xs rounded-xl hover:brightness-110 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              Uygula
+              {promoLoading ? <div className="w-3 h-3 border-2 border-black/30 border-t-black rounded-full animate-spin" /> : <Gift size={14} />}
+              {promoLoading ? '...' : 'Kullan'}
             </button>
           </div>
+          <AnimatePresence>
+            {promoResult && (
+              <motion.p 
+                initial={{ opacity: 0, height: 0 }} 
+                animate={{ opacity: 1, height: 'auto' }} 
+                exit={{ opacity: 0, height: 0 }}
+                className={cn("text-[10px] font-bold", promoResult.success ? "text-emerald-400" : "text-red-400")}
+              >
+                {promoResult.message}
+              </motion.p>
+            )}
+          </AnimatePresence>
           <p className="text-[10px] text-zinc-500">
-            Bir arkadaşının kodunu girerek <span className="text-emerald-400 font-bold">1000 TP</span> ve <span className="text-emerald-400 font-bold">%5 Hız Bonusu</span> kazanabilirsin.
+            Özel ödüller için promosyon kodunu buraya girin.
           </p>
         </div>
-      )}
-
-      {/* Promo Code Section */}
-      <div className="glass-card rounded-xl p-4 space-y-3 border border-white/5 bg-white/[0.02]">
-        <div className="flex items-center gap-2">
-          <Tag size={16} className="text-emerald-400" />
-          <h3 className="text-sm font-black">Promosyon Kodu</h3>
-        </div>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={promoCode}
-            onChange={(e) => { setPromoCode(e.target.value.toUpperCase()); setPromoResult(null); }}
-            placeholder="PROMO KODUNU GİR..."
-            className="flex-1 bg-black/30 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-emerald-500/50 transition-colors"
-          />
-          <button
-            onClick={handleRedeemPromo}
-            disabled={!promoCode.trim() || promoLoading}
-            className="px-4 py-2 bg-emerald-500 text-black font-bold text-xs rounded-xl hover:brightness-110 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            {promoLoading ? <div className="w-3 h-3 border-2 border-black/30 border-t-black rounded-full animate-spin" /> : <Gift size={14} />}
-            {promoLoading ? '...' : 'Kullan'}
-          </button>
-        </div>
-        <AnimatePresence>
-          {promoResult && (
-            <motion.p 
-              initial={{ opacity: 0, height: 0 }} 
-              animate={{ opacity: 1, height: 'auto' }} 
-              exit={{ opacity: 0, height: 0 }}
-              className={cn("text-[10px] font-bold", promoResult.success ? "text-emerald-400" : "text-red-400")}
-            >
-              {promoResult.message}
-            </motion.p>
-          )}
-        </AnimatePresence>
-        <p className="text-[10px] text-zinc-500">
-          Admin tarafından paylaşılan kodları buraya girerek özel ödüller alabilirsin.
-        </p>
       </div>
 
       {/* Leaderboard */}
