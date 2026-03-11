@@ -71,7 +71,8 @@ import {
     Package,
     DollarSign,
     TrendingDown,
-    ShoppingBag
+    ShoppingBag,
+    Layers,
 } from 'lucide-react';
 import { useGame } from '../context/GameContext';
 import { useTheme } from '../context/ThemeContext';
@@ -105,7 +106,7 @@ type AdminTab = 'overview' |
     'info_app' | 'info_server' | 'info_cache' | 'info_update' |
     'report_request' | 'subscribers' |
     'market' | 'guilds' | 'referrals' | 'bots' | 'webhooks' | 'security' | 'economy' | 'activities' | 'cheats' | 'settings' | 'logs' |
-    'leaderboard' | 'vip_management' | 'promo_codes' | 'game_events' | 'db_explorer' | 'ads_settings';
+    'leaderboard' | 'vip_management' | 'promo_codes' | 'game_events' | 'db_explorer' | 'google_ads';
 
 // Menu Categories structure is now handled inside the component for dynamic badges
 
@@ -246,14 +247,37 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
         boost_vip:                  2.0,    // VIP çarpanı
         boost_event:                1.5,    // Etkinlik çarpanı
         halving_block:          1050000,    // Halving referans bloğu
-        rewarded_ad_unit_id: 'ca-app-pub-6329108306834809/5303235747',
-        banner_ad_unit_id: 'ca-app-pub-6329108306834809/3631061424',
-        interstitial_ad_unit_id: 'ca-app-pub-6329108306834809/1622865249',
-        app_open_ad_unit_id: 'ca-app-pub-6329108306834809/1220520508',
+        rewarded_ad_unit_id: 'ca-app-pub-6329108306834809/8774596958',
+        banner_ad_unit_id: '',
+        interstitial_ad_unit_id: '',
+        app_open_ad_unit_id: '',
         ad_frequency_minutes: 5,
     });
     const [hashrateSettingsSaving, setHashrateSettingsSaving] = useState(false);
     const [hashrateChanged,        setHashrateChanged]        = useState(false);
+
+    // ── Google Ads Config ───────────────────────────────────────────────────
+    const [googleAdsConfig, setGoogleAdsConfig] = useState<any>({
+        publisherId: 'ca-pub-6329108306834809',
+        bannerSlotId: '3631061424',
+        interstitialSlotId: '1622865249',
+        rewardedSlotId: '5303235747',
+        rewardedInterstitialSlotId: '5199293961',
+        appOpenSlotId: '1220520508',
+        nativeSlotId: '6472847183',
+        bannerEnabled: false,
+        interstitialEnabled: false,
+        rewardedEnabled: true,
+        rewardedInterstitialEnabled: false,
+        appOpenEnabled: false,
+        nativeEnabled: false,
+        testMode: true,
+        bannerPosition: 'bottom',
+        bannerAutoRefresh: true,
+        bannerRefreshSeconds: 30,
+        interstitialFrequencyMinutes: 5,
+    });
+    const [googleAdsSaving, setGoogleAdsSaving] = useState(false);
 
     // --- NEW: KPI Chart Data ---
     const [kpiRange, setKpiRange] = useState<'7d' | '30d' | '90d'>('7d');
@@ -324,7 +348,6 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                 { id: 'game_events' as AdminTab, label: 'Oyun Etkinlikleri', icon: <Flame size={16} /> },
                 { id: 'promo_codes' as AdminTab, label: 'Promo Kodlar', icon: <Gift size={16} /> },
                 { id: 'leaderboard' as AdminTab, label: 'Sıralama Tablosu', icon: <Award size={16} /> },
-                { id: 'ads_settings' as AdminTab, label: 'Reklam Ayarları', icon: <Play size={16} /> },
             ]
         },
         {
@@ -358,6 +381,14 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                 { id: 'logs' as AdminTab, label: 'İşlem Günlükleri', icon: <FileText size={16} /> },
                 { id: 'webhooks' as AdminTab, label: 'Webhook & Kurallar', icon: <Link size={16} /> },
                 { id: 'db_explorer' as AdminTab, label: 'Veritabanı Gezgini', icon: <Database size={16} /> },
+            ]
+        },
+        {
+            title: 'Reklam Yönetimi',
+            id: 'ads_section',
+            color: 'bg-orange-600',
+            items: [
+                { id: 'google_ads' as AdminTab, label: 'Google Ads Ayarları', icon: <Play size={16} /> },
             ]
         },
         {
@@ -590,6 +621,11 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                 try {
                     const { data: hrRow } = await supabase.from('settings').select('value').eq('id', 'hashrate_settings').single();
                     if (hrRow?.value) setHashrateSettings((p: any) => ({ ...p, ...hrRow.value }));
+                } catch {}
+                // google_ads_config satırını yükle
+                try {
+                    const { data: adsRow } = await supabase.from('settings').select('value').eq('id', 'google_ads_config').maybeSingle();
+                    if (adsRow?.value) setGoogleAdsConfig((p: any) => ({ ...p, ...adsRow.value }));
                 } catch {}
             } catch (e) { /* tables may not exist yet */ }
         };
@@ -960,6 +996,22 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
             notify({ type: 'warning', title: 'Hata', message: `Kayıt başarısız: ${e.message}` });
         }
         setHashrateSettingsSaving(false);
+    };
+
+    // ── Google Ads Kaydet ─────────────────────────────────────────────────────
+    const handleSaveGoogleAds = async () => {
+        setGoogleAdsSaving(true);
+        try {
+            await supabase.from('settings').upsert({
+                id: 'google_ads_config',
+                value: googleAdsConfig,
+                updated_at: new Date().toISOString(),
+            });
+            notify({ type: 'success', title: '✅ Google Ads Kaydedildi', message: 'Ayarlar uygulamaya yansıtıldı.' });
+        } catch (e: any) {
+            notify({ type: 'warning', title: 'Hata', message: `Kayıt başarısız: ${e.message}` });
+        }
+        setGoogleAdsSaving(false);
     };
 
     const handleUpdateSettings = async (updates: any) => {
@@ -2333,121 +2385,64 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                                 </div>
                                             ))}
                                         </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
 
-                    {activeTab === 'ads_settings' && (
-                        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                            <div className="bg-white border border-zinc-200 rounded-[2rem] overflow-hidden shadow-sm">
-                                <div className="flex items-center justify-between px-8 py-5 bg-gradient-to-r from-indigo-50 via-white to-white border-b border-zinc-100">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-600/30">
-                                            <Play size={20} className="text-white"/>
-                                        </div>
-                                        <div>
-                                            <h3 className="font-black text-sm text-zinc-800 uppercase tracking-widest">Google Ads Yönetimi</h3>
-                                            <p className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest mt-0.5">
-                                                Tüm reklam birimlerini ve gösterim sıklığını buradan ayarlayın
+                                        {/* Reklam Yapılandırması */}
+                                        <div className="p-5 bg-indigo-50 rounded-2xl border border-indigo-100 space-y-3">
+                                            <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest flex items-center gap-2">
+                                                <Play size={10}/> Reklam Yapılandırması
                                             </p>
-                                        </div>
-                                    </div>
-                                    <button
-                                        disabled={!hashrateChanged || hashrateSettingsSaving}
-                                        onClick={handleSaveHashrateSettings}
-                                        className="h-11 px-6 rounded-2xl bg-indigo-600 text-white font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95 flex items-center gap-2 shadow-lg shadow-indigo-600/20 disabled:opacity-50">
-                                        {hashrateSettingsSaving ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
-                                        Değişiklikleri Yayınla
-                                    </button>
-                                </div>
-
-                                <div className="p-8 space-y-8">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                        <div className="space-y-6">
-                                            <div className="p-6 bg-indigo-50/50 rounded-3xl border border-indigo-100 space-y-4">
-                                                <h4 className="text-[10px] font-black text-indigo-600 uppercase tracking-widest flex items-center gap-2">
-                                                    <Gift size={14}/> Ödüllü Reklamlar
-                                                </h4>
+                                            <div>
+                                                <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Ödüllü Geçiş Reklamı ID</p>
+                                                <input
+                                                    type="text"
+                                                    value={hashrateSettings.rewarded_ad_unit_id || ''}
+                                                    onChange={e => { setHashrateSettings((p:any)=>({...p,rewarded_ad_unit_id:e.target.value})); setHashrateChanged(true); }}
+                                                    className="w-full h-10 px-4 bg-white border border-zinc-200 rounded-xl font-mono text-[10px] font-bold text-zinc-800 focus:outline-none focus:border-indigo-300 transition-all"
+                                                    placeholder="ca-app-pub-..."
+                                                />
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3">
                                                 <div>
-                                                    <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Ödülllü Geçiş Reklamı ID (Rewarded Interstitial)</p>
+                                                    <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Banner Reklam ID</p>
                                                     <input
                                                         type="text"
-                                                        value={hashrateSettings.rewarded_ad_unit_id || ''}
-                                                        onChange={e => { setHashrateSettings((p:any)=>({...p,rewarded_ad_unit_id:e.target.value})); setHashrateChanged(true); }}
-                                                        className="w-full h-12 px-4 bg-white border border-zinc-200 rounded-xl font-mono text-xs font-bold text-zinc-800 focus:outline-none focus:border-indigo-300 transition-all"
+                                                        value={hashrateSettings.banner_ad_unit_id || ''}
+                                                        onChange={e => { setHashrateSettings((p:any)=>({...p,banner_ad_unit_id:e.target.value})); setHashrateChanged(true); }}
+                                                        className="w-full h-10 px-4 bg-white border border-zinc-200 rounded-xl font-mono text-[10px] font-bold text-zinc-800 focus:outline-none focus:border-indigo-300 transition-all"
+                                                        placeholder="ca-app-pub-..."
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Geçiş Reklamı ID</p>
+                                                    <input
+                                                        type="text"
+                                                        value={hashrateSettings.interstitial_ad_unit_id || ''}
+                                                        onChange={e => { setHashrateSettings((p:any)=>({...p,interstitial_ad_unit_id:e.target.value})); setHashrateChanged(true); }}
+                                                        className="w-full h-10 px-4 bg-white border border-zinc-200 rounded-xl font-mono text-[10px] font-bold text-zinc-800 focus:outline-none focus:border-indigo-300 transition-all"
                                                         placeholder="ca-app-pub-..."
                                                     />
                                                 </div>
                                             </div>
-
-                                            <div className="p-6 bg-zinc-50 rounded-3xl border border-zinc-200 space-y-4">
-                                                <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-widest flex items-center gap-2">
-                                                    <Box size={14}/> Diğer Formatlar
-                                                </h4>
-                                                <div className="space-y-4">
-                                                    <div>
-                                                        <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Banner Reklam ID</p>
-                                                        <input
-                                                            type="text"
-                                                            value={hashrateSettings.banner_ad_unit_id || ''}
-                                                            onChange={e => { setHashrateSettings((p:any)=>({...p,banner_ad_unit_id:e.target.value})); setHashrateChanged(true); }}
-                                                            className="w-full h-12 px-4 bg-white border border-zinc-200 rounded-xl font-mono text-xs font-bold text-zinc-800 focus:outline-none focus:border-indigo-300 transition-all"
-                                                            placeholder="ca-app-pub-..."
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Geçiş Reklamı ID (Interstitial)</p>
-                                                        <input
-                                                            type="text"
-                                                            value={hashrateSettings.interstitial_ad_unit_id || ''}
-                                                            onChange={e => { setHashrateSettings((p:any)=>({...p,interstitial_ad_unit_id:e.target.value})); setHashrateChanged(true); }}
-                                                            className="w-full h-12 px-4 bg-white border border-zinc-200 rounded-xl font-mono text-xs font-bold text-zinc-800 focus:outline-none focus:border-indigo-300 transition-all"
-                                                            placeholder="ca-app-pub-..."
-                                                        />
-                                                    </div>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div>
+                                                    <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Uygulama Açılış ID</p>
+                                                    <input
+                                                        type="text"
+                                                        value={hashrateSettings.app_open_ad_unit_id || ''}
+                                                        onChange={e => { setHashrateSettings((p:any)=>({...p,app_open_ad_unit_id:e.target.value})); setHashrateChanged(true); }}
+                                                        className="w-full h-10 px-4 bg-white border border-zinc-200 rounded-xl font-mono text-[10px] font-bold text-zinc-800 focus:outline-none focus:border-indigo-300 transition-all"
+                                                        placeholder="ca-app-pub-..."
+                                                    />
                                                 </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-6">
-                                            <div className="p-6 bg-zinc-50 rounded-3xl border border-zinc-200 space-y-4">
-                                                <h4 className="text-[10px] font-black text-zinc-600 uppercase tracking-widest flex items-center gap-2">
-                                                    <Zap size={14}/> Uygulama Akışı
-                                                </h4>
-                                                <div className="space-y-4">
-                                                    <div>
-                                                        <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Uygulama Açılış ID (App Open)</p>
-                                                        <input
-                                                            type="text"
-                                                            value={hashrateSettings.app_open_ad_unit_id || ''}
-                                                            onChange={e => { setHashrateSettings((p:any)=>({...p,app_open_ad_unit_id:e.target.value})); setHashrateChanged(true); }}
-                                                            className="w-full h-12 px-4 bg-white border border-zinc-200 rounded-xl font-mono text-xs font-bold text-zinc-800 focus:outline-none focus:border-indigo-300 transition-all"
-                                                            placeholder="ca-app-pub-..."
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Reklam Sıklığı (Dakika)</p>
-                                                        <input
-                                                            type="number"
-                                                            value={hashrateSettings.ad_frequency_minutes || 5}
-                                                            onChange={e => { setHashrateSettings((p:any)=>({...p,ad_frequency_minutes:parseInt(e.target.value)||5})); setHashrateChanged(true); }}
-                                                            className="w-full h-12 px-4 bg-white border border-zinc-200 rounded-xl font-mono text-xs font-bold text-zinc-800 focus:outline-none focus:border-indigo-300 transition-all"
-                                                        />
-                                                        <p className="text-[8px] text-zinc-400 mt-2 italic font-medium">* Otomatik geçiş reklamlarının hangi aralıklarla çıkacağını belirler.</p>
-                                                    </div>
+                                                <div>
+                                                    <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Reklam Sıklığı (Dakika)</p>
+                                                    <input
+                                                        type="number"
+                                                        value={hashrateSettings.ad_frequency_minutes || 5}
+                                                        onChange={e => { setHashrateSettings((p:any)=>({...p,ad_frequency_minutes:parseInt(e.target.value)||5})); setHashrateChanged(true); }}
+                                                        className="w-full h-10 px-4 bg-white border border-zinc-200 rounded-xl font-mono text-[10px] font-bold text-zinc-800 focus:outline-none focus:border-indigo-300 transition-all"
+                                                    />
                                                 </div>
-                                            </div>
-
-                                            <div className="p-6 bg-amber-50 rounded-3xl border border-amber-100 space-y-3">
-                                                <div className="flex items-center gap-2 text-amber-600 font-black text-[10px] uppercase tracking-widest">
-                                                    <AlertTriangle size={14}/> Önemli Not
-                                                </div>
-                                                <p className="text-[9px] text-amber-700 leading-relaxed">
-                                                    Reklam kimliklerini değiştirdikten sonra "Değişiklikleri Yayınla" butonuna basmayı unutmayın. 
-                                                    Uygulama bu ayarları gerçek zamanlı olarak alacaktır. Reklamların görünmesi için AdMob panelinizde reklam birimlerinin aktif olması ve uygulamanızın onaylanmış olması gerekebilir.
-                                                </p>
                                             </div>
                                         </div>
                                     </div>
@@ -4394,6 +4389,372 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                         </div>
                     )}
 
+
+                    {/* ===== GOOGLE ADS AYARLARI ===== */}
+                    {activeTab === 'google_ads' && (
+                        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
+                            {/* Header */}
+                            <div className="flex items-center justify-between flex-wrap gap-4">
+                                <div>
+                                    <h3 className="font-black text-sm text-zinc-800 uppercase tracking-widest flex items-center gap-2">
+                                        <Play className="text-orange-500" size={18}/> Google Ads Entegrasyonu
+                                    </h3>
+                                    <p className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest mt-1">
+                                        H5 Games Ads API · AdSense · Banner · Interstitial · Rewarded · App Open
+                                    </p>
+                                </div>
+                                <button onClick={handleSaveGoogleAds} disabled={googleAdsSaving}
+                                    className="h-10 px-6 rounded-xl bg-orange-500 text-white font-black text-[9px] uppercase hover:bg-orange-600 transition-all active:scale-95 flex items-center gap-2 disabled:opacity-50 shadow-lg shadow-orange-500/20">
+                                    {googleAdsSaving ? <RefreshCw size={12} className="animate-spin"/> : <CheckCircle2 size={12}/>}
+                                    Kaydet & Yayınla
+                                </button>
+                            </div>
+
+                            {/* ⚠️ Slot ID Uyarısı */}
+                            {(!googleAdsConfig.bannerSlotId || !googleAdsConfig.interstitialSlotId) && (
+                                <div className="flex items-start gap-4 p-5 bg-amber-50 border-2 border-amber-200 rounded-2xl">
+                                    <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+                                        <Info size={16} className="text-amber-600"/>
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="text-[10px] font-black text-amber-800 uppercase tracking-widest mb-2">Eksik Slot ID'ler Var</p>
+                                        <p className="text-[9px] font-bold text-amber-700 leading-relaxed mb-3">
+                                            <strong>ca-app-pub-6329108306834809~2664629968</strong> formatındaki ID'ler <strong>App ID</strong>'dir, Slot ID değildir.<br/>
+                                            Her reklam formatı için AdMob'dan ayrı bir reklam birimi oluşturup <code className="bg-amber-100 px-1 rounded">ca-app-pub-XXXX/<strong>SLOT_ID</strong></code> formatındaki ID'nin son kısmını gir.
+                                        </p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {[
+                                                { label: 'Banner', done: !!googleAdsConfig.bannerSlotId, color: '#3b82f6' },
+                                                { label: 'Geçiş', done: !!googleAdsConfig.interstitialSlotId, color: '#8b5cf6' },
+                                                { label: 'Ödüllü', done: !!googleAdsConfig.rewardedSlotId, color: '#10b981' },
+                                                { label: 'Ödüllü Geçiş', done: !!googleAdsConfig.rewardedInterstitialSlotId, color: '#f59e0b' },
+                                                { label: 'App Open', done: !!googleAdsConfig.appOpenSlotId, color: '#f43f5e' },
+                                                { label: 'Native', done: !!googleAdsConfig.nativeSlotId, color: '#06b6d4' },
+                                            ].map(item => (
+                                                <span key={item.label} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[8px] font-black uppercase"
+                                                    style={{ background: item.done ? `${item.color}15` : '#fef3c7', color: item.done ? item.color : '#92400e', border: `1px solid ${item.done ? item.color + '30' : '#fde68a'}` }}>
+                                                    {item.done ? '✓' : '○'} {item.label}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <a href="https://apps.admob.com" target="_blank" rel="noopener noreferrer"
+                                        className="shrink-0 px-4 py-2 rounded-xl bg-amber-500 text-white font-black text-[8px] uppercase tracking-widest hover:bg-amber-600 transition-all whitespace-nowrap">
+                                        AdMob Aç →
+                                    </a>
+                                </div>
+                            )}
+
+                            {/* Publisher ID + Test Mode */}
+                            <div className="bg-white border border-zinc-200 rounded-[2rem] p-7 shadow-sm space-y-5">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center">
+                                        <Play size={16} className="text-orange-600"/>
+                                    </div>
+                                    <div>
+                                        <h4 className="font-black text-xs text-zinc-800 uppercase">Hesap Bilgileri</h4>
+                                        <p className="text-[8px] text-zinc-400 font-bold uppercase">AdSense Publisher ID ve genel ayarlar</p>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-zinc-100">
+                                    <div className="md:col-span-2">
+                                        <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">Publisher ID <span className="text-orange-500">*</span></p>
+                                        <input type="text" placeholder="ca-pub-XXXXXXXXXXXXXXXXXX"
+                                            value={googleAdsConfig.publisherId || ''}
+                                            onChange={e => setGoogleAdsConfig((p:any) => ({ ...p, publisherId: e.target.value }))}
+                                            className="w-full h-10 px-4 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-mono font-bold text-zinc-800 focus:outline-none focus:border-orange-300"/>
+                                        <p className="text-[8px] text-zinc-400 mt-1">AdSense hesabınızdan alın → ca-pub-XXXXXXXXXX formatında olmalı</p>
+                                    </div>
+                                    <div className="flex items-center justify-between p-4 bg-zinc-50 rounded-2xl border border-zinc-100">
+                                        <div>
+                                            <p className="text-[9px] font-black text-zinc-700 uppercase">Test Modu</p>
+                                            <p className="text-[8px] text-zinc-400 font-bold">Gerçek para kazanmaz, Google test reklamları gösterilir</p>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[9px] font-black uppercase" style={{ color: googleAdsConfig.testMode ? '#f97316' : '#a1a1aa' }}>
+                                                {googleAdsConfig.testMode ? 'Açık' : 'Kapalı'}
+                                            </span>
+                                            <div className="w-10 h-6 rounded-full border flex items-center px-0.5 cursor-pointer transition-all duration-300"
+                                                style={{ background: googleAdsConfig.testMode ? '#f97316' : '#e4e4e7', borderColor: googleAdsConfig.testMode ? '#f97316' : '#d4d4d8' }}
+                                                onClick={() => setGoogleAdsConfig((p:any) => ({ ...p, testMode: !p.testMode }))}>
+                                                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-all duration-300 ${googleAdsConfig.testMode ? 'translate-x-4' : 'translate-x-0'}`}/>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="p-4 bg-orange-50 rounded-2xl border border-orange-100 flex items-start gap-3">
+                                        <Info size={14} className="text-orange-500 shrink-0 mt-0.5"/>
+                                        <p className="text-[9px] font-bold text-orange-700 leading-relaxed">
+                                            Yayına almadan önce <strong>Test Modu</strong>'nu açık bırakın. Gerçek reklam göstermek için Publisher ID'nin AdSense'te onaylanmış olması gerekir.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Ad Units Grid */}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+                                {/* Banner */}
+                                <div className="bg-white border border-zinc-200 rounded-[2rem] p-6 shadow-sm space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center">
+                                                <Layout size={15} className="text-blue-600"/>
+                                            </div>
+                                            <div>
+                                                <h4 className="font-black text-xs text-zinc-800 uppercase">Banner</h4>
+                                                <p className="text-[8px] text-zinc-400 font-bold uppercase">Otomatik yenilenen dikdörtgen reklam</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[9px] font-black uppercase" style={{ color: googleAdsConfig.bannerEnabled ? '#3b82f6' : '#a1a1aa' }}>
+                                                {googleAdsConfig.bannerEnabled ? 'Aktif' : 'Pasif'}
+                                            </span>
+                                            <div className="w-10 h-6 rounded-full border flex items-center px-0.5 cursor-pointer transition-all duration-300"
+                                                style={{ background: googleAdsConfig.bannerEnabled ? '#3b82f6' : '#e4e4e7', borderColor: googleAdsConfig.bannerEnabled ? '#3b82f6' : '#d4d4d8' }}
+                                                onClick={() => setGoogleAdsConfig((p:any) => ({ ...p, bannerEnabled: !p.bannerEnabled }))}>
+                                                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-all duration-300 ${googleAdsConfig.bannerEnabled ? 'translate-x-4' : 'translate-x-0'}`}/>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-3 pt-2 border-t border-zinc-100">
+                                        <div>
+                                            <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1">Slot ID</p>
+                                            <input type="text" placeholder="3631061424"
+                                                value={googleAdsConfig.bannerSlotId || ''}
+                                                onChange={e => setGoogleAdsConfig((p:any) => ({ ...p, bannerSlotId: e.target.value }))}
+                                                className="w-full h-9 px-3 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-mono font-bold text-zinc-800 focus:outline-none focus:border-blue-300"/>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1">Konum</p>
+                                                <select value={googleAdsConfig.bannerPosition || 'bottom'}
+                                                    onChange={e => setGoogleAdsConfig((p:any) => ({ ...p, bannerPosition: e.target.value }))}
+                                                    className="w-full h-9 px-3 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 focus:outline-none focus:border-blue-300">
+                                                    <option value="bottom">Alt (Bottom)</option>
+                                                    <option value="top">Üst (Top)</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1">Yenileme (sn)</p>
+                                                <input type="number" min={30} max={120}
+                                                    value={googleAdsConfig.bannerRefreshSeconds || 30}
+                                                    onChange={e => setGoogleAdsConfig((p:any) => ({ ...p, bannerRefreshSeconds: Math.max(30, parseInt(e.target.value)||30) }))}
+                                                    className="w-full h-9 px-3 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 focus:outline-none focus:border-blue-300"/>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Interstitial */}
+                                <div className="bg-white border border-zinc-200 rounded-[2rem] p-6 shadow-sm space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-9 h-9 rounded-xl bg-purple-100 flex items-center justify-center">
+                                                <Layers size={15} className="text-purple-600"/>
+                                            </div>
+                                            <div>
+                                                <h4 className="font-black text-xs text-zinc-800 uppercase">Geçiş (Interstitial)</h4>
+                                                <p className="text-[8px] text-zinc-400 font-bold uppercase">Seviye geçişlerinde tam sayfa</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[9px] font-black uppercase" style={{ color: googleAdsConfig.interstitialEnabled ? '#8b5cf6' : '#a1a1aa' }}>
+                                                {googleAdsConfig.interstitialEnabled ? 'Aktif' : 'Pasif'}
+                                            </span>
+                                            <div className="w-10 h-6 rounded-full border flex items-center px-0.5 cursor-pointer transition-all duration-300"
+                                                style={{ background: googleAdsConfig.interstitialEnabled ? '#8b5cf6' : '#e4e4e7', borderColor: googleAdsConfig.interstitialEnabled ? '#8b5cf6' : '#d4d4d8' }}
+                                                onClick={() => setGoogleAdsConfig((p:any) => ({ ...p, interstitialEnabled: !p.interstitialEnabled }))}>
+                                                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-all duration-300 ${googleAdsConfig.interstitialEnabled ? 'translate-x-4' : 'translate-x-0'}`}/>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-3 pt-2 border-t border-zinc-100">
+                                        <div>
+                                            <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1">Slot ID</p>
+                                            <input type="text" placeholder="1622865249"
+                                                value={googleAdsConfig.interstitialSlotId || ''}
+                                                onChange={e => setGoogleAdsConfig((p:any) => ({ ...p, interstitialSlotId: e.target.value }))}
+                                                className="w-full h-9 px-3 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-mono font-bold text-zinc-800 focus:outline-none focus:border-purple-300"/>
+                                        </div>
+                                        <div>
+                                            <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1">Gösterim Sıklığı (dakika)</p>
+                                            <input type="number" min={1} max={60}
+                                                value={googleAdsConfig.interstitialFrequencyMinutes || 5}
+                                                onChange={e => setGoogleAdsConfig((p:any) => ({ ...p, interstitialFrequencyMinutes: parseInt(e.target.value)||5 }))}
+                                                className="w-full h-9 px-3 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 focus:outline-none focus:border-purple-300"/>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Rewarded */}
+                                <div className="bg-white border border-zinc-200 rounded-[2rem] p-6 shadow-sm space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center">
+                                                <Gift size={15} className="text-emerald-600"/>
+                                            </div>
+                                            <div>
+                                                <h4 className="font-black text-xs text-zinc-800 uppercase">Ödüllü (Rewarded)</h4>
+                                                <p className="text-[8px] text-zinc-400 font-bold uppercase">Kullanıcı izlemeyi seçer → BTC + TP kazanır</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[9px] font-black uppercase" style={{ color: googleAdsConfig.rewardedEnabled ? '#10b981' : '#a1a1aa' }}>
+                                                {googleAdsConfig.rewardedEnabled ? 'Aktif' : 'Pasif'}
+                                            </span>
+                                            <div className="w-10 h-6 rounded-full border flex items-center px-0.5 cursor-pointer transition-all duration-300"
+                                                style={{ background: googleAdsConfig.rewardedEnabled ? '#10b981' : '#e4e4e7', borderColor: googleAdsConfig.rewardedEnabled ? '#10b981' : '#d4d4d8' }}
+                                                onClick={() => setGoogleAdsConfig((p:any) => ({ ...p, rewardedEnabled: !p.rewardedEnabled }))}>
+                                                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-all duration-300 ${googleAdsConfig.rewardedEnabled ? 'translate-x-4' : 'translate-x-0'}`}/>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-3 pt-2 border-t border-zinc-100">
+                                        <div>
+                                            <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1 flex items-center gap-1">
+                                                Slot ID <span className="px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-600 text-[7px] font-black">✓ Tanımlı</span>
+                                            </p>
+                                            <input type="text" placeholder="5303235747"
+                                                value={googleAdsConfig.rewardedSlotId || ''}
+                                                onChange={e => setGoogleAdsConfig((p:any) => ({ ...p, rewardedSlotId: e.target.value }))}
+                                                className="w-full h-9 px-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-mono font-black text-emerald-700 focus:outline-none focus:border-emerald-400"/>
+                                        </div>
+                                        <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+                                            <p className="text-[8px] font-bold text-emerald-700">💡 Ödüllü reklam ödülleri (BTC/TP miktarları) → <strong>Ücretsiz Seçenekler</strong> sekmesinden ayarlanır.</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Rewarded Interstitial */}
+                                <div className="bg-white border border-zinc-200 rounded-[2rem] p-6 shadow-sm space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center">
+                                                <Zap size={15} className="text-amber-600"/>
+                                            </div>
+                                            <div>
+                                                <h4 className="font-black text-xs text-zinc-800 uppercase">Ödüllü Geçiş <span className="text-[7px] bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded-full ml-1">BETA</span></h4>
+                                                <p className="text-[8px] text-zinc-400 font-bold uppercase">Doğal geçişte otomatik gösterilir, ödüller verilir</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[9px] font-black uppercase" style={{ color: googleAdsConfig.rewardedInterstitialEnabled ? '#f59e0b' : '#a1a1aa' }}>
+                                                {googleAdsConfig.rewardedInterstitialEnabled ? 'Aktif' : 'Pasif'}
+                                            </span>
+                                            <div className="w-10 h-6 rounded-full border flex items-center px-0.5 cursor-pointer transition-all duration-300"
+                                                style={{ background: googleAdsConfig.rewardedInterstitialEnabled ? '#f59e0b' : '#e4e4e7', borderColor: googleAdsConfig.rewardedInterstitialEnabled ? '#f59e0b' : '#d4d4d8' }}
+                                                onClick={() => setGoogleAdsConfig((p:any) => ({ ...p, rewardedInterstitialEnabled: !p.rewardedInterstitialEnabled }))}>
+                                                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-all duration-300 ${googleAdsConfig.rewardedInterstitialEnabled ? 'translate-x-4' : 'translate-x-0'}`}/>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-3 pt-2 border-t border-zinc-100">
+                                        <div>
+                                            <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1">Slot ID</p>
+                                            <input type="text" placeholder="5199293961"
+                                                value={googleAdsConfig.rewardedInterstitialSlotId || ''}
+                                                onChange={e => setGoogleAdsConfig((p:any) => ({ ...p, rewardedInterstitialSlotId: e.target.value }))}
+                                                className="w-full h-9 px-3 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-mono font-bold text-zinc-800 focus:outline-none focus:border-amber-300"/>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* App Open */}
+                                <div className="bg-white border border-zinc-200 rounded-[2rem] p-6 shadow-sm space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-9 h-9 rounded-xl bg-rose-100 flex items-center justify-center">
+                                                <Smartphone size={15} className="text-rose-600"/>
+                                            </div>
+                                            <div>
+                                                <h4 className="font-black text-xs text-zinc-800 uppercase">Uygulama Açılış (App Open)</h4>
+                                                <p className="text-[8px] text-zinc-400 font-bold uppercase">Uygulama açılırken yükleme ekranı üstünde</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[9px] font-black uppercase" style={{ color: googleAdsConfig.appOpenEnabled ? '#f43f5e' : '#a1a1aa' }}>
+                                                {googleAdsConfig.appOpenEnabled ? 'Aktif' : 'Pasif'}
+                                            </span>
+                                            <div className="w-10 h-6 rounded-full border flex items-center px-0.5 cursor-pointer transition-all duration-300"
+                                                style={{ background: googleAdsConfig.appOpenEnabled ? '#f43f5e' : '#e4e4e7', borderColor: googleAdsConfig.appOpenEnabled ? '#f43f5e' : '#d4d4d8' }}
+                                                onClick={() => setGoogleAdsConfig((p:any) => ({ ...p, appOpenEnabled: !p.appOpenEnabled }))}>
+                                                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-all duration-300 ${googleAdsConfig.appOpenEnabled ? 'translate-x-4' : 'translate-x-0'}`}/>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-3 pt-2 border-t border-zinc-100">
+                                        <div>
+                                            <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1">Slot ID</p>
+                                            <input type="text" placeholder="1220520508"
+                                                value={googleAdsConfig.appOpenSlotId || ''}
+                                                onChange={e => setGoogleAdsConfig((p:any) => ({ ...p, appOpenSlotId: e.target.value }))}
+                                                className="w-full h-9 px-3 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-mono font-bold text-zinc-800 focus:outline-none focus:border-rose-300"/>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Native */}
+                                <div className="bg-white border border-zinc-200 rounded-[2rem] p-6 shadow-sm space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-9 h-9 rounded-xl bg-cyan-100 flex items-center justify-center">
+                                                <FileText size={15} className="text-cyan-600"/>
+                                            </div>
+                                            <div>
+                                                <h4 className="font-black text-xs text-zinc-800 uppercase">Yerel Gelişmiş (Native)</h4>
+                                                <p className="text-[8px] text-zinc-400 font-bold uppercase">Uygulama tasarımıyla uyumlu satır içi reklam</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[9px] font-black uppercase" style={{ color: googleAdsConfig.nativeEnabled ? '#06b6d4' : '#a1a1aa' }}>
+                                                {googleAdsConfig.nativeEnabled ? 'Aktif' : 'Pasif'}
+                                            </span>
+                                            <div className="w-10 h-6 rounded-full border flex items-center px-0.5 cursor-pointer transition-all duration-300"
+                                                style={{ background: googleAdsConfig.nativeEnabled ? '#06b6d4' : '#e4e4e7', borderColor: googleAdsConfig.nativeEnabled ? '#06b6d4' : '#d4d4d8' }}
+                                                onClick={() => setGoogleAdsConfig((p:any) => ({ ...p, nativeEnabled: !p.nativeEnabled }))}>
+                                                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-all duration-300 ${googleAdsConfig.nativeEnabled ? 'translate-x-4' : 'translate-x-0'}`}/>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-3 pt-2 border-t border-zinc-100">
+                                        <div>
+                                            <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1">Slot ID</p>
+                                            <input type="text" placeholder="6472847183"
+                                                value={googleAdsConfig.nativeSlotId || ''}
+                                                onChange={e => setGoogleAdsConfig((p:any) => ({ ...p, nativeSlotId: e.target.value }))}
+                                                className="w-full h-9 px-3 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-mono font-bold text-zinc-800 focus:outline-none focus:border-cyan-300"/>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Entegrasyon Kılavuzu */}
+                            <div className="bg-zinc-900 rounded-[2rem] p-7 space-y-5">
+                                <h4 className="font-black text-xs text-emerald-400 uppercase tracking-widest flex items-center gap-2">
+                                    <Info size={14}/> Entegrasyon Adımları
+                                </h4>
+                                <div className="space-y-3">
+                                    {[
+                                        { n: '1', title: 'AdSense Hesabı Aç', desc: 'adsense.google.com → yeni uygulama sitesi ekle → Publisher ID al (ca-pub-XXXX)', color: 'text-orange-400' },
+                                        { n: '2', title: 'index.html Script Etiketi', desc: '<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXX"></script>', color: 'text-blue-400', mono: true },
+                                        { n: '3', title: 'H5 Games Ads API (adBreak)', desc: '<script async src="https://fundingchoicesmessages.google.com/i/pub-XXXX?ers=1"></script> + adConfig({ preloadAdBreaks: "on" })', color: 'text-purple-400', mono: true },
+                                        { n: '4', title: 'Slot ID\'leri Gir', desc: 'AdSense → Reklamlar → Reklam birimi oluştur → her format için ayrı ID alın', color: 'text-emerald-400' },
+                                        { n: '5', title: 'Test → Yayın', desc: 'Önce Test Modu açık ile test edin, her şey çalışınca kapatın', color: 'text-amber-400' },
+                                    ].map(step => (
+                                        <div key={step.n} className="flex items-start gap-4 p-4 bg-white/5 rounded-2xl border border-white/5">
+                                            <div className={`w-7 h-7 rounded-xl flex items-center justify-center text-[10px] font-black shrink-0 bg-white/10 ${step.color}`}>
+                                                {step.n}
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-black text-white uppercase tracking-widest mb-0.5">{step.title}</p>
+                                                <p className={`text-[9px] font-bold leading-relaxed ${step.mono ? 'font-mono text-zinc-400' : 'text-zinc-500'}`}>{step.desc}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {activeTab === 'report_request' && (
                         <div className="space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-700">

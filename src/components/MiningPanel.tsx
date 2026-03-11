@@ -65,7 +65,10 @@ export default function MiningPanel({
   onOpenPrestige: () => void;
   onNavigate: (screen: string) => void;
 }) {
-  const { state, btcToUsd, effectiveHashRate, energyScale, currentBtcPerSecond, isVipActive } = useGame();
+  const { 
+    state, btcToUsd, effectiveHashRate, energyScale, currentBtcPerSecond, isVipActive,
+    dailyEarnedPct, dailyCapReached, isVipCapExempt, dailyEarnedBtc 
+  } = useGame();
   const { notify, requestPushPermission, pushEnabled } = useNotify();
   const { theme } = useTheme();
 
@@ -389,6 +392,41 @@ export default function MiningPanel({
       </div>
 
       <SocialFeed />
+      
+      {/* ── Daily Cap Progress ─────────────────────────────────── */}
+      <div className="rounded-2xl p-4 space-y-3"
+        style={{ 
+          background: dailyCapReached ? 'rgba(239,68,68,0.04)' : `${a1}04`, 
+          border: `1px solid ${dailyCapReached ? 'rgba(239,68,68,0.2)' : a1 + '15'}` 
+        }}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <TrendingUp size={14} className={dailyCapReached ? "text-red-400" : ""} style={{ color: dailyCapReached ? undefined : a1 }} />
+            <h3 className="text-[10px] font-black uppercase tracking-widest" style={{ color: theme.vars['--ct-muted'] }}>Günlük Kazanç Limiti</h3>
+          </div>
+          <span className="text-[10px] font-mono font-black" style={{ color: dailyCapReached ? '#EF4444' : a1 }}>
+            {dailyCapReached ? 'LİMİT DOLDU' : `%${dailyEarnedPct.toFixed(1)}`}
+          </span>
+        </div>
+        <div className="h-2 w-full rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.05)' }}>
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: `${dailyEarnedPct}%` }}
+            className="h-full rounded-full"
+            style={{ background: dailyCapReached ? 'linear-gradient(90deg, #EF4444, #B91C1C)' : `linear-gradient(90deg, ${a1}, ${a2})` }} />
+        </div>
+        <div className="flex justify-between items-center text-[9px] font-mono uppercase tracking-widest" style={{ color: theme.vars['--ct-muted'] }}>
+          <span>{dailyEarnedBtc.toFixed(8)} BTC</span>
+          <span>Hedef: $1.00</span>
+        </div>
+        {dailyCapReached && !isVipCapExempt && (
+           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} 
+             className="pt-2 mt-2 border-t border-red-400/10 flex items-center justify-between gap-2">
+             <p className="text-[9px] font-bold text-red-400">Günlük kazanç limitine ulaştın!</p>
+             <button onClick={() => onNavigate('vip')} className="text-[9px] font-black bg-red-400 text-black px-2 py-0.5 rounded uppercase">VIP OL</button>
+           </motion.div>
+        )}
+      </div>
 
       {/* ── Estimated Earnings ─────────────────────────────────── */}
       <div className="rounded-2xl overflow-hidden"

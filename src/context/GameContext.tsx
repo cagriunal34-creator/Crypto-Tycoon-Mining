@@ -193,6 +193,28 @@ export interface GameState {
   interstitialAdUnitId: string;
   appOpenAdUnitId: string;
   adFrequencyMinutes: number;
+  googleAdsConfig: {
+    publisherId: string;
+    bannerSlotId: string;
+    interstitialSlotId: string;
+    rewardedSlotId: string;
+    rewardedInterstitialSlotId: string;
+    appOpenSlotId: string;
+    nativeSlotId: string;
+    bannerEnabled: boolean;
+    interstitialEnabled: boolean;
+    rewardedEnabled: boolean;
+    rewardedInterstitialEnabled: boolean;
+    appOpenEnabled: boolean;
+    nativeEnabled: boolean;
+    testMode: boolean;
+    bannerPosition: 'top' | 'bottom';
+    bannerAutoRefresh: boolean;
+    bannerRefreshSeconds: number;
+    interstitialFrequencyMinutes: number;
+  } | null;
+  dailyEarningsBtc: number;
+  lastEarningsResetDate: string; // ISO yyyy-mm-dd
 }
 
 // ─── Initial State ────────────────────────────────────────────────────────────
@@ -332,11 +354,14 @@ export const INITIAL_STATE: GameState = {
   announcement: '',
   activeModal: null,
   globalSettings: {},
-  rewardedAdUnitId: 'ca-app-pub-6329108306834809/5303235747',
-  bannerAdUnitId: 'ca-app-pub-6329108306834809/3631061424',
-  interstitialAdUnitId: 'ca-app-pub-6329108306834809/1622865249',
-  appOpenAdUnitId: 'ca-app-pub-6329108306834809/1220520508',
+  rewardedAdUnitId: 'ca-app-pub-6329108306834809/8774596958',
+  bannerAdUnitId: '',
+  interstitialAdUnitId: '',
+  appOpenAdUnitId: '',
   adFrequencyMinutes: 5,
+  googleAdsConfig: null,
+  dailyEarningsBtc: 0,
+  lastEarningsResetDate: new Date().toISOString().split('T')[0],
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -376,6 +401,7 @@ type Action =
   | { type: 'SET_GLOBAL_MULTIPLIER'; multiplier: number }
   | { type: 'SET_MAINTENANCE'; isMaintenance: boolean }
   | { type: 'SET_GLOBAL_SETTINGS'; settings: any }
+  | { type: 'SET_GOOGLE_ADS_CONFIG'; config: any }
   | { type: 'SET_ANNOUNCEMENT'; announcement: string }
   | { type: 'SET_USD_RATE'; rate: number }
   | { type: 'REMOVE_BTC'; amount: number; label: string; txId: string }
@@ -474,18 +500,40 @@ function gameReducer(state: GameState, action: Action): GameState {
       const now = Date.now();
       const elapsed = Math.min((now - state.lastMiningTick) / 1000, 30);
       
-      // Her hücre 1 saat (3600 sn) dayansın -> 1 / 3600 hücre/sn tüketim
       const drainPerSec = 1 / 3600;
       const newEnergy = state.isInfiniteEnergy ? state.energyCells : Math.max(0, state.energyCells - (elapsed * drainPerSec));
       
       const energyScale = energyToHashScale(newEnergy, state.maxEnergyCells);
       const activeEvents = state.activeMiningEvents.filter(ev => ev.endsAt > now);
+
+      const today = new Date().toISOString().split('T')[0];
+      let currentDailyEarnings = state.lastEarningsResetDate === today ? state.dailyEarningsBtc : 0;
+      
       const isVipActiveNow = state.vip?.isActive && state.vip.expiresAt > now;
       const vipBtcBonus = isVipActiveNow ? (state.vip.tier === 'gold' ? 1.5 : 1.2) : 1.0;
       const farmHashRate = state.farmSettings.rigStatuses.filter((_, i) => i < state.farmSettings.activeRigs).reduce((acc, rig) => acc + (rig.isBroken ? 0 : Math.floor(rig.efficiency * 1.2)), 0);
       const totalHashRateWithFarm = state.totalHashRate + farmHashRate;
       const btcPerSecond = calcBtcPerSecond(totalHashRateWithFarm, activeEvents, state.prestigeMultiplier, energyScale, state.isFeverMode, state.researchedNodes, vipBtcBonus, state.globalMultiplier);
-      return { ...state, btcBalance: state.btcBalance + (btcPerSecond * elapsed), energyCells: newEnergy, lastMiningTick: now };
+      
+      let earnedBtc = btcPerSecond * elapsed;
+      
+      // limit non-VIP to $1/day
+      if (!isVipActiveNow) {
+        const maxDailyBtc = 1.0 / (state.usdRate || 91200);
+        const remainingAllowance = Math.max(0, maxDailyBtc - currentDailyEarnings);
+        if (earnedBtc > remainingAllowance) {
+          earnedBtc = remainingAllowance;
+        }
+      }
+      
+      return { 
+        ...state, 
+        btcBalance: state.btcBalance + earnedBtc, 
+        energyCells: newEnergy, 
+        lastMiningTick: now,
+        dailyEarningsBtc: currentDailyEarnings + earnedBtc,
+        lastEarningsResetDate: today
+      };
     }
     case 'TICK_EVENTS': {
       const now = Date.now();
@@ -511,6 +559,7 @@ function gameReducer(state: GameState, action: Action): GameState {
     case 'DISMISS_OFFLINE_EARNINGS': return { ...state, offlineEarningsShown: true, pendingOfflineEarnings: 0 };
     case 'RESET_INTERSTITIAL_TIMER': return { ...state, lastInterstitialAdAt: Date.now() };
     case 'SET_GLOBAL_SETTINGS': return { ...state, globalSettings: action.settings };
+    case 'SET_GOOGLE_ADS_CONFIG': return { ...state, googleAdsConfig: action.config };
     case 'SET_AD_REWARD': return {
       ...state,
       adRewardBtc: action.btc,
@@ -614,17 +663,34 @@ function gameReducer(state: GameState, action: Action): GameState {
       // For now we just return state for other types
       return state;
     }
-    case 'WATCH_AD': return {
-      ...state,
-      btcBalance: state.btcBalance + state.adRewardBtc,
-      tycoonPoints: state.tycoonPoints + state.adRewardTp,
-      energyCells: Math.min(state.maxEnergyCells, state.energyCells + 2), // +2 Hücre kazanımı
-      lastAdWatchTime: Date.now(),
-      questProgress: {
-        ...state.questProgress,
-        adsWatched: (state.questProgress.adsWatched || 0) + 1
+    case 'WATCH_AD': {
+      const today = new Date().toISOString().split('T')[0];
+      let currentDailyEarnings = state.lastEarningsResetDate === today ? state.dailyEarningsBtc : 0;
+      const isVipActiveNow = state.vip?.isActive && state.vip.expiresAt > Date.now();
+      
+      let rewardBtc = state.adRewardBtc;
+      if (!isVipActiveNow) {
+        const maxDailyBtc = 1.0 / (state.usdRate || 91200);
+        const remainingAllowance = Math.max(0, maxDailyBtc - currentDailyEarnings);
+        if (rewardBtc > remainingAllowance) {
+          rewardBtc = remainingAllowance;
+        }
       }
-    };
+
+      return {
+        ...state,
+        btcBalance: state.btcBalance + rewardBtc,
+        tycoonPoints: state.tycoonPoints + state.adRewardTp,
+        energyCells: Math.min(state.maxEnergyCells, state.energyCells + 2), // +2 Hücre kazanımı
+        lastAdWatchTime: Date.now(),
+        dailyEarningsBtc: currentDailyEarnings + rewardBtc,
+        lastEarningsResetDate: today,
+        questProgress: {
+          ...state.questProgress,
+          adsWatched: (state.questProgress.adsWatched || 0) + 1
+        }
+      };
+    }
     case 'SET_MODAL': return { ...state, activeModal: action.modal };
     case 'UPDATE_PROFILE': return { ...state, ...action.updates };
     default: return state;
@@ -646,6 +712,11 @@ interface GameContextValue {
   canPrestige: boolean;
   isVipActive: boolean;
   vipBtcBonus: number;
+  dailyEarnedBtc: number;
+  dailyCapBtc: number;
+  dailyEarnedPct: number;
+  dailyCapReached: boolean;
+  isVipCapExempt: boolean;
   listContractOnMarket: (contract: OwnedContract, price: number) => Promise<void>;
   buyContractFromMarket: (listing: MarketListing) => Promise<void>;
   cancelMarketListing: (listingId: string) => Promise<void>;
@@ -832,6 +903,24 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           dispatch({ type: 'SET_GLOBAL_MULTIPLIER', multiplier: settings.globalMultiplier || 1.0 });
         }
 
+        // ── Google Ads Config yükle ──────────────────────────────────────
+        try {
+          const { data: adsRow } = await supabase
+            .from(TABLES.SETTINGS)
+            .select('value')
+            .eq('id', 'google_ads_config')
+            .maybeSingle();
+          if (adsRow?.value) {
+            dispatch({ type: 'SET_GOOGLE_ADS_CONFIG', config: adsRow.value });
+            // Google Ads Manager'ı başlat
+            if (typeof window !== 'undefined') {
+              import('../lib/googleAds').then(({ googleAds }) => {
+                googleAds.init(adsRow.value).catch(() => {});
+              }).catch(() => {});
+            }
+          }
+        } catch (_) {}
+
         const [{ data: marketData }, { data: guilds }] = await Promise.all([
           supabase.from(TABLES.MARKETPLACE).select('*').order('created_at', { ascending: false }),
           supabase.from(TABLES.GUILDS).select('*').order('rank', { ascending: true }),
@@ -902,6 +991,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             dispatch({ type: 'SET_GLOBAL_MULTIPLIER', multiplier: s.globalMultiplier || 1.0 });
           }
 
+          // google_ads_config → Google Ads ayarları anında güncelle
+          if (s.id === 'google_ads_config' && s.value) {
+            dispatch({ type: 'SET_GOOGLE_ADS_CONFIG', config: s.value });
+          }
+
           // free_options → reklam ödülleri anında güncelle
           if (s.id === 'free_options' && s.value) {
             const v = s.value;
@@ -948,6 +1042,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           xp: state.xp,
           level: state.level,
           energyCells: state.energyCells,
+          dailyEarningsBtc: state.dailyEarningsBtc,
+          lastEarningsResetDate: state.lastEarningsResetDate,
           updated_at: new Date().toISOString()
         }).eq('id', state.user.uid);
         
@@ -990,6 +1086,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const energyScale = energyToHashScale(state.energyCells, state.maxEnergyCells);
   const currentBtcPerSecond = calcBtcPerSecond(state.totalHashRate, state.activeMiningEvents, state.prestigeMultiplier, energyScale, state.isFeverMode, state.researchedNodes);
   const earnedTodayBtc = currentBtcPerSecond * 86400;
+  
+  const isVipCapExempt = state.vip?.isActive && state.vip.expiresAt > Date.now();
+  const dailyCapBtc = 1.0 / (state.usdRate || 91200);
+  const dailyCapReached = !isVipCapExempt && state.dailyEarningsBtc >= dailyCapBtc;
+  const dailyEarnedPct = Math.min(100, (state.dailyEarningsBtc / dailyCapBtc) * 100);
 
   // ─── Marketplace Functions ──────────────────────────────────────────────────
   const listContractOnMarket = async (contract: OwnedContract, price: number) => {
@@ -1242,7 +1343,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   return (
     <GameContext.Provider value={{
       state, dispatch, btcToUsd, formatBtc, earnedTodayBtc, earnedTodayUsd: btcToUsd(earnedTodayBtc),
-      effectiveHashRate: state.totalHashRate * energyScale, energyScale, currentBtcPerSecond, canPrestige: state.level >= 10, isVipActive: false, vipBtcBonus: 1.0,
+      effectiveHashRate: state.totalHashRate * energyScale, energyScale, currentBtcPerSecond, canPrestige: state.level >= 10, 
+      isVipActive: isVipCapExempt, vipBtcBonus: isVipCapExempt ? (state.vip?.tier === 'gold' ? 1.5 : 1.2) : 1.0,
+      dailyEarnedBtc: state.dailyEarningsBtc, dailyCapBtc, dailyEarnedPct, dailyCapReached, isVipCapExempt,
       listContractOnMarket, buyContractFromMarket, cancelMarketListing,
       createGuildInFirestore, joinGuildInFirestore, leaveGuildInFirestore, donateToGuildInFirestore,
       adminSetBtc, adminSetTp, adminSetLevel, adminUpdateSettings, adminTriggerEvent,
