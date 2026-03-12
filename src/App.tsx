@@ -58,7 +58,7 @@ import GuildScreen from './components/GuildScreen';
 import WebLayout from './components/WebLayout';
 import { usePushNotifications } from './hooks/usePushNotifications';
 import NotificationPermissionBanner from './components/NotificationPermissionBanner';
-import LowEnergyAdBanner from './components/LowEnergyAdBanner.tsx';
+import LowEnergyAdBanner from './components/LowEnergyAdBanner';
 
 // ── Push Notification Manager ─────────────────────────────────────────────────
 // Ayrı bileşen: GameContext state'ine erişir, hook'u çalıştırır, banner'ı gösterir
