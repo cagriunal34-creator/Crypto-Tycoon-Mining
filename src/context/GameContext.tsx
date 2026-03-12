@@ -116,6 +116,7 @@ export interface GameState {
   // Guilds
   guilds: Guild[];
   userGuildId: string | null;
+  claimedGuildRewards: string[]; // IDs of rewards already claimed
 
   // Transactions
   transactions: Transaction[];
@@ -463,6 +464,7 @@ export const INITIAL_STATE: GameState = {
     depositRequiredBtc: 0.0001,
     adRewardMultiplier: 1.0,
   },
+  claimedGuildRewards: [],
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -540,7 +542,8 @@ type Action =
   | { type: 'SET_WITHDRAW_CONFIG'; config: Partial<GameState['withdrawConfig']> }
   | { type: 'INCREMENT_ADS_FOR_WITHDRAW' }
   | { type: 'RESET_ADS_FOR_WITHDRAW' }
-  | { type: 'SET_DEPOSIT_STATS'; totalDeposit: number; totalWithdrawn: number };
+  | { type: 'SET_DEPOSIT_STATS'; totalDeposit: number; totalWithdrawn: number }
+  | { type: 'CLAIM_GUILD_REWARD'; goalId: string; rewardBtc: number };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -1017,6 +1020,11 @@ function gameReducer(state: GameState, action: Action): GameState {
       totalLifetimeDeposit: action.totalDeposit,
       totalLifetimeWithdrawn: action.totalWithdrawn,
     };
+    case 'CLAIM_GUILD_REWARD': return {
+      ...state,
+      btcBalance: state.btcBalance + action.rewardBtc,
+      claimedGuildRewards: [...state.claimedGuildRewards, action.goalId]
+    };
     default: return state;
   }
 }
@@ -1048,6 +1056,7 @@ interface GameContextValue {
   joinGuildInFirestore: (guild: Guild) => Promise<void>;
   leaveGuildInFirestore: (guildId: string) => Promise<void>;
   donateToGuildInFirestore: (amount: number) => Promise<void>;
+  claimGuildReward: (goalId: string, btcValue: number) => Promise<void>;
   // Admin Helpers
   adminSetBtc: (amount: number, userId?: string) => Promise<void>;
   adminSetTp: (amount: number, userId?: string) => Promise<void>;
@@ -1528,6 +1537,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           researchedNodes: state.researchedNodes,
           battlePass: state.battlePass,
           redeemedReferralCode: state.redeemedReferralCode,
+          claimedGuildRewards: state.claimedGuildRewards,
           updated_at: new Date().toISOString()
         }).eq('id', state.user.uid);
         
@@ -1851,6 +1861,30 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }).eq('id', state.userGuildId);
   };
 
+  const claimGuildReward = async (goalId: string, btcValue: number) => {
+    if (!state.user) throw new Error("Auth required");
+    if (state.claimedGuildRewards.includes(goalId)) return;
+
+    const newClaimed = [...state.claimedGuildRewards, goalId];
+    dispatch({ type: 'CLAIM_GUILD_REWARD', goalId, rewardBtc: btcValue });
+
+    // Veritabanına anlık yaz
+    await supabase.from(TABLES.PROFILES).update({
+      claimedGuildRewards: newClaimed,
+      btcBalance: state.btcBalance + btcValue,
+      updated_at: new Date().toISOString()
+    }).eq('id', state.user.uid);
+
+    // Transaction kaydı
+    await supabase.from(TABLES.TRANSACTIONS).insert({
+      user_id: state.user.uid,
+      amount: btcValue,
+      type: 'mining', // veya 'reward'
+      description: `Lonca Hedefi Ödülü: ${goalId}`,
+      timestamp: new Date().toISOString()
+    });
+  };
+
   // ─── Admin Helpers ────────────────────────────────────────────────────────
   const adminSetBtc = async (amount: number, userId?: string) => {
     const targetId = userId || state.user?.uid;
@@ -2057,7 +2091,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isVipActive: isVipCapExempt, vipBtcBonus: isVipCapExempt ? (state.vip?.tier === 'gold' ? 1.5 : 1.2) : 1.0,
       dailyEarnedBtc: currentDailyEarned, dailyCapBtc, dailyEarnedPct, dailyCapReached, isVipCapExempt,
       listContractOnMarket, buyContractFromMarket, cancelMarketListing,
-      createGuildInFirestore, joinGuildInFirestore, leaveGuildInFirestore, donateToGuildInFirestore,
+      createGuildInFirestore, joinGuildInFirestore, leaveGuildInFirestore, donateToGuildInFirestore, claimGuildReward,
       adminSetBtc, adminSetTp, adminSetLevel, adminUpdateSettings, adminTriggerEvent,
       updateUserProfile, uploadAvatar, claimStreakReward, redeemPromoCode,
       activateOverclock, adBoostMining,

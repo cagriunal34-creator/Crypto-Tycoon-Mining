@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Shield, Users, Zap, Trophy, Crown, 
   ChevronRight, Info, Gift, Plus, Search,
@@ -14,6 +14,7 @@ import { cn } from '../lib/utils';
 import { useGame, Guild } from '../context/GameContext';
 import { GUILD_GOALS } from '../constants/gameData';
 import { useNotify } from '../context/NotificationContext';
+import { supabase, TABLES } from '../lib/supabase';
 
 type GuildTab = 'overview' | 'members' | 'goals';
 
@@ -27,6 +28,8 @@ export default function GuildScreen() {
   const [activeTab, setActiveTab] = useState<GuildTab>('overview');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showGoalDetails, setShowGoalDetails] = useState<string | null>(null);
+  const [membersList, setMembersList] = useState<any[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
 
   // Form State
   const [name, setName] = useState('');
@@ -54,6 +57,48 @@ export default function GuildScreen() {
       notify({ type: 'warning', title: 'Hata', message: e.message });
     }
   };
+
+  // Fetch Guild Members & Leader
+  const [leaderName, setLeaderName] = useState('Yükleniyor...');
+
+  useEffect(() => {
+    if (state.userGuildId) {
+      const fetchGuildStats = async () => {
+        setLoadingMembers(true);
+        try {
+          // 1. Fetch Members
+          const { data: members, error: memErr } = await supabase
+            .from(TABLES.PROFILES)
+            .select('id, username, level, totalHashRate')
+            .eq('userGuildId', state.userGuildId)
+            .neq('id', state.user?.uid); 
+
+          if (memErr) throw memErr;
+          setMembersList(members || []);
+
+          // 2. Fetch Leader Name if not self
+          const currentGuild = state.guilds.find(g => g.id === state.userGuildId);
+          const ownerId = (currentGuild as any)?.owner_id;
+          
+          if (ownerId === state.user?.uid) {
+            setLeaderName('Sen');
+          } else if (ownerId) {
+            const { data: ownerData } = await supabase
+              .from(TABLES.PROFILES)
+              .select('username')
+              .eq('id', ownerId)
+              .single();
+            setLeaderName(ownerData?.username || 'Anonim Lider');
+          }
+        } catch (e) {
+          console.error("Error fetching guild data:", e);
+        } finally {
+          setLoadingMembers(false);
+        }
+      };
+      fetchGuildStats();
+    }
+  }, [state.userGuildId, state.user?.uid, state.guilds]);
 
   if (!userGuild) {
     return (
@@ -259,7 +304,7 @@ export default function GuildScreen() {
                   </div>
                   <div>
                     <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Lonca Lideri</p>
-                    <p className="text-sm font-bold text-white">{(state.guilds.find(g => g.id === state.userGuildId) as any)?.owner_id === state.user.uid ? 'Sen' : 'Anonim Lider'}</p>
+                    <p className="text-sm font-bold text-white uppercase italic tracking-tight">{leaderName}</p>
                   </div>
                 </div>
                 <p className="text-xs text-zinc-400 leading-relaxed italic">
@@ -340,10 +385,35 @@ export default function GuildScreen() {
                 <div className="flex-1 h-px bg-white/5" />
               </div>
 
-              <div className="p-8 text-center bg-white/[0.02] border border-white/5 rounded-3xl">
-                <Users size={24} className="mx-auto text-zinc-700 mb-2" />
-                <p className="text-xs text-zinc-600 font-bold italic">Diğer üyeler gizlenmiş...</p>
-                <p className="text-[10px] text-zinc-700 mt-1">Gelecek güncellemede tüm üye listesi aktif olacak.</p>
+              <div className="grid gap-3">
+                {loadingMembers ? (
+                  <div className="p-8 text-center bg-white/[0.02] border border-white/5 rounded-3xl animate-pulse">
+                    <p className="text-xs text-zinc-600 font-bold italic">Üyeler yükleniyor...</p>
+                  </div>
+                ) : membersList.length === 0 ? (
+                  <div className="p-8 text-center bg-white/[0.02] border border-white/5 rounded-3xl">
+                    <Users size={24} className="mx-auto text-zinc-700 mb-2" />
+                    <p className="text-xs text-zinc-600 font-bold italic">Başka üye bulunmuyor...</p>
+                  </div>
+                ) : (
+                  membersList.map(member => (
+                    <div key={member.id} className="glass-card rounded-2xl p-4 flex items-center justify-between bg-white/[0.02] border border-white/10">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center font-bold text-zinc-400">
+                          {member.username?.slice(0, 2).toUpperCase() || '??'}
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-white">{member.username || 'Bilinmiyor'}</p>
+                          <p className="text-[10px] text-zinc-500">Üye · Lv.{member.level}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs font-black text-zinc-400">{member.totalHashRate?.toFixed(1) || '0.0'} GH/s</p>
+                        <p className="text-[8px] text-zinc-600 uppercase font-bold">Katkı</p>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           )}

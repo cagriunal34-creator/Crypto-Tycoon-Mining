@@ -7,6 +7,8 @@ import React, { createContext, useContext, useState, useCallback, useEffect } fr
 import { motion, AnimatePresence } from 'motion/react';
 import { CheckCircle, TriangleAlert, Info, Zap, X } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { supabase, TABLES } from '../lib/supabase';
+import { useGame } from './GameContext';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -18,6 +20,7 @@ interface Notification {
   title: string;
   message?: string;
   duration?: number; // ms, 0 = permanent until dismissed
+  read?: boolean;
 }
 
 interface NotifContextValue {
@@ -134,6 +137,40 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       setPushEnabled(true);
     }
   }, []);
+
+  // --- Real-time Supabase Notifications ---
+  const { state } = useGame();
+  
+  useEffect(() => {
+    if (!state.user?.uid) return;
+
+    // Listen for new notifications in DB
+    const channel = supabase
+      .channel(`user-notifications-${state.user.uid}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: TABLES.NOTIFICATIONS,
+          filter: `target_id=eq.${state.user.uid}`
+        },
+        (payload) => {
+          const newNotif = payload.new;
+          notify({
+            type: (newNotif.type as any) || 'info',
+            title: newNotif.title,
+            message: newNotif.body,
+            duration: 5000
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [state.user?.uid, notify]);
 
   return (
     <NotifContext.Provider value={{ notify, requestPushPermission, pushEnabled }}>
