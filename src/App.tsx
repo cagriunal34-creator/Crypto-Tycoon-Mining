@@ -56,6 +56,55 @@ import HackerAttack from './components/HackerAttack';
 import { InfrastructureScreen } from './components/InfrastructureScreen';
 import GuildScreen from './components/GuildScreen';
 import WebLayout from './components/WebLayout';
+import { usePushNotifications } from './hooks/usePushNotifications';
+import NotificationPermissionBanner from './components/NotificationPermissionBanner';
+
+// ── Push Notification Manager ─────────────────────────────────────────────────
+// Ayrı bileşen: GameContext state'ine erişir, hook'u çalıştırır, banner'ı gösterir
+function PushNotificationManager({ hackerActive, btcPerSecond }: { hackerActive: boolean; btcPerSecond: number }) {
+  const { state } = useGame();
+  
+  // Oyun snapshot'ını hook formatına dönüştür
+  const gameSnapshot = React.useMemo(() => {
+    if (!state) return null;
+    const energyPct = state.maxEnergyCells > 0
+      ? Math.round((state.energyCells / state.maxEnergyCells) * 100)
+      : 100;
+
+    // Aktif kontratları bul (expiresAt varsa)
+    const contracts = (state.ownedContracts || [])
+      .filter((c: any) => c.expiresAt && c.expiresAt > Date.now())
+      .map((c: any) => ({ name: c.name || 'Kontrat', expiresAt: c.expiresAt }));
+
+    // Guild bilgisi
+    const myGuild = (state.guilds || []).find((g: any) => 
+      g.members?.some((m: any) => m.id === state.user?.uid)
+    );
+
+    return {
+      btcBalance: state.btcBalance || 0,
+      btcPerSecond: btcPerSecond, 
+      energyLevel: energyPct,
+      level: state.level || 1,
+      hackerActive: hackerActive, 
+      contracts,
+      guildBattleActive: false,
+      guildName: myGuild?.name || '',
+      storageCapacityHours: 4, // Varsayılan 4 saatlik depo
+    };
+  }, [
+    state?.btcBalance,
+    state?.energyCells,
+    state?.maxEnergyCells,
+    state?.level,
+    hackerActive,
+    btcPerSecond
+  ]);
+
+  const { requestPermission } = usePushNotifications(gameSnapshot);
+
+  return <NotificationPermissionBanner onRequestPermission={requestPermission} />;
+}
 
 function AppInner() {
   const { state, dispatch } = useGame();
@@ -265,9 +314,14 @@ function AppInner() {
     return <LoginScreen />;
   }
 
+  // Calculate current BTC/s for notifications
+  const { effectiveHashRate } = useGame();
+  const btcPerSecond = effectiveHashRate * 1e-9 * 0.5 * (state.happyHourActive ? 1.2 : 1);
+
   if (isDesktop) {
     return (
       <WebLayout activeScreen={activeScreen} onNavigate={navigate}>
+        <PushNotificationManager hackerActive={showHackerAttack} btcPerSecond={btcPerSecond} />
         {isWatchingAd && (
           <AdRewardModal isOpen={isWatchingAd} onClose={() => setIsWatchingAd(false)} />
         )}
@@ -396,6 +450,7 @@ function AppInner() {
       <FeverOverlay />
       <LoginStreak />
       <OfflineEarningsHandler />
+      <PushNotificationManager hackerActive={showHackerAttack} btcPerSecond={btcPerSecond} />
 
       {/* ── Header ─────────────────────────────────────────────── */}
       <header className="flex items-center justify-between px-5 py-3 sticky top-0 z-50 backdrop-blur-xl relative"
