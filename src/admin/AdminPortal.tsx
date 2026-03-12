@@ -1,8 +1,4 @@
 import React, { useState, useEffect, useMemo } from 'react';
-// Duralux theme CSS — place these files in src/styles/
-import '../styles/duralux-theme.css';
-import '../styles/admin-duralux-overrides.css';
-
 import {
     ShieldCheck,
     Terminal,
@@ -77,6 +73,7 @@ import {
     TrendingDown,
     ShoppingBag,
     Layers,
+    Snowflake,
 } from 'lucide-react';
 import { useGame } from '../context/GameContext';
 import { useTheme } from '../context/ThemeContext';
@@ -100,10 +97,10 @@ import {
 } from 'recharts';
 
 type AdminTab = 'overview' |
-    'players' | 'players_active' | 'players_banned' | 'players_email_unverified' | 'players_mobile_unverified' | 'players_kyc_unverified' | 'players_kyc_pending' | 'players_balance' | 'players_all' | 'players_notification' | 'banned' |
+    'players_active' | 'players_banned' | 'players_email_unverified' | 'players_mobile_unverified' | 'players_kyc_unverified' | 'players_kyc_pending' | 'players_balance' | 'players_all' | 'players_notification' |
     'currencies' | 'mining_plans' | 'mining_paths' | 'mining_items' |
     'deposits_initiated' | 'deposits_pending' | 'deposits_approved' | 'deposits_success' | 'deposits_rejected' | 'deposits_all' |
-    'withdrawals' | 'withdrawals_pending' | 'withdrawals_approved' | 'withdrawals_rejected' | 'withdrawals_all' |
+    'withdrawals_pending' | 'withdrawals_approved' | 'withdrawals_rejected' | 'withdrawals_all' |
     'system_settings' | 'orders' | 'transactions_all' | 'referral_bonus' |
     'reports_login' | 'reports_notifications' |
     'support_pending' | 'support_closed' | 'support_answered' | 'support_all' |
@@ -241,23 +238,52 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
 
     // ── Hashrate & Battery / Energy Settings ──────────────────────────────
     const [hashrateSettings, setHashrateSettings] = useState<any>({
-        base_hashrate_gh:            50,    // Tüm kullanıcılar için başlangıç GH/s
-        hashrate_per_level:           5,    // Her seviyede eklenen GH/s
-        global_multiplier:          1.0,    // Global çarpan
-        max_hashrate_gh:           1000,    // Kullanıcı başı üst sınır
-        battery_drain_hours:         24,    // Tam dolu pilin kaç saatte biteceği
-        energy_regen_per_hour:       10,    // Boşta enerji yenilenme % / saat
-        boost_vip:                  2.0,    // VIP çarpanı
-        boost_event:                1.5,    // Etkinlik çarpanı
-        halving_block:          1050000,    // Halving referans bloğu
+        base_hashrate_gh:            50,
+        hashrate_per_level:           5,
+        global_multiplier:          1.0,
+        max_hashrate_gh:           1000,
+        battery_drain_hours:         24,
+        energy_regen_per_hour:       10,
+        boost_vip:                  2.0,
+        boost_event:                1.5,
+        halving_block:          1050000,
         rewarded_ad_unit_id: 'ca-app-pub-6329108306834809/8774596958',
         banner_ad_unit_id: '',
         interstitial_ad_unit_id: '',
         app_open_ad_unit_id: '',
         ad_frequency_minutes: 5,
+        // NEW: Relocated settings
+        eventMultiplier: 1.0,
+        miningDifficulty: 50,
+        marketDiscount: 0,
+        botCount: 0,
+        botBuyLimit: 10,
+        autoBotListing: true,
+        smartBotPricing: true,
+        hashRateTiers: {
+            kh: 0.05,
+            mh: 0.05,
+            gh: 0.05,
+            th: 0.05,
+            ph: 0.05,
+            zh: 0.05
+        }
     });
     const [hashrateSettingsSaving, setHashrateSettingsSaving] = useState(false);
     const [hashrateChanged,        setHashrateChanged]        = useState(false);
+
+    // ── Overclock Config ────────────────────────────────────────────────────
+    const [overclockCfg, setOverclockCfg] = useState<any>({
+        enabled: true,
+        multiplier: 1.5,
+        penalty: 0.8,
+        durationMinutes: 120,
+        cooldownMinutes: 240,
+        costTp: 50,
+        costBtc: 0,
+    });
+    const [overclockSaving, setOverclockSaving] = useState(false);
+    const [overclockChanged, setOverclockChanged] = useState(false);
 
     // ── Google Ads Config ───────────────────────────────────────────────────
     const [googleAdsConfig, setGoogleAdsConfig] = useState<any>({
@@ -775,12 +801,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
     const handleCreateEvent = async () => {
         if (!newEvent.name) return;
         try {
-            const endsAt = new Date(Date.now() + (newEvent.duration_hours || 24) * 3600000).toISOString();
-            const { data, error } = await supabase.from('game_events').insert({ 
-                ...newEvent, 
-                ends_at: endsAt,
-                created_at: new Date().toISOString() 
-            }).select().single();
+            const { data, error } = await supabase.from('game_events').insert({ ...newEvent, created_at: new Date().toISOString() }).select().single();
             if (!error && data) { setGameEvents(prev => [data, ...prev]); setNewEvent({ name: '', type: 'multiplier', multiplier: 2, duration_hours: 24, active: false }); }
             notify({ type: 'success', title: 'Etkinlik Oluşturuldu', message: `"${newEvent.name}" etkinliği başlatıldı.` });
             await logAdminAction('create_game_event', undefined, newEvent);
@@ -1002,8 +1023,10 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
             // 1. Özel hashrate_settings satırı (okunması kolay)
             await supabase.from('settings').upsert({
                 id: 'hashrate_settings',
-                value: hashrateSettings,
-                updated_at: new Date().toISOString(),
+                value: {
+                    ...hashrateSettings,
+                    updated_at: new Date().toISOString(),
+                }
             });
             // 2. v1 globalSettings'e de mirror et → mobil uygulama anında alır
             await supabase.from(TABLES.SETTINGS).upsert({
@@ -1022,6 +1045,16 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                 interstitial_ad_unit_id:  hashrateSettings.interstitial_ad_unit_id,
                 app_open_ad_unit_id:      hashrateSettings.app_open_ad_unit_id,
                 ad_frequency_minutes:     hashrateSettings.ad_frequency_minutes,
+                // NEW: Relocated settings mirror
+                eventMultiplier:          hashrateSettings.eventMultiplier,
+                miningDifficulty:         hashrateSettings.miningDifficulty,
+                marketDiscount:           hashrateSettings.marketDiscount,
+                botCount:                 hashrateSettings.botCount,
+                botBuyLimit:              hashrateSettings.botBuyLimit,
+                autoBotListing:           hashrateSettings.autoBotListing,
+                smartBotPricing:          hashrateSettings.smartBotPricing,
+                hashRateTiers:            hashrateSettings.hashRateTiers,
+                updated_at:               new Date().toISOString(),
             });
             setHashrateChanged(false);
             await logAdminAction('update_hashrate_settings', 'global', hashrateSettings);
@@ -1030,6 +1063,35 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
             notify({ type: 'warning', title: 'Hata', message: `Kayıt başarısız: ${e.message}` });
         }
         setHashrateSettingsSaving(false);
+    };
+
+    // ── Overclock Ayarları Kaydet ─────────────────────────────────────────────
+    const handleSaveOverclockSettings = async () => {
+        setOverclockSaving(true);
+        try {
+            await supabase.from('settings').upsert({
+                id: 'overclock_config',
+                value: overclockCfg,
+                updated_at: new Date().toISOString(),
+            });
+            // v1'e de yaz — app realtime alır
+            await supabase.from(TABLES.SETTINGS).upsert({
+                id: 'v1',
+                overclock_enabled:         overclockCfg.enabled,
+                overclock_multiplier:      overclockCfg.multiplier,
+                overclock_penalty:         overclockCfg.penalty,
+                overclock_duration_min:    overclockCfg.durationMinutes,
+                overclock_cooldown_min:    overclockCfg.cooldownMinutes,
+                overclock_cost_tp:         overclockCfg.costTp,
+                overclock_cost_btc:        overclockCfg.costBtc,
+            });
+            setOverclockChanged(false);
+            await logAdminAction('update_overclock_settings', 'global', overclockCfg);
+            notify({ type: 'success', title: '✅ Overclock Güncellendi', message: 'Overclock ayarları uygulamaya anlık yansıtıldı.' });
+        } catch (e: any) {
+            notify({ type: 'warning', title: 'Hata', message: `Kayıt başarısız: ${e.message}` });
+        }
+        setOverclockSaving(false);
     };
 
     // ── Google Ads Kaydet ─────────────────────────────────────────────────────
@@ -1067,480 +1129,228 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
     const totalBtc = players.reduce((acc, p) => acc + (p.btcBalance || 0), 0);
     const totalTp = players.reduce((acc, p) => acc + (p.tycoonPoints || 0), 0);
     const vipCount = players.filter(p => p.vip?.isActive).length;
-    // ─── Duralux CSS + deps injection ───────────────────────────
-    useEffect(() => {
-        const injectLink = (id: string, href: string) => {
-            if (document.getElementById(id)) return;
-            const el = document.createElement('link');
-            el.id = id; el.rel = 'stylesheet'; el.href = href;
-            document.head.appendChild(el);
-        };
-        const injectScript = (id: string, src: string) => {
-            if (document.getElementById(id)) return;
-            const el = document.createElement('script');
-            el.id = id; el.src = src; el.defer = true;
-            document.body.appendChild(el);
-        };
-        injectLink('bs5-css',        'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css');
-        injectLink('bs5-icons-css',  'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css');
-        injectLink('feather-css',    'https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.css');
-        injectScript('bs5-js',       'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js');
-        injectScript('feather-js',   'https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js');
-
-        // Duralux body class
-        document.documentElement.classList.add('app-navigation-dark');
-        return () => { document.documentElement.classList.remove('app-navigation-dark'); };
-    }, []);
-
-    // ─── Dark mode toggle ────────────────────────────────────────
-    const [isDark, setIsDark] = useState(() => {
-        return document.documentElement.classList.contains('app-skin-dark');
-    });
-    const toggleDarkMode = () => {
-        if (isDark) {
-            document.documentElement.classList.remove('app-skin-dark');
-            localStorage.setItem('skinTheme', 'light');
-        } else {
-            document.documentElement.classList.add('app-skin-dark');
-            localStorage.setItem('skinTheme', 'dark');
-        }
-        setIsDark(v => !v);
-    };
-
-    // ─── Sidebar mini toggle ─────────────────────────────────────
-    const [sidebarMini, setSidebarMini] = useState(false);
-    const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-    const toggleSidebar = () => {
-        const next = !sidebarMini;
-        setSidebarMini(next);
-        if (next) document.documentElement.classList.add('minimenu');
-        else document.documentElement.classList.remove('minimenu');
-    };
-
-    // ─── Category icon map ───────────────────────────────────────
-    const CAT_ICONS: Record<string, string> = {
-        dashboard:       'bi-speedometer2',
-        manage_users:    'bi-people-fill',
-        finance_ops:     'bi-bank2',
-        ecosystem:       'bi-cpu-fill',
-        finance_detail:  'bi-cash-coin',
-        support_section: 'bi-headset',
-        system_security: 'bi-shield-lock-fill',
-        ads_section:     'bi-megaphone-fill',
-        system_info:     'bi-info-circle-fill',
-    };
-
-    const activeLabel = MENU_CATEGORIES.flatMap(c => c.items).find(i => i.id === activeTab)?.label || 'Genel Bakış';
-    const activeCat   = MENU_CATEGORIES.find(c => c.items.some(i => i.id === activeTab))?.title || 'Kontrol Paneli';
 
     return (
-        <>
-            {/* ══════════════════════════════════════════════════════
-                DURALUX HEADER
-            ══════════════════════════════════════════════════════ */}
-            <header className="nxl-header" style={{ zIndex: 1025 }}>
-                <div className="header-wrapper">
-
-                    {/* LEFT */}
-                    <div className="header-left d-flex align-items-center gap-3">
-                        {/* Mobile hamburger */}
-                        <a href="#" className="nxl-head-mobile-toggler d-lg-none"
-                            onClick={e => { e.preventDefault(); setMobileSidebarOpen(v => !v); }}>
-                            <div className={`hamburger hamburger--arrowturn ${mobileSidebarOpen ? 'is-active' : ''}`}>
-                                <div className="hamburger-box"><div className="hamburger-inner" /></div>
-                            </div>
-                        </a>
-
-                        {/* Desktop sidebar collapse */}
-                        <div className="nxl-navigation-toggle d-none d-lg-flex">
-                            <a href="#" onClick={e => { e.preventDefault(); toggleSidebar(); }}>
-                                <i className={`bi ${sidebarMini ? 'bi-arrow-right-square' : 'bi-arrow-left-square'} fs-5`} />
-                            </a>
+        <div className="flex h-screen w-full bg-[#f8f9fa] text-zinc-600 font-sans overflow-hidden">
+            {/* 🏰 Premium Sidebar */}
+            <aside className="w-72 h-full bg-[#161c2d] border-r border-white/5 flex flex-col z-20 shrink-0 overflow-y-auto custom-scrollbar">
+                <div className="p-6">
+                    <div className="flex items-center gap-3 mb-8 px-2">
+                        <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                            <ShieldCheck className="text-white" size={24} />
                         </div>
-
-                        {/* Breadcrumb */}
-                        <div className="d-none d-md-flex align-items-center gap-2 ms-2">
-                            <span className="fw-bold text-muted" style={{ fontSize: 12 }}>
-                                {activeCat}
-                            </span>
-                            <i className="bi bi-chevron-right text-muted" style={{ fontSize: 10 }} />
-                            <span className="fw-bold" style={{ fontSize: 12 }}>
-                                {activeLabel}
-                            </span>
+                        <div>
+                            <h1 className="text-white font-black text-lg tracking-tighter uppercase leading-none">Tycoon</h1>
+                            <p className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest mt-1">Admin Panel</p>
                         </div>
                     </div>
 
-                    {/* RIGHT */}
-                    <div className="header-right ms-auto">
-                        <div className="d-flex align-items-center gap-1">
-
-                            {/* Search */}
-                            <div className="nxl-h-item d-none d-md-flex align-items-center">
-                                <div className="position-relative">
-                                    <i className="bi bi-search position-absolute" style={{ left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 13, opacity: 0.5 }} />
-                                    <input
-                                        className="form-control form-control-sm ps-5"
-                                        placeholder="Ara..."
-                                        style={{ width: 200, borderRadius: 20 }}
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Fullscreen */}
-                            <div className="nxl-h-item">
-                                <button className="nxl-head-link btn btn-link p-2"
-                                    onClick={() => {
-                                        if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
-                                        else document.exitFullscreen?.();
-                                    }}>
-                                    <i className="bi bi-fullscreen fs-5" />
-                                </button>
-                            </div>
-
-                            {/* Dark mode */}
-                            <div className="nxl-h-item">
-                                <button className="nxl-head-link btn btn-link p-2" onClick={toggleDarkMode}>
-                                    <i className={`bi ${isDark ? 'bi-sun-fill text-warning' : 'bi-moon-fill'} fs-5`} />
-                                </button>
-                            </div>
-
-                            {/* Maintenance mode warning */}
-                            {state.globalSettings.isMaintenance && (
-                                <div className="nxl-h-item">
+                    <div className="space-y-8">
+                        {MENU_CATEGORIES.map((cat) => {
+                            const isOpen = openCategories.includes(cat.id);
+                            const isSingleItem = cat.items.length === 1;
+                            const isCatActive = cat.items.some(i => i.id === activeTab);
+                            return (
+                                <div key={cat.id} className="space-y-1">
                                     <button
-                                        onClick={() => handleUpdateSettings({ isMaintenance: false })}
-                                        className="btn btn-sm btn-danger fw-bold d-flex align-items-center gap-1">
-                                        <i className="bi bi-tools" />
-                                        <span className="d-none d-md-inline" style={{ fontSize: 11 }}>Bakım Modu</span>
-                                    </button>
-                                </div>
-                            )}
-
-                            {/* Notifications */}
-                            <div className="dropdown nxl-h-item">
-                                <button className="nxl-head-link btn btn-link p-2 position-relative"
-                                    data-bs-toggle="dropdown" data-bs-auto-close="outside">
-                                    <i className="bi bi-bell-fill fs-5" />
-                                    {tickets.filter(t => t.status === 'open').length > 0 && (
-                                        <span className="badge bg-danger nxl-h-badge" style={{ fontSize: 9, minWidth: 16, height: 16, padding: '0 4px' }}>
-                                            {tickets.filter(t => t.status === 'open').length}
-                                        </span>
-                                    )}
-                                </button>
-                                <div className="dropdown-menu dropdown-menu-end nxl-h-dropdown" style={{ width: 340, maxHeight: 420, overflowY: 'auto' }}>
-                                    <div className="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
-                                        <h6 className="fw-bold mb-0">Bildirimler</h6>
-                                        <button className="btn btn-sm btn-soft-success py-0" style={{ fontSize: 11 }}
-                                            onClick={() => setActiveTab('support_all')}>
-                                            Tümünü Gör
-                                        </button>
-                                    </div>
-                                    {tickets.filter(t => t.status === 'open').slice(0, 6).map(t => (
-                                        <a key={t.id} href="#" className="dropdown-item d-flex align-items-start gap-3 py-2"
-                                            onClick={e => { e.preventDefault(); setActiveTab('support_all'); }}>
-                                            <div className="flex-shrink-0 d-flex align-items-center justify-content-center rounded-circle bg-soft-warning text-warning fw-black"
-                                                style={{ width: 36, height: 36, fontSize: 13 }}>
-                                                {(t.username || 'U').charAt(0).toUpperCase()}
+                                        onClick={() => isSingleItem ? setActiveTab(cat.items[0].id as AdminTab) : toggleCategory(cat.id)}
+                                        className={cn(
+                                            "w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all group mb-1",
+                                            cat.color ? `${cat.color} text-white shadow-lg shadow-black/20` : "hover:bg-white/5 text-zinc-500",
+                                            isSingleItem && isCatActive ? "ring-2 ring-white/30" : ""
+                                        )}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <span className={cn("transition-all", isSingleItem && isCatActive ? "scale-110 text-white" : "")}>
+                                                {cat.items[0]?.icon}
+                                            </span>
+                                            <p className="text-[10px] font-black uppercase tracking-[0.15em]">
+                                                {cat.title}
+                                            </p>
+                                        </div>
+                                        {!isSingleItem && (
+                                            <div className="text-white/40 group-hover:text-white transition-colors">
+                                                {isOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                                             </div>
-                                            <div className="flex-grow-1 overflow-hidden">
-                                                <div className="fw-bold text-dark" style={{ fontSize: 12 }}>{t.username || 'Kullanıcı'}</div>
-                                                <div className="text-muted text-truncate" style={{ fontSize: 11 }}>
-                                                    {(t.message || '').slice(0, 55)}…
+                                        )}
+                                    </button>
+
+                                    {!isSingleItem && isOpen && (
+                                        <div className="space-y-0.5 animate-in slide-in-from-top-1 duration-200">
+                                            {cat.items.map(item => (
+                                                <div key={String(item.id)}>
+                                                    <SidebarLink
+                                                        active={activeTab === item.id}
+                                                        onClick={() => setActiveTab(item.id as AdminTab)}
+                                                        icon={item.icon}
+                                                        label={item.label}
+                                                        badge={(item as any).badge}
+                                                        sub
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                <div className="mt-auto p-6 border-t border-white/5 bg-black/10">
+                    <button onClick={onClose} className="w-full h-12 rounded-xl border border-white/5 bg-white/5 text-[9px] font-black uppercase tracking-widest text-zinc-400 hover:text-white hover:bg-white/10 transition-all flex items-center justify-center gap-3 active:scale-95">
+                        <LogOut size={16} /> Paneli Kapat
+                    </button>
+                </div>
+            </aside>
+
+            {/* 🖥️ Ana Panel */}
+            <main className="flex-1 h-full overflow-y-auto custom-scrollbar bg-[#f0f2f5] relative">
+                <header className="sticky top-0 z-20 w-full px-6 py-3 bg-[#1a2035] flex items-center justify-between gap-4">
+                    {/* Sol: arama */}
+                    <div className="relative w-56">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" size={13}/>
+                        <input placeholder="Search here..." className="w-full h-9 pl-9 pr-4 bg-white/5 border border-white/10 rounded-lg text-[11px] text-white/80 placeholder:text-white/30 focus:outline-none focus:border-white/25 focus:bg-white/10 transition-all"/>
+                    </div>
+
+                    {/* Sağ: aksiyonlar */}
+                    <div className="flex items-center gap-1 ml-auto">
+                        {/* Ayarlar butonu */}
+                        <button
+                            onClick={() => setActiveTab('settings')}
+                            title="Sistem Ayarları"
+                            className={cn(
+                                "w-9 h-9 rounded-lg flex items-center justify-center transition-all",
+                                activeTab === 'settings' ? "bg-white/20 text-white" : "text-white/50 hover:bg-white/10 hover:text-white"
+                            )}>
+                            <SettingsIcon size={16}/>
+                        </button>
+
+                        {/* Bildirimler */}
+                        <button className="relative w-9 h-9 rounded-lg flex items-center justify-center text-white/50 hover:bg-white/10 hover:text-white transition-all">
+                            <Bell size={16}/>
+                            {tickets.filter(t=>t.status==='open').length > 0 && (
+                                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500"/>
+                            )}
+                        </button>
+
+                        {/* Bakım modu göstergesi */}
+                        {state.globalSettings.isMaintenance && (
+                            <button onClick={() => handleUpdateSettings({ isMaintenance: false })}
+                                className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-red-500/20 border border-red-500/30 text-red-400 text-[9px] font-black uppercase hover:bg-red-500 hover:text-white transition-all">
+                                <Lock size={11}/> Bakım Modu
+                            </button>
+                        )}
+
+                        <div className="w-px h-5 bg-white/10 mx-1"/>
+
+                        {/* Admin profil butonu */}
+                        <div className="relative">
+                            <button
+                                onClick={() => setShowAdminMenu(v => !v)}
+                                className={cn(
+                                    "flex items-center gap-2 h-9 px-3 rounded-lg transition-all",
+                                    showAdminMenu ? "bg-white/20" : "hover:bg-white/10"
+                                )}>
+                                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center font-black text-white text-xs shadow-lg">
+                                    {(state.username?.charAt(0) || 'A').toUpperCase()}
+                                </div>
+                                <div className="hidden lg:block text-left">
+                                    <p className="text-white text-[10px] font-black leading-none">{state.username || 'Admin'}</p>
+                                    <p className="text-white/40 text-[8px] font-bold leading-none mt-0.5">Süper Admin</p>
+                                </div>
+                                <ChevronDown size={12} className={cn("text-white/40 transition-transform", showAdminMenu && "rotate-180")}/>
+                            </button>
+
+                            {showAdminMenu && (
+                                <>
+                                    <div className="fixed inset-0 z-30" onClick={() => setShowAdminMenu(false)}/>
+                                    <div className="absolute right-0 top-full mt-2 w-52 bg-white rounded-2xl shadow-2xl border border-zinc-100 overflow-hidden z-40 animate-in fade-in slide-in-from-top-2 duration-150">
+                                        <div className="p-4 bg-gradient-to-br from-indigo-50 to-violet-50 border-b border-zinc-100">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center font-black text-white text-sm">
+                                                    {(state.username?.charAt(0) || 'A').toUpperCase()}
+                                                </div>
+                                                <div>
+                                                    <p className="font-black text-zinc-800 text-sm">{state.username || 'Admin'}</p>
+                                                    <p className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest">Süper Admin</p>
                                                 </div>
                                             </div>
-                                            <span className="text-muted flex-shrink-0" style={{ fontSize: 10 }}>
-                                                {t.created_at ? new Date(t.created_at).toLocaleDateString('tr-TR') : ''}
-                                            </span>
-                                        </a>
-                                    ))}
-                                    {tickets.filter(t => t.status === 'open').length === 0 && (
-                                        <div className="text-center py-4 text-muted" style={{ fontSize: 12 }}>
-                                            <i className="bi bi-check-circle fs-4 d-block mb-2 text-success" />
-                                            Açık destek talebi yok
                                         </div>
-                                    )}
+                                        <div className="p-2">
+                                            <button
+                                                onClick={() => { setShowAdminMenu(false); setActiveTab('players_all'); }}
+                                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-zinc-50 transition-colors text-left">
+                                                <div className="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600"><User size={13}/></div>
+                                                <span className="text-xs font-bold text-zinc-700">Profil</span>
+                                            </button>
+                                            <button
+                                                onClick={() => { setShowAdminMenu(false); setShowPasswordModal(true); }}
+                                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-zinc-50 transition-colors text-left">
+                                                <div className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600"><Key size={13}/></div>
+                                                <span className="text-xs font-bold text-zinc-700">Şifre Değiştir</span>
+                                            </button>
+                                            <div className="my-1 border-t border-zinc-100"/>
+                                            <button
+                                                onClick={() => { setShowAdminMenu(false); onClose(); }}
+                                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-red-50 transition-colors text-left">
+                                                <div className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center text-red-500"><LogOut size={13}/></div>
+                                                <span className="text-xs font-bold text-red-500">Çıkış Yap</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </header>
+
+                {/* Şifre Değiştir Modal */}
+                {showPasswordModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                        <div className="w-full max-w-sm bg-white rounded-3xl shadow-2xl p-8 space-y-5 animate-in fade-in zoom-in-95 duration-200">
+                            <div className="flex items-center justify-between">
+                                <h3 className="font-black text-zinc-800 text-sm uppercase tracking-widest flex items-center gap-2"><Key size={14} className="text-amber-500"/> Şifre Değiştir</h3>
+                                <button onClick={() => setShowPasswordModal(false)} className="text-zinc-400 hover:text-zinc-700 transition-colors"><X size={16}/></button>
+                            </div>
+                            <div className="space-y-3">
+                                <div>
+                                    <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">Yeni Şifre</p>
+                                    <input type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)}
+                                        placeholder="••••••••" className="w-full h-11 px-4 bg-zinc-50 border border-zinc-200 rounded-xl text-sm font-bold text-zinc-800 focus:outline-none focus:border-amber-300"/>
+                                </div>
+                                <div>
+                                    <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">Şifre Tekrar</p>
+                                    <input type="password" value={newPasswordConfirm} onChange={e=>setNewPasswordConfirm(e.target.value)}
+                                        placeholder="••••••••" className="w-full h-11 px-4 bg-zinc-50 border border-zinc-200 rounded-xl text-sm font-bold text-zinc-800 focus:outline-none focus:border-amber-300"/>
                                 </div>
                             </div>
-
-                            {/* Live feed */}
-                            <div className="nxl-h-item d-none d-xl-flex align-items-center">
-                                <div className="d-flex align-items-center gap-2 px-3 py-1 rounded-pill"
-                                    style={{ background: 'rgba(52,84,209,0.08)', fontSize: 11 }}>
-                                    <span className="rounded-circle bg-success d-inline-block" style={{ width: 7, height: 7 }} />
-                                    <span className="fw-bold text-primary">
-                                        {players.filter(p => !p.isBanned).length} aktif kullanıcı
-                                    </span>
-                                </div>
-                            </div>
-
-                            {/* Profile dropdown */}
-                            <div className="dropdown nxl-h-item">
-                                <button className="btn btn-link p-0 d-flex align-items-center gap-2"
-                                    data-bs-toggle="dropdown" data-bs-auto-close="outside">
-                                    <div className="d-flex align-items-center justify-content-center rounded-circle fw-black text-white"
-                                        style={{ width: 36, height: 36, fontSize: 14, background: 'linear-gradient(135deg, #3454d1, #6f42c1)', boxShadow: '0 2px 8px rgba(52,84,209,0.4)' }}>
-                                        {(state.username?.charAt(0) || 'A').toUpperCase()}
-                                    </div>
-                                    <div className="d-none d-md-block text-start">
-                                        <div className="fw-bold lh-1" style={{ fontSize: 13 }}>{state.username || 'Admin'}</div>
-                                        <div className="text-muted lh-1 mt-1" style={{ fontSize: 10 }}>Süper Admin</div>
-                                    </div>
-                                    <i className="bi bi-chevron-down text-muted d-none d-md-block" style={{ fontSize: 11 }} />
+                            {newPassword && newPasswordConfirm && newPassword !== newPasswordConfirm && (
+                                <p className="text-[9px] text-red-500 font-bold">Şifreler eşleşmiyor!</p>
+                            )}
+                            <div className="flex gap-3 pt-1">
+                                <button onClick={() => setShowPasswordModal(false)} className="flex-1 h-11 rounded-xl bg-zinc-100 text-zinc-600 font-black text-[9px] uppercase hover:bg-zinc-200 transition-all">İptal</button>
+                                <button
+                                    disabled={!newPassword || newPassword !== newPasswordConfirm}
+                                    onClick={async () => {
+                                        try {
+                                            if (state.user?.uid) {
+                                                await supabase.from(TABLES.PROFILES).update({ password_hash: newPassword }).eq('id', state.user.uid);
+                                            }
+                                            notify({ type: 'success', title: 'Şifre Güncellendi', message: 'Yeni şifreniz kaydedildi.' });
+                                            setShowPasswordModal(false); setNewPassword(''); setNewPasswordConfirm('');
+                                        } catch { notify({ type: 'warning', title: 'Hata', message: 'Şifre güncellenemedi.' }); }
+                                    }}
+                                    className="flex-1 h-11 rounded-xl bg-amber-500 text-white font-black text-[9px] uppercase hover:bg-amber-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+                                    Kaydet
                                 </button>
-                                <div className="dropdown-menu dropdown-menu-end nxl-h-dropdown" style={{ width: 260 }}>
-                                    <div className="dropdown-header p-3 border-bottom">
-                                        <div className="d-flex align-items-center gap-3">
-                                            <div className="d-flex align-items-center justify-content-center rounded-circle fw-black text-white flex-shrink-0"
-                                                style={{ width: 48, height: 48, fontSize: 18, background: 'linear-gradient(135deg, #3454d1, #6f42c1)' }}>
-                                                {(state.username?.charAt(0) || 'A').toUpperCase()}
-                                            </div>
-                                            <div>
-                                                <div className="fw-bold text-dark" style={{ fontSize: 14 }}>{state.username || 'Admin'}</div>
-                                                <span className="badge bg-soft-success text-success mt-1" style={{ fontSize: 10 }}>
-                                                    Süper Admin
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="py-2">
-                                        <a href="#" className="dropdown-item d-flex align-items-center gap-2"
-                                            onClick={e => { e.preventDefault(); setActiveTab('players_all'); }}>
-                                            <i className="bi bi-people-fill text-primary" />
-                                            <span>Tüm Kullanıcılar</span>
-                                            <span className="badge bg-soft-primary text-primary ms-auto">{players.length}</span>
-                                        </a>
-                                        <a href="#" className="dropdown-item d-flex align-items-center gap-2"
-                                            onClick={e => { e.preventDefault(); setActiveTab('withdrawals_all'); }}>
-                                            <i className="bi bi-cash-coin text-warning" />
-                                            <span>Para Çekme</span>
-                                            <span className="badge bg-soft-warning text-warning ms-auto">{withdrawals.filter(w => w.status === 'pending').length}</span>
-                                        </a>
-                                        <a href="#" className="dropdown-item d-flex align-items-center gap-2"
-                                            onClick={e => { e.preventDefault(); setActiveTab('support_all'); }}>
-                                            <i className="bi bi-headset text-success" />
-                                            <span>Destek Talepleri</span>
-                                            <span className="badge bg-soft-success text-success ms-auto">{tickets.filter(t => t.status === 'open').length}</span>
-                                        </a>
-                                        <div className="dropdown-divider" />
-                                        <a href="#" className="dropdown-item d-flex align-items-center gap-2"
-                                            onClick={e => { e.preventDefault(); setActiveTab('settings'); }}>
-                                            <i className="bi bi-gear-fill text-muted" />
-                                            <span>Sistem Ayarları</span>
-                                        </a>
-                                        <a href="#" className="dropdown-item d-flex align-items-center gap-2"
-                                            onClick={e => { e.preventDefault(); setShowPasswordModal(true); }}>
-                                            <i className="bi bi-key-fill text-muted" />
-                                            <span>Şifre Değiştir</span>
-                                        </a>
-                                        <div className="dropdown-divider" />
-                                        <a href="#" className="dropdown-item d-flex align-items-center gap-2 text-danger"
-                                            onClick={e => { e.preventDefault(); onClose(); }}>
-                                            <i className="bi bi-box-arrow-right" />
-                                            <span>Çıkış Yap</span>
-                                        </a>
-                                    </div>
-                                </div>
-                            </div>
-
-                        </div>
-                    </div>
-                </div>
-            </header>
-            {/* ══════════════ END HEADER ══════════════ */}
-
-            {/* ══════════════════════════════════════════════════════
-                DURALUX SIDEBAR
-            ══════════════════════════════════════════════════════ */}
-            <nav className={`nxl-navigation ${mobileSidebarOpen ? 'mob-navigation-active' : ''}`}
-                style={{ zIndex: 1026 }}>
-                <div className="navbar-wrapper">
-
-                    {/* Logo */}
-                    <div className="m-header">
-                        <a href="#" className="b-brand d-flex align-items-center gap-2"
-                            onClick={e => { e.preventDefault(); setActiveTab('overview'); }}>
-                            <div className="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
-                                style={{ width: 34, height: 34, background: 'linear-gradient(135deg, #3454d1, #6f42c1)' }}>
-                                <ShieldCheck size={18} className="text-white" />
-                            </div>
-                            <span className="fw-black text-uppercase logo-lg" style={{ fontSize: 14, letterSpacing: 1 }}>
-                                Tycoon Admin
-                            </span>
-                            <span className="fw-black text-uppercase logo-sm" style={{ fontSize: 11 }}>TA</span>
-                        </a>
-                    </div>
-
-                    {/* Nav items */}
-                    <div className="navbar-content">
-                        <ul className="nxl-navbar">
-
-                            {MENU_CATEGORIES.map((cat) => {
-                                const isSingle   = cat.items.length === 1;
-                                const isCatActive = cat.items.some(i => i.id === activeTab);
-                                const iconClass  = CAT_ICONS[cat.id] || 'bi-circle';
-                                const isOpen     = openCategories.includes(cat.id);
-
-                                if (isSingle) {
-                                    return (
-                                        <li key={cat.id} className={`nxl-item${isCatActive ? ' active' : ''}`}>
-                                            <a href="#" className="nxl-link"
-                                                onClick={e => { e.preventDefault(); setActiveTab(cat.items[0].id as AdminTab); }}>
-                                                <span className="nxl-micon"><i className={`bi ${iconClass}`} /></span>
-                                                <span className="nxl-mtext">{cat.title}</span>
-                                            </a>
-                                        </li>
-                                    );
-                                }
-
-                                return (
-                                    <li key={cat.id}
-                                        className={`nxl-item nxl-hasmenu${isCatActive ? ' active nxl-trigger' : ''}${isOpen ? ' nxl-trigger' : ''}`}>
-                                        <a href="#" className="nxl-link"
-                                            onClick={e => { e.preventDefault(); toggleCategory(cat.id); }}>
-                                            <span className="nxl-micon"><i className={`bi ${iconClass}`} /></span>
-                                            <span className="nxl-mtext">{cat.title}</span>
-                                            {/* badge: sum of item badges */}
-                                            {(() => {
-                                                const total = cat.items.reduce((s, i) => s + ((i as any).badge || 0), 0);
-                                                return total > 0
-                                                    ? <span className="badge bg-danger ms-auto me-2" style={{ fontSize: 9 }}>{total}</span>
-                                                    : null;
-                                            })()}
-                                            <span className="nxl-arrow"><ChevronRight size={14} /></span>
-                                        </a>
-                                        <ul className={`nxl-submenu${isOpen || isCatActive ? ' nxl-menu-visible' : ' nxl-menu-hidden'}`}>
-                                            {cat.items.map(item => (
-                                                <li key={String(item.id)} className={`nxl-item${activeTab === item.id ? ' active' : ''}`}>
-                                                    <a href="#" className="nxl-link"
-                                                        onClick={e => { e.preventDefault(); setActiveTab(item.id as AdminTab); }}>
-                                                        <span className="nxl-mtext">{item.label}</span>
-                                                        {(item as any).badge ? (
-                                                            <span className="badge bg-soft-danger text-danger ms-auto" style={{ fontSize: 9 }}>
-                                                                {(item as any).badge}
-                                                            </span>
-                                                        ) : null}
-                                                    </a>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    </li>
-                                );
-                            })}
-
-                            {/* Divider + close */}
-                            <li className="nxl-item nxl-caption mt-2">
-                                <label>Yönetim</label>
-                            </li>
-                            <li className="nxl-item">
-                                <a href="#" className="nxl-link text-danger"
-                                    onClick={e => { e.preventDefault(); onClose(); }}>
-                                    <span className="nxl-micon"><LogOut size={16} /></span>
-                                    <span className="nxl-mtext">Paneli Kapat</span>
-                                </a>
-                            </li>
-                        </ul>
-                    </div>
-                </div>
-
-                {/* Mobile overlay */}
-                <div onClick={() => setMobileSidebarOpen(false)}
-                    className={mobileSidebarOpen ? 'nxl-menu-overlay' : ''} />
-            </nav>
-            {/* ══════════════ END SIDEBAR ══════════════ */}
-
-            {/* ══════════════════════════════════════════════════════
-                MAIN CONTENT
-            ══════════════════════════════════════════════════════ */}
-            <main className="nxl-container">
-                <div className="nxl-content">
-
-                    {/* Page header */}
-                    <div className="page-header">
-                        <div className="page-header-left d-flex align-items-center gap-3">
-                            <div className="page-header-title">
-                                <h5 className="m-b-10 fw-black text-uppercase">{activeLabel}</h5>
-                                <ul className="breadcrumb">
-                                    <li className="breadcrumb-item">
-                                        <a href="#" onClick={e => { e.preventDefault(); setActiveTab('overview'); }}>
-                                            <Home size={13} />
-                                        </a>
-                                    </li>
-                                    <li className="breadcrumb-item">{activeCat}</li>
-                                    <li className="breadcrumb-item active">{activeLabel}</li>
-                                </ul>
-                            </div>
-                        </div>
-
-                        {/* Page header right — quick stats */}
-                        <div className="page-header-right ms-auto d-none d-xl-flex align-items-center gap-3">
-                            <div className="d-flex align-items-center gap-2 px-3 py-2 rounded-3 border" style={{ fontSize: 12 }}>
-                                <Users size={14} className="text-primary" />
-                                <span className="fw-bold">{players.length}</span>
-                                <span className="text-muted">kullanıcı</span>
-                            </div>
-                            <div className="d-flex align-items-center gap-2 px-3 py-2 rounded-3 border" style={{ fontSize: 12 }}>
-                                <Upload size={14} className="text-warning" />
-                                <span className="fw-bold">{withdrawals.filter(w => w.status === 'pending').length}</span>
-                                <span className="text-muted">bekleyen çekim</span>
-                            </div>
-                            <div className="d-flex align-items-center gap-2 px-3 py-2 rounded-3 border" style={{ fontSize: 12 }}>
-                                <LifeBuoy size={14} className="text-success" />
-                                <span className="fw-bold">{tickets.filter(t => t.status === 'open').length}</span>
-                                <span className="text-muted">açık ticket</span>
                             </div>
                         </div>
                     </div>
+                )}
 
-                    {/* ── Password Modal ── */}
-                    {showPasswordModal && (
-                        <div className="modal d-block" tabIndex={-1}
-                            style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)', zIndex: 9999 }}>
-                            <div className="modal-dialog modal-dialog-centered">
-                                <div className="modal-content border-0 shadow-lg">
-                                    <div className="modal-header">
-                                        <h5 className="modal-title fw-black d-flex align-items-center gap-2">
-                                            <Key size={16} className="text-warning" /> Şifre Değiştir
-                                        </h5>
-                                        <button type="button" className="btn-close" onClick={() => setShowPasswordModal(false)} />
-                                    </div>
-                                    <div className="modal-body">
-                                        <div className="mb-3">
-                                            <label className="form-label fw-bold" style={{ fontSize: 12 }}>Yeni Şifre</label>
-                                            <input type="password" className="form-control" value={newPassword}
-                                                onChange={e => setNewPassword(e.target.value)} placeholder="••••••••" />
-                                        </div>
-                                        <div className="mb-3">
-                                            <label className="form-label fw-bold" style={{ fontSize: 12 }}>Şifre Tekrar</label>
-                                            <input type="password" className="form-control" value={newPasswordConfirm}
-                                                onChange={e => setNewPasswordConfirm(e.target.value)} placeholder="••••••••" />
-                                        </div>
-                                        {newPassword && newPasswordConfirm && newPassword !== newPasswordConfirm && (
-                                            <div className="alert alert-danger py-2" style={{ fontSize: 12 }}>Şifreler eşleşmiyor!</div>
-                                        )}
-                                    </div>
-                                    <div className="modal-footer">
-                                        <button className="btn btn-secondary" onClick={() => setShowPasswordModal(false)}>İptal</button>
-                                        <button className="btn btn-warning fw-bold"
-                                            disabled={!newPassword || newPassword !== newPasswordConfirm}
-                                            onClick={async () => {
-                                                try {
-                                                    if (state.user?.uid) {
-                                                        await supabase.from(TABLES.PROFILES).update({ password_hash: newPassword }).eq('id', state.user.uid);
-                                                    }
-                                                    notify({ type: 'success', title: 'Şifre Güncellendi', message: 'Yeni şifreniz kaydedildi.' });
-                                                    setShowPasswordModal(false); setNewPassword(''); setNewPasswordConfirm('');
-                                                } catch { notify({ type: 'warning', title: 'Hata', message: 'Şifre güncellenemedi.' }); }
-                                            }}>
-                                            <i className="bi bi-check-lg me-1" /> Kaydet
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
+                <div className="p-8 space-y-8 max-w-[1600px] mx-auto pb-32">
 
-                    {/* ── TAB CONTENT WRAPPER ── */}
-                    <div className="main-content">
                     {activeTab === 'overview' && (
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
@@ -1681,29 +1491,26 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                             </select>
                                         </div>
                                     </div>
-                                    <div className="h-52 w-full">
-                                        {kpiData && kpiData.length > 0 ? (
-                                            <ResponsiveContainer width="100%" height="100%">
-                                                <AreaChart data={kpiData}>
-                                                    <defs>
-                                                        <linearGradient id="gradReturn" x1="0" y1="0" x2="0" y2="1">
-                                                            <stop offset="5%" stopColor="#6366f1" stopOpacity={0.15}/>
-                                                            <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
-                                                        </linearGradient>
-                                                    </defs>
-                                                    <CartesianGrid strokeDasharray="3 3" stroke="#f4f4f5" vertical={false}/>
-                                                    <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#a1a1aa' }} axisLine={false} tickLine={false}/>
-                                                    <YAxis tick={{ fontSize: 9, fill: '#a1a1aa' }} axisLine={false} tickLine={false}/>
-                                                    <Tooltip contentStyle={{ background:'#fff', border:'1px solid #e4e4e7', borderRadius:'12px', fontSize:'10px', fontWeight:'700' }}/>
-                                                    <Area type="monotone" dataKey="revenue" stroke="#6366f1" strokeWidth={2.5} fill="url(#gradReturn)" name="Gelir"/>
-                                                </AreaChart>
-                                            </ResponsiveContainer>
-                                        ) : (
-                                            <div className="h-full flex items-center justify-center">
-                                                <p className="text-zinc-400 text-[9px] font-bold uppercase tracking-widest">Veri bekleniyor...</p>
-                                            </div>
-                                        )}
+                                    <div className="h-52">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <AreaChart data={kpiData}>
+                                                <defs>
+                                                    <linearGradient id="gradReturn" x1="0" y1="0" x2="0" y2="1">
+                                                        <stop offset="5%" stopColor="#6366f1" stopOpacity={0.15}/>
+                                                        <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                                                    </linearGradient>
+                                                </defs>
+                                                <CartesianGrid strokeDasharray="3 3" stroke="#f4f4f5" vertical={false}/>
+                                                <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#a1a1aa' }} axisLine={false} tickLine={false}/>
+                                                <YAxis tick={{ fontSize: 9, fill: '#a1a1aa' }} axisLine={false} tickLine={false}/>
+                                                <Tooltip contentStyle={{ background:'#fff', border:'1px solid #e4e4e7', borderRadius:'12px', fontSize:'10px', fontWeight:'700' }}/>
+                                                <Area type="monotone" dataKey="revenue" stroke="#6366f1" strokeWidth={2.5} fill="url(#gradReturn)" name="Gelir"/>
+                                            </AreaChart>
+                                        </ResponsiveContainer>
                                     </div>
+                                    {kpiData.every(d=>d.revenue===0) && (
+                                        <p className="text-center text-zinc-400 text-[9px] font-bold uppercase -mt-20 relative z-10">No data available</p>
+                                    )}
                                 </div>
 
                                 {/* Transactions Chart */}
@@ -1719,29 +1526,26 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                             </select>
                                         </div>
                                     </div>
-                                    <div className="h-52 w-full">
-                                        {kpiData && kpiData.length > 0 ? (
-                                            <ResponsiveContainer width="100%" height="100%">
-                                                <AreaChart data={kpiData}>
-                                                    <defs>
-                                                        <linearGradient id="gradTx" x1="0" y1="0" x2="0" y2="1">
-                                                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.15}/>
-                                                            <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                                                        </linearGradient>
-                                                    </defs>
-                                                    <CartesianGrid strokeDasharray="3 3" stroke="#f4f4f5" vertical={false}/>
-                                                    <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#a1a1aa' }} axisLine={false} tickLine={false}/>
-                                                    <YAxis tick={{ fontSize: 9, fill: '#a1a1aa' }} axisLine={false} tickLine={false}/>
-                                                    <Tooltip contentStyle={{ background:'#fff', border:'1px solid #e4e4e7', borderRadius:'12px', fontSize:'10px', fontWeight:'700' }}/>
-                                                    <Area type="monotone" dataKey="newUsers" stroke="#10b981" strokeWidth={2.5} fill="url(#gradTx)" name="İşlem"/>
-                                                </AreaChart>
-                                            </ResponsiveContainer>
-                                        ) : (
-                                            <div className="h-full flex items-center justify-center">
-                                                <p className="text-zinc-400 text-[9px] font-bold uppercase tracking-widest">Veri bekleniyor...</p>
-                                            </div>
-                                        )}
+                                    <div className="h-52">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <AreaChart data={kpiData}>
+                                                <defs>
+                                                    <linearGradient id="gradTx" x1="0" y1="0" x2="0" y2="1">
+                                                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.15}/>
+                                                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                                                    </linearGradient>
+                                                </defs>
+                                                <CartesianGrid strokeDasharray="3 3" stroke="#f4f4f5" vertical={false}/>
+                                                <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#a1a1aa' }} axisLine={false} tickLine={false}/>
+                                                <YAxis tick={{ fontSize: 9, fill: '#a1a1aa' }} axisLine={false} tickLine={false}/>
+                                                <Tooltip contentStyle={{ background:'#fff', border:'1px solid #e4e4e7', borderRadius:'12px', fontSize:'10px', fontWeight:'700' }}/>
+                                                <Area type="monotone" dataKey="newUsers" stroke="#10b981" strokeWidth={2.5} fill="url(#gradTx)" name="İşlem"/>
+                                            </AreaChart>
+                                        </ResponsiveContainer>
                                     </div>
+                                    {kpiData.every(d=>d.newUsers===0) && (
+                                        <p className="text-center text-zinc-400 text-[9px] font-bold uppercase -mt-20 relative z-10">No data available</p>
+                                    )}
                                 </div>
                             </div>
 
@@ -1781,17 +1585,15 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                 ].map((chart, ci) => (
                                     <div key={ci} className="bg-white border border-zinc-200 rounded-2xl p-5 shadow-sm">
                                         <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-4">{chart.title}</p>
-                                        <div className="flex justify-center h-44 w-full">
-                                            <ResponsiveContainer width="100%" height="100%">
-                                                <PieChart>
-                                                    <Pie data={chart.data} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2} dataKey="value">
-                                                        {chart.data.map((entry, index) => (
-                                                            <Cell key={index} fill={entry.color}/>
-                                                        ))}
-                                                    </Pie>
-                                                    <Tooltip contentStyle={{ background:'#fff', border:'1px solid #e4e4e7', borderRadius:'12px', fontSize:'10px', fontWeight:'700' }}/>
-                                                </PieChart>
-                                            </ResponsiveContainer>
+                                        <div className="flex justify-center">
+                                            <PieChart width={180} height={180}>
+                                                <Pie data={chart.data} cx={85} cy={85} innerRadius={50} outerRadius={85} paddingAngle={2} dataKey="value">
+                                                    {chart.data.map((entry, index) => (
+                                                        <Cell key={index} fill={entry.color}/>
+                                                    ))}
+                                                </Pie>
+                                                <Tooltip contentStyle={{ background:'#fff', border:'1px solid #e4e4e7', borderRadius:'12px', fontSize:'10px', fontWeight:'700' }}/>
+                                            </PieChart>
                                         </div>
                                         <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-3">
                                             {chart.data.map((d, di) => (
@@ -2743,6 +2545,142 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                 </div>
                             </div>
 
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                {/* Madencilik & Çarpanlar */}
+                                <div className="p-7 bg-white border border-zinc-200 rounded-[2rem] shadow-sm space-y-6">
+                                    <h3 className="text-zinc-800 font-black text-xs uppercase tracking-widest flex items-center gap-2">
+                                        <Zap size={14} className="text-amber-500"/> Madencilik & Çarpanlar
+                                    </h3>
+
+                                    {/* Event Multiplier */}
+                                    <div>
+                                        <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-3">Etkinlik Çarpanı (Şu An: <span className="text-indigo-600">{hashrateSettings.eventMultiplier || 1.0}x</span>)</p>
+                                        <div className="grid grid-cols-4 gap-2">
+                                            {[1.0, 1.5, 2.0, 3.0].map(m => (
+                                                <button key={m} onClick={() => { setHashrateSettings((p:any)=>({...p, eventMultiplier: m})); setHashrateChanged(true); }}
+                                                    className={cn("h-12 rounded-xl font-black text-xs transition-all border-2",
+                                                        hashrateSettings.eventMultiplier === m
+                                                            ? "bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-500/20"
+                                                            : "bg-white border-zinc-100 text-zinc-400 hover:text-zinc-600 hover:border-zinc-200"
+                                                    )}>{m}x</button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Mining Difficulty */}
+                                    <div>
+                                        <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-3">Madencilik Zorluğu</p>
+                                        <div className="flex items-center gap-3">
+                                            <input type="range" min={1} max={100}
+                                                value={hashrateSettings.miningDifficulty || 50}
+                                                onChange={e => { setHashrateSettings((p:any)=>({...p, miningDifficulty: parseInt(e.target.value)})); setHashrateChanged(true); }}
+                                                className="flex-1 accent-indigo-600"/>
+                                            <span className="w-12 text-center font-black text-sm text-zinc-800 tabular-nums bg-zinc-50 border border-zinc-200 rounded-xl py-1">
+                                                {hashrateSettings.miningDifficulty || 50}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Market Discount */}
+                                    <div>
+                                        <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-3">Market İndirimi (%)</p>
+                                        <div className="flex items-center gap-3">
+                                            <input type="range" min={0} max={80}
+                                                value={hashrateSettings.marketDiscount || 0}
+                                                onChange={e => { setHashrateSettings((p:any)=>({...p, marketDiscount: parseInt(e.target.value)})); setHashrateChanged(true); }}
+                                                className="flex-1 accent-emerald-500"/>
+                                            <span className="w-12 text-center font-black text-sm text-zinc-800 tabular-nums bg-zinc-50 border border-zinc-200 rounded-xl py-1">
+                                                %{hashrateSettings.marketDiscount || 0}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Bot Settings */}
+                                    <div className="pt-4 border-t border-zinc-100 space-y-4">
+                                        <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Bot Ayarları</p>
+                                        <InputGroup
+                                            label={`Bot Sayısı (${hashrateSettings.botCount || 0} / 500)`}
+                                            value={(hashrateSettings.botCount || 0).toString()}
+                                            onChange={v => { setHashrateSettings((p:any)=>({...p, botCount: parseInt(v) || 0})); setHashrateChanged(true); }}
+                                            icon={<Cpu size={16}/>}
+                                            placeholder="0"
+                                            light
+                                        />
+                                        <InputGroup
+                                            label="Bot Satın Alma Limiti"
+                                            value={(hashrateSettings.botBuyLimit || 0).toString()}
+                                            onChange={v => { setHashrateSettings((p:any)=>({...p, botBuyLimit: parseInt(v) || 0})); setHashrateChanged(true); }}
+                                            icon={<ShoppingCart size={16}/>}
+                                            placeholder="10"
+                                            light
+                                        />
+                                        <div className="flex items-center justify-between py-2">
+                                            <div>
+                                                <p className="text-[10px] font-black text-zinc-800 uppercase tracking-widest">Otomatik Bot Listeleme</p>
+                                                <p className="text-[9px] text-zinc-400 font-bold mt-0.5">Botlar otomatik piyasaya çıksın</p>
+                                            </div>
+                                            <div className="w-10 h-6 rounded-full border flex items-center px-0.5 cursor-pointer transition-all duration-300"
+                                                style={{ background: hashrateSettings.autoBotListing ? '#6366f1' : '#e4e4e7', borderColor: hashrateSettings.autoBotListing ? '#6366f1' : '#d4d4d8' }}
+                                                onClick={() => { setHashrateSettings((p:any)=>({...p, autoBotListing: !p.autoBotListing})); setHashrateChanged(true); }}>
+                                                <div className={cn("w-4 h-4 rounded-full bg-white shadow-md transition-all duration-300", hashrateSettings.autoBotListing ? "translate-x-4" : "translate-x-0")}/>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center justify-between py-2">
+                                            <div>
+                                                <p className="text-[10px] font-black text-zinc-800 uppercase tracking-widest">Akıllı Bot Fiyatlandırma</p>
+                                                <p className="text-[9px] text-zinc-400 font-bold mt-0.5">Arz/talebe göre fiyat ayarla</p>
+                                            </div>
+                                            <div className="w-10 h-6 rounded-full border flex items-center px-0.5 cursor-pointer transition-all duration-300"
+                                                style={{ background: hashrateSettings.smartBotPricing ? '#6366f1' : '#e4e4e7', borderColor: hashrateSettings.smartBotPricing ? '#6366f1' : '#d4d4d8' }}
+                                                onClick={() => { setHashrateSettings((p:any)=>({...p, smartBotPricing: !p.smartBotPricing})); setHashrateChanged(true); }}>
+                                                <div className={cn("w-4 h-4 rounded-full bg-white shadow-md transition-all duration-300", hashrateSettings.smartBotPricing ? "translate-x-4" : "translate-x-0")}/>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Madencilik Gelir Dengesi */}
+                                <div className="p-7 bg-white border border-zinc-200 rounded-[2rem] shadow-sm space-y-6">
+                                    <h3 className="text-zinc-800 font-black text-xs uppercase tracking-widest flex items-center gap-2">
+                                        <Coins size={14} className="text-emerald-500"/> Madencilik Gelir Dengesi (USD/Saat)
+                                    </h3>
+                                    <p className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest leading-relaxed">
+                                        Her birim hashrate için saatlik USD kazancı. Örn: 1 GH/s = 0.05$
+                                    </p>
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                                        {[
+                                            { key: 'kh', label: '1 kH/s Geliri' },
+                                            { key: 'mh', label: '1 MH/s Geliri' },
+                                            { key: 'gh', label: '1 GH/s Geliri' },
+                                            { key: 'th', label: '1 TH/s Geliri' },
+                                            { key: 'ph', label: '1 PH/s Geliri' },
+                                            { key: 'zh', label: '1 ZH/s Geliri' },
+                                        ].map(tier => (
+                                            <div key={tier.key}>
+                                                <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1.5">{tier.label}</p>
+                                                <div className="relative group">
+                                                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 font-mono text-[10px]">$</div>
+                                                    <input 
+                                                        type="number" 
+                                                        step="0.001"
+                                                        value={hashrateSettings?.hashRateTiers?.[tier.key] ?? 0.05}
+                                                        onChange={e => {
+                                                            const val = parseFloat(e.target.value) || 0;
+                                                            setHashrateSettings((p:any) => ({ 
+                                                                ...p, 
+                                                                hashRateTiers: { ...(p.hashRateTiers || {}), [tier.key]: val } 
+                                                            }));
+                                                            setHashrateChanged(true);
+                                                        }}
+                                                        className="w-full h-10 pl-7 pr-4 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-mono font-bold text-zinc-800 focus:outline-none focus:border-indigo-300"
+                                                    />
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
                             {/* ── Mevcut: Manuel Müdahale + Kontrat ── */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                                 <div className="space-y-8">
@@ -2783,6 +2721,147 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                     </div>
                                 </div>
                             </div>
+
+                            {/* ══════════════════════════════════════════════
+                                OVERCLOCK SİSTEMİ
+                            ══════════════════════════════════════════════ */}
+                            <div className="bg-white border border-zinc-200 rounded-[2rem] overflow-hidden shadow-sm">
+                                <div className="flex items-center justify-between px-8 py-5 bg-gradient-to-r from-amber-50 via-white to-white border-b border-zinc-100">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-12 h-12 rounded-2xl bg-amber-500 flex items-center justify-center shadow-lg shadow-amber-500/30">
+                                            <Zap size={20} className="text-white" />
+                                        </div>
+                                        <div>
+                                            <h3 className="font-black text-sm text-zinc-800 uppercase tracking-widest">Overclock Sistemi</h3>
+                                            <p className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest mt-0.5">
+                                                Geçici hashrate boost + cooldown ceza mekanizması
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        {overclockChanged && (
+                                            <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-200 rounded-xl">
+                                                <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                                                <span className="text-[9px] font-black text-amber-600 uppercase tracking-widest">Kaydedilmemiş</span>
+                                            </div>
+                                        )}
+                                        <button
+                                            onClick={handleSaveOverclockSettings}
+                                            disabled={overclockSaving}
+                                            className="h-11 px-8 rounded-xl bg-amber-500 text-white font-black text-[9px] uppercase tracking-widest hover:bg-amber-600 active:scale-95 transition-all flex items-center gap-2 shadow-lg shadow-amber-500/25 disabled:opacity-60"
+                                        >
+                                            {overclockSaving ? <RefreshCw size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
+                                            Uygula & Yayınla
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="p-8 space-y-8">
+                                    {/* Enable toggle */}
+                                    <div className="flex items-center justify-between p-5 bg-zinc-50 rounded-2xl border border-zinc-100">
+                                        <div>
+                                            <p className="font-black text-sm text-zinc-800">Overclock Özelliği</p>
+                                            <p className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest mt-0.5">
+                                                Kapalıysa kullanıcılar overclock butonu görmez
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => { setOverclockCfg((p: any) => ({ ...p, enabled: !p.enabled })); setOverclockChanged(true); }}
+                                            className={cn("relative w-12 h-6 rounded-full transition-colors", overclockCfg.enabled ? "bg-emerald-500" : "bg-zinc-300")}
+                                        >
+                                            <div className={cn("absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all", overclockCfg.enabled ? "left-6" : "left-0.5")} />
+                                        </button>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                                        {/* Boost params */}
+                                        <div className="space-y-6">
+                                            <h4 className="text-[10px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+                                                <Zap size={11} className="text-amber-500" /> Boost Parametreleri
+                                            </h4>
+                                            {([
+                                                { key: 'multiplier', label: 'Boost Çarpanı', unit: 'x', min: 1.1, max: 5.0, step: 0.1, desc: '1.5 = %50 ekstra hashrate' },
+                                                { key: 'durationMinutes', label: 'Boost Süresi', unit: 'dk', min: 10, max: 1440, step: 10, desc: 'Overclock kaç dakika sürsün' },
+                                            ] as const).map((f: any) => (
+                                                <div key={f.key}>
+                                                    <div className="flex justify-between items-center mb-1">
+                                                        <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">{f.label}</span>
+                                                        <span className="text-[9px] font-black text-amber-600 tabular-nums">{overclockCfg[f.key]} {f.unit}</span>
+                                                    </div>
+                                                    <p className="text-[8px] text-zinc-400 mb-2">{f.desc}</p>
+                                                    <input type="range" min={f.min} max={f.max} step={f.step} value={overclockCfg[f.key]}
+                                                        onChange={e => { setOverclockCfg((p: any) => ({ ...p, [f.key]: parseFloat(e.target.value) })); setOverclockChanged(true); }}
+                                                        className="w-full h-1.5 rounded-full accent-amber-500 cursor-pointer" />
+                                                </div>
+                                            ))}
+                                            {/* Maliyet */}
+                                            <div>
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">TP Maliyeti</span>
+                                                    <span className="text-[9px] font-black text-amber-600 tabular-nums">{overclockCfg.costTp} TP</span>
+                                                </div>
+                                                <p className="text-[8px] text-zinc-400 mb-2">Her aktivasyonda harcanan TP miktarı</p>
+                                                <input type="range" min={0} max={500} step={5} value={overclockCfg.costTp}
+                                                    onChange={e => { setOverclockCfg((p: any) => ({ ...p, costTp: parseInt(e.target.value) })); setOverclockChanged(true); }}
+                                                    className="w-full h-1.5 rounded-full accent-amber-500 cursor-pointer" />
+                                            </div>
+                                        </div>
+
+                                        {/* Cooldown params */}
+                                        <div className="space-y-6">
+                                            <h4 className="text-[10px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+                                                <Snowflake size={11} className="text-blue-500" /> Cooldown & Ceza
+                                            </h4>
+                                            {([
+                                                { key: 'cooldownMinutes', label: 'Cooldown Süresi', unit: 'dk', min: 10, max: 1440, step: 10, desc: 'Boost bittikten sonra bekleme süresi' },
+                                                { key: 'penalty', label: 'Cooldown Cezası', unit: 'x', min: 0.3, max: 1.0, step: 0.05, desc: '0.8 = -%20 hashrate cezası' },
+                                            ] as const).map((f: any) => (
+                                                <div key={f.key}>
+                                                    <div className="flex justify-between items-center mb-1">
+                                                        <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">{f.label}</span>
+                                                        <span className="text-[9px] font-black text-blue-600 tabular-nums">{overclockCfg[f.key]} {f.unit}</span>
+                                                    </div>
+                                                    <p className="text-[8px] text-zinc-400 mb-2">{f.desc}</p>
+                                                    <input type="range" min={f.min} max={f.max} step={f.step} value={overclockCfg[f.key]}
+                                                        onChange={e => { setOverclockCfg((p: any) => ({ ...p, [f.key]: parseFloat(e.target.value) })); setOverclockChanged(true); }}
+                                                        className="w-full h-1.5 rounded-full accent-blue-500 cursor-pointer" />
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        {/* Preview */}
+                                        <div className="space-y-4">
+                                            <h4 className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Ekonomi Önizleme</h4>
+                                            <div className="space-y-3">
+                                                {[
+                                                    { label: 'Boost güç', val: `+${Math.round((overclockCfg.multiplier - 1) * 100)}%`, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100' },
+                                                    { label: 'Cooldown ceza', val: `-${Math.round((1 - overclockCfg.penalty) * 100)}%`, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100' },
+                                                    { label: 'Süre', val: `${overclockCfg.durationMinutes}dk`, color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100' },
+                                                    { label: 'Cooldown', val: `${overclockCfg.cooldownMinutes}dk`, color: 'text-zinc-600', bg: 'bg-zinc-50', border: 'border-zinc-100' },
+                                                    { label: 'Maliyet', val: `${overclockCfg.costTp} TP`, color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-100' },
+                                                    {
+                                                        label: 'Günlük max kullanım',
+                                                        val: `${Math.floor(1440 / (overclockCfg.durationMinutes + overclockCfg.cooldownMinutes))}x`,
+                                                        color: 'text-zinc-600', bg: 'bg-zinc-50', border: 'border-zinc-100'
+                                                    },
+                                                ].map((item, i) => (
+                                                    <div key={i} className={cn("flex justify-between items-center px-4 py-2.5 rounded-xl border text-[10px] font-black", item.bg, item.border)}>
+                                                        <span className="text-zinc-500 uppercase tracking-wider">{item.label}</span>
+                                                        <span className={item.color}>{item.val}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                                                <p className="text-[8px] font-black text-amber-700 uppercase tracking-widest mb-1">⚠️ Denge Kuralı</p>
+                                                <p className="text-[9px] text-amber-600 font-bold">
+                                                    Cooldown ≥ Boost süresi olmalı. Şu an: {overclockCfg.cooldownMinutes >= overclockCfg.durationMinutes ? '✅ Dengeli' : '❌ Cooldown çok kısa!'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
                         </div>
                     )}
 
@@ -4279,14 +4358,16 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                     </h4>
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                                         {[
-                                            { key: 'name', label: 'İsim', placeholder: 'Örn: RTX 4090' },
-                                            { key: 'icon', label: 'İkon (Emoji)', placeholder: '⛏️' },
-                                            { key: 'price', label: 'Fiyat (BTC)', placeholder: '0.001', type: 'number' },
-                                            { key: 'hashrate', label: 'Hashrate (H/s)', placeholder: '1000', type: 'number' },
-                                            { key: 'energy_cost', label: 'Enerji Tüketimi', placeholder: '100', type: 'number' },
-                                            { key: 'tier', label: 'Tier (1-5)', placeholder: '1', type: 'number' },
-                                            { key: 'daily_btc', label: 'Günlük BTC Ödül', placeholder: '0.00001', type: 'number' },
-                                            { key: 'max_owned', label: 'Maks. Sahiplik', placeholder: '10', type: 'number' },
+                                            { key: 'name',           label: 'İsim',               placeholder: 'Örn: RTX 4090',  type: 'text' },
+                                            { key: 'tier',           label: 'Tier',               placeholder: 'Bronze',         type: 'text' },
+                                            { key: 'price_usd',      label: 'Fiyat (USD)',         placeholder: '4.99',           type: 'number' },
+                                            { key: 'price',          label: 'Fiyat (TP)',          placeholder: '100',            type: 'number' },
+                                            { key: 'hashrate',       label: 'Hashrate (GH/s)',     placeholder: '100',            type: 'number' },
+                                            { key: 'daily_btc',      label: 'Günlük BTC',          placeholder: '0.00001',        type: 'number' },
+                                            { key: 'energy_cost',    label: 'Enerji Tüketimi',     placeholder: '10',             type: 'number' },
+                                            { key: 'duration_days',  label: 'Cihaz Ömrü (gün)',   placeholder: '30',             type: 'number' },
+                                            { key: 'return_rate',    label: 'Kazanç Payı (0-1)',   placeholder: '0.25',           type: 'number' },
+                                            { key: 'description',    label: 'Açıklama',            placeholder: 'Kısa açıklama',  type: 'text' },
                                         ].map(f => (
                                             <div key={f.key}>
                                                 <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2 ml-1">{f.label}</p>
@@ -4297,6 +4378,23 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                             </div>
                                         ))}
                                     </div>
+                                    {/* Ekonomi önizleme */}
+                                    {miningItemForm.price_usd > 0 && (
+                                        <div className="grid grid-cols-4 gap-3 p-4 bg-black/20 rounded-2xl border border-white/5">
+                                            <p className="col-span-4 text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-1">📊 Ekonomi Önizleme</p>
+                                            {[
+                                                { label: 'Satış fiyatı', val: `$${(miningItemForm.price_usd || 0).toFixed(2)}`, color: 'text-emerald-400' },
+                                                { label: 'Max kullanıcı kazancı', val: `$${((miningItemForm.price_usd || 0) * (miningItemForm.return_rate || 0.25)).toFixed(2)}`, color: 'text-yellow-400' },
+                                                { label: 'Net kârın', val: `$${((miningItemForm.price_usd || 0) * (1 - (miningItemForm.return_rate || 0.25))).toFixed(2)}`, color: 'text-blue-400' },
+                                                { label: 'Amortisman', val: miningItemForm.daily_btc > 0 ? `${Math.ceil((miningItemForm.price_usd || 0) / ((miningItemForm.daily_btc || 0.001) * 91200))} gün` : '—', color: 'text-zinc-400' },
+                                            ].map((item, i) => (
+                                                <div key={i} className="text-center">
+                                                    <p className={`font-black text-sm tabular-nums ${item.color}`}>{item.val}</p>
+                                                    <p className="text-zinc-600 text-[7px] font-bold uppercase mt-0.5">{item.label}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                     <div className="flex items-center gap-6 pt-4 border-t border-white/5">
                                         <div className="flex items-center gap-3">
                                             <input type="checkbox" id="item-available" checked={miningItemForm.available !== false}
@@ -4316,26 +4414,32 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                 {miningItems.map(item => (
                                     <div key={item.id} className="p-6 bg-white/5 border border-white/5 rounded-[2rem] shadow-xl backdrop-blur-md space-y-4 group hover:bg-white/10 transition-all duration-300">
                                         <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-3">
-                                                <span className="text-2xl">{item.icon || '⛏️'}</span>
-                                                <div>
-                                                    <p className="font-black text-zinc-800 text-sm uppercase tracking-tight">{item.name}</p>
-                                                    <p className="text-[8px] font-bold text-zinc-400 uppercase">Tier {item.tier || 1}</p>
-                                                </div>
+                                            <div>
+                                                <p className="font-black text-white text-sm uppercase tracking-tight">{item.name}</p>
+                                                <p className="text-[8px] font-bold text-zinc-400 uppercase mt-0.5">{item.tier || 'Bronze'}</p>
                                             </div>
-                                            <span className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase border ${item.available !== false ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-zinc-100 text-zinc-400 border-zinc-200'}`}>
+                                            <span className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase border ${item.available !== false ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-zinc-500/20 text-zinc-400 border-zinc-500/30'}`}>
                                                 {item.available !== false ? 'Aktif' : 'Pasif'}
                                             </span>
                                         </div>
-                                        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-zinc-100">
-                                            <div className="text-center p-2 bg-orange-50 rounded-xl"><p className="text-[7px] text-zinc-400 font-black uppercase">Fiyat</p><p className="text-xs font-black text-orange-600">{item.price} BTC</p></div>
-                                            <div className="text-center p-2 bg-blue-50 rounded-xl"><p className="text-[7px] text-zinc-400 font-black uppercase">Hashrate</p><p className="text-xs font-black text-blue-600">{item.hashrate} H/s</p></div>
-                                            <div className="text-center p-2 bg-amber-50 rounded-xl"><p className="text-[7px] text-zinc-400 font-black uppercase">Enerji</p><p className="text-xs font-black text-amber-600">{item.energy_cost}W</p></div>
-                                            <div className="text-center p-2 bg-emerald-50 rounded-xl"><p className="text-[7px] text-zinc-400 font-black uppercase">Günlük BTC</p><p className="text-xs font-black text-emerald-600">{item.daily_btc || 0}</p></div>
+                                        <div className="grid grid-cols-3 gap-1.5">
+                                            {[
+                                                { label: 'USD', val: item.price_usd > 0 ? `$${item.price_usd}` : '—', color: 'text-emerald-400' },
+                                                { label: 'Hash', val: `${item.hashrate || 0} GH`, color: 'text-blue-400' },
+                                                { label: 'Günlük', val: `$${((item.daily_btc || 0) * 91200).toFixed(3)}`, color: 'text-yellow-400' },
+                                                { label: 'Ömür', val: `${item.duration_days || 30}g`, color: 'text-zinc-300' },
+                                                { label: 'Max Kazanç', val: item.price_usd > 0 ? `$${(item.price_usd * (item.return_rate || 0.25)).toFixed(2)}` : '—', color: 'text-orange-400' },
+                                                { label: 'Payı', val: `%${Math.round((item.return_rate || 0.25) * 100)}`, color: 'text-purple-400' },
+                                            ].map((s, i) => (
+                                                <div key={i} className="text-center p-2 bg-black/20 rounded-xl">
+                                                    <p className={`text-xs font-black tabular-nums ${s.color}`}>{s.val}</p>
+                                                    <p className="text-[7px] text-zinc-600 font-bold uppercase mt-0.5">{s.label}</p>
+                                                </div>
+                                            ))}
                                         </div>
                                         <div className="flex gap-2">
-                                            <button onClick={() => { setEditingMiningItem(item); setMiningItemForm({ ...item }); }} className="flex-1 h-8 rounded-xl bg-zinc-100 text-zinc-600 font-black text-[8px] uppercase hover:bg-zinc-200 transition-all flex items-center justify-center gap-1"><Edit3 size={11}/> Düzenle</button>
-                                            <button onClick={() => handleDeleteMiningItem(item.id)} className="h-8 px-3 rounded-xl bg-red-50 text-red-500 font-black text-[8px] uppercase hover:bg-red-500 hover:text-white transition-all"><Trash2 size={11}/></button>
+                                            <button onClick={() => { setEditingMiningItem(item); setMiningItemForm({ ...item }); }} className="flex-1 h-8 rounded-xl bg-zinc-700 text-zinc-300 font-black text-[8px] uppercase hover:bg-zinc-600 transition-all flex items-center justify-center gap-1"><Edit3 size={11}/> Düzenle</button>
+                                            <button onClick={() => handleDeleteMiningItem(item.id)} className="h-8 px-3 rounded-xl bg-red-500/10 text-red-400 font-black text-[8px] uppercase hover:bg-red-500 hover:text-white transition-all"><Trash2 size={11}/></button>
                                         </div>
                                     </div>
                                 ))}
@@ -5156,168 +5260,9 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                             )}/>
                                         </div>
                                     </button>
-                                </div>
                             </div>
-
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                                {/* Madencilik & Çarpanlar */}
-                                <div className="p-7 bg-white border border-zinc-200 rounded-[2rem] shadow-sm space-y-6">
-                                    <h3 className="text-zinc-800 font-black text-xs uppercase tracking-widest flex items-center gap-2">
-                                        <Zap size={14} className="text-amber-500"/> Madencilik & Çarpanlar
-                                    </h3>
-
-                                    {/* Event Multiplier */}
-                                    <div>
-                                        <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-3">Etkinlik Çarpanı (Şu An: <span className="text-indigo-600">{state.globalSettings.eventMultiplier || 1.0}x</span>)</p>
-                                        <div className="grid grid-cols-4 gap-2">
-                                            {[1.0, 1.5, 2.0, 3.0].map(m => (
-                                                <button key={m} onClick={() => handleUpdateSettings({ eventMultiplier: m })}
-                                                    className={cn("h-12 rounded-xl font-black text-xs transition-all border-2",
-                                                        state.globalSettings.eventMultiplier === m
-                                                            ? "bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-500/20"
-                                                            : "bg-white border-zinc-100 text-zinc-400 hover:text-zinc-600 hover:border-zinc-200"
-                                                    )}>{m}x</button>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    {/* Mining Difficulty */}
-                                    <div>
-                                        <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-3">Madencilik Zorluğu</p>
-                                        <div className="flex items-center gap-3">
-                                            <input type="range" min={1} max={100}
-                                                value={state.globalSettings.miningDifficulty || 50}
-                                                onChange={e => handleUpdateSettings({ miningDifficulty: parseInt(e.target.value) })}
-                                                className="flex-1 accent-indigo-600"/>
-                                            <span className="w-12 text-center font-black text-sm text-zinc-800 tabular-nums bg-zinc-50 border border-zinc-200 rounded-xl py-1">
-                                                {state.globalSettings.miningDifficulty || 50}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    {/* Market Discount */}
-                                    <div>
-                                        <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-3">Market İndirimi (%)</p>
-                                        <div className="flex items-center gap-3">
-                                            <input type="range" min={0} max={80}
-                                                value={state.globalSettings.marketDiscount || 0}
-                                                onChange={e => handleUpdateSettings({ marketDiscount: parseInt(e.target.value) })}
-                                                className="flex-1 accent-emerald-500"/>
-                                            <span className="w-12 text-center font-black text-sm text-zinc-800 tabular-nums bg-zinc-50 border border-zinc-200 rounded-xl py-1">
-                                                %{state.globalSettings.marketDiscount || 0}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    {/* Bot Settings */}
-                                    <div className="pt-4 border-t border-zinc-100 space-y-4">
-                                        <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Bot Ayarları</p>
-                                        <InputGroup
-                                            label={`Bot Sayısı (${state.globalSettings.botCount || 0} / 500)`}
-                                            value={(state.globalSettings.botCount || 0).toString()}
-                                            onChange={v => handleUpdateSettings({ botCount: parseInt(v) || 0 })}
-                                            icon={<Cpu size={16}/>}
-                                            placeholder="0"
-                                            light
-                                        />
-                                        <InputGroup
-                                            label="Bot Satın Alma Limiti"
-                                            value={(state.globalSettings.botBuyLimit || 0).toString()}
-                                            onChange={v => handleUpdateSettings({ botBuyLimit: parseInt(v) || 0 })}
-                                            icon={<ShoppingCart size={16}/>}
-                                            placeholder="10"
-                                            light
-                                        />
-                                        <div className="flex items-center justify-between py-2">
-                                            <div>
-                                                <p className="text-[10px] font-black text-zinc-800 uppercase tracking-widest">Otomatik Bot Listeleme</p>
-                                                <p className="text-[9px] text-zinc-400 font-bold mt-0.5">Botlar otomatik piyasaya çıksın</p>
-                                            </div>
-                                            <div className="w-10 h-6 rounded-full border flex items-center px-0.5 cursor-pointer transition-all duration-300"
-                                                style={{ background: state.globalSettings.autoBotListing ? '#6366f1' : '#e4e4e7', borderColor: state.globalSettings.autoBotListing ? '#6366f1' : '#d4d4d8' }}
-                                                onClick={() => handleUpdateSettings({ autoBotListing: !state.globalSettings.autoBotListing })}>
-                                                <div className={cn("w-4 h-4 rounded-full bg-white shadow-md transition-all duration-300", state.globalSettings.autoBotListing ? "translate-x-4" : "translate-x-0")}/>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center justify-between py-2">
-                                            <div>
-                                                <p className="text-[10px] font-black text-zinc-800 uppercase tracking-widest">Akıllı Bot Fiyatlandırma</p>
-                                                <p className="text-[9px] text-zinc-400 font-bold mt-0.5">Arz/talebe göre fiyat ayarla</p>
-                                            </div>
-                                            <div className="w-10 h-6 rounded-full border flex items-center px-0.5 cursor-pointer transition-all duration-300"
-                                                style={{ background: state.globalSettings.smartBotPricing ? '#6366f1' : '#e4e4e7', borderColor: state.globalSettings.smartBotPricing ? '#6366f1' : '#d4d4d8' }}
-                                                onClick={() => handleUpdateSettings({ smartBotPricing: !state.globalSettings.smartBotPricing })}>
-                                                <div className={cn("w-4 h-4 rounded-full bg-white shadow-md transition-all duration-300", state.globalSettings.smartBotPricing ? "translate-x-4" : "translate-x-0")}/>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Referral & Quest */}
-                                <div className="space-y-6">
-                                    <div className="p-7 bg-white border border-zinc-200 rounded-[2rem] shadow-sm space-y-5">
-                                        <h3 className="text-zinc-800 font-black text-xs uppercase tracking-widest flex items-center gap-2">
-                                            <Gift size={14} className="text-purple-500"/> Referans Sistemi
-                                        </h3>
-                                        <InputGroup
-                                            label="BTC Ödülü (referral başına)"
-                                            value={(state.globalSettings.referralBtcReward || 0.0001).toString()}
-                                            onChange={v => handleUpdateSettings({ referralBtcReward: parseFloat(v) || 0 })}
-                                            icon={<Bitcoin size={16} className="text-orange-500"/>}
-                                            placeholder="0.0001"
-                                            light
-                                        />
-                                        <InputGroup
-                                            label="TP Ödülü (referral başına)"
-                                            value={(state.globalSettings.referralTpReward || 50).toString()}
-                                            onChange={v => handleUpdateSettings({ referralTpReward: parseInt(v) || 0 })}
-                                            icon={<Database size={16} className="text-indigo-500"/>}
-                                            placeholder="50"
-                                            light
-                                        />
-                                        <div className="flex items-center justify-between py-2 border-t border-zinc-100 mt-2">
-                                            <div>
-                                                <p className="text-[10px] font-black text-zinc-800 uppercase tracking-widest">Seviye Kısıtlaması</p>
-                                                <p className="text-[9px] text-zinc-400 font-bold mt-0.5">Min. seviye şartı uygula</p>
-                                            </div>
-                                            <div className="w-10 h-6 rounded-full border flex items-center px-0.5 cursor-pointer transition-all duration-300"
-                                                style={{ background: state.globalSettings.referralLevelGate ? '#6366f1' : '#e4e4e7', borderColor: state.globalSettings.referralLevelGate ? '#6366f1' : '#d4d4d8' }}
-                                                onClick={() => handleUpdateSettings({ referralLevelGate: !state.globalSettings.referralLevelGate })}>
-                                                <div className={cn("w-4 h-4 rounded-full bg-white shadow-md transition-all duration-300", state.globalSettings.referralLevelGate ? "translate-x-4" : "translate-x-0")}/>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="p-7 bg-white border border-zinc-200 rounded-[2rem] shadow-sm space-y-5">
-                                        <h3 className="text-zinc-800 font-black text-xs uppercase tracking-widest flex items-center gap-2">
-                                            <Award size={14} className="text-emerald-500"/> Haftalık Görev
-                                        </h3>
-                                        <InputGroup
-                                            label="Haftalık Görev Hedefi"
-                                            value={(state.globalSettings.weeklyQuestGoal || 100).toString()}
-                                            onChange={v => handleUpdateSettings({ weeklyQuestGoal: parseInt(v) || 0 })}
-                                            icon={<TrendingUp size={16} className="text-blue-500"/>}
-                                            placeholder="100"
-                                            light
-                                        />
-                                        <InputGroup
-                                            label="Görev BTC Ödülü"
-                                            value={(state.globalSettings.weeklyQuestReward || 0.001).toString()}
-                                            onChange={v => handleUpdateSettings({ weeklyQuestReward: parseFloat(v) || 0 })}
-                                            icon={<Bitcoin size={16} className="text-orange-500"/>}
-                                            placeholder="0.001"
-                                            light
-                                        />
-                                        <button
-                                            onClick={() => handleUpdateSettings({ lastQuestReset: Date.now(), questResetTrigger: Math.random() })}
-                                            className="w-full h-11 rounded-xl bg-zinc-900 text-white font-black text-[9px] uppercase tracking-widest hover:bg-emerald-600 transition-all active:scale-95 flex items-center justify-center gap-2">
-                                            <RefreshCw size={13}/> Görevi Sıfırla
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Duyuru Metni */}
+                        </div>
+                    )}
                             <div className="p-7 bg-white border border-zinc-200 rounded-[2rem] shadow-sm space-y-4">
                                 <h3 className="text-zinc-800 font-black text-xs uppercase tracking-widest flex items-center gap-2">
                                     <Bell size={14} className="text-blue-500"/> Sistem Duyurusu
@@ -5613,26 +5558,13 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                         </div>
                     )}
 
-                    </div>{/* main-content */}
-                </div>{/* nxl-content */}
-            </main>{/* nxl-container */}
-
-            {/* ══════════ FOOTER ══════════ */}
-            <footer className="d-flex align-items-center justify-content-between px-4 py-2 border-top"
-                style={{ fontSize: 11, color: '#7587a7', background: '#fff', marginLeft: 280 }}>
-                <span><strong>Tycoon Admin Panel</strong> &copy; {new Date().getFullYear()}</span>
-                <div className="d-flex align-items-center gap-3">
-                    <span className="d-flex align-items-center gap-1">
-                        <span className="rounded-circle bg-success d-inline-block" style={{ width: 6, height: 6 }} />
-                        {players.filter(p => !p.isBanned).length} aktif
-                    </span>
-                    <span>{withdrawals.filter(w => w.status === 'pending').length} bekleyen çekim</span>
                 </div>
-            </footer>
-        </>
+            </main>
+        </div>
     );
 }
 
+// ═══════════════════════════════════════════════════════════════
 //  AdminBatteryPreview
 //  Admin panelindeki Economy sekmesinde canlı pil animasyonu
 //  drainHours: tam dolunun kaç saniyede biteceği (preview 60sn loop)

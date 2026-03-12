@@ -6,7 +6,8 @@
 import React, { useState } from 'react';
 import {
   Zap, ChevronRight, HelpCircle, Info, Gift,
-  FileText, ZapOff, Flame, Bell, Star, TrendingUp, Crown
+  FileText, ZapOff, Flame, Bell, Star, TrendingUp, Crown,
+  Gauge, Timer, AlertTriangle, Snowflake
 } from 'lucide-react';
 import { LineChart, Line, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { motion, AnimatePresence } from 'motion/react';
@@ -54,6 +55,134 @@ function useCountdown(endsAt: number) {
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
 }
 
+// ── Overclock Card ─────────────────────────────────────────────────────────
+function OverclockCard({ isActive, isCooldown, multiplier, secondsLeft, cooldownSecondsLeft, cfg, tycoonPoints, onActivate, accentColor, theme }: {
+  isActive: boolean; isCooldown: boolean; multiplier: number;
+  secondsLeft: number; cooldownSecondsLeft: number;
+  cfg: any; tycoonPoints: number; onActivate: () => void;
+  accentColor: string; theme: any;
+}) {
+  const canAfford = tycoonPoints >= (cfg?.costTp || 0);
+  const canActivate = !isActive && !isCooldown && canAfford;
+
+  const boostPct = Math.round((cfg?.multiplier - 1) * 100);
+  const penaltyPct = Math.round((1 - cfg?.penalty) * 100);
+
+  // Renk: aktif=sarı, cooldown=mavi, normal=accent
+  const color = isActive ? '#F59E0B' : isCooldown ? '#60A5FA' : accentColor;
+  const Icon = isActive ? Gauge : isCooldown ? Snowflake : Zap;
+
+  // Progress için kalan süre yüzdesi
+  const totalSecs = isActive
+    ? (cfg?.durationMinutes || 120) * 60
+    : (cfg?.cooldownMinutes || 240) * 60;
+  const remaining = isActive ? secondsLeft : cooldownSecondsLeft;
+  const progressPct = isActive || isCooldown ? Math.max(0, (remaining / totalSecs) * 100) : 0;
+
+  const formatTime = (s: number) => {
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+    if (h > 0) return `${h}s ${m.toString().padStart(2, '0')}dk`;
+    return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+  };
+
+  return (
+    <motion.div
+      className="rounded-2xl p-4 relative overflow-hidden"
+      style={{ background: `${color}07`, border: `1px solid ${color}25` }}
+      animate={isActive ? { boxShadow: [`0 0 0px ${color}00`, `0 0 18px ${color}30`, `0 0 0px ${color}00`] } : {}}
+      transition={isActive ? { duration: 2, repeat: Infinity } : {}}
+    >
+      {/* Glow blob */}
+      <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full opacity-10 pointer-events-none"
+        style={{ background: color, filter: 'blur(20px)' }} />
+
+      {/* Progress bar (aktif veya cooldown iken) */}
+      {(isActive || isCooldown) && (
+        <div className="absolute bottom-0 left-0 right-0 h-0.5" style={{ background: `${color}15` }}>
+          <motion.div className="h-full" style={{ background: color }}
+            animate={{ width: `${progressPct}%` }} transition={{ duration: 1 }} />
+        </div>
+      )}
+
+      <div className="flex items-center justify-between relative z-10">
+        {/* Sol: ikon + başlık */}
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+            style={{ background: `${color}15`, border: `1px solid ${color}30` }}>
+            <motion.div
+              animate={isActive ? { rotate: [0, 15, -15, 0] } : {}}
+              transition={isActive ? { duration: 0.5, repeat: Infinity, repeatDelay: 1.5 } : {}}>
+              <Icon size={18} style={{ color }} />
+            </motion.div>
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-black uppercase tracking-widest" style={{ color: theme.vars['--ct-text'] }}>
+                Overclock
+              </span>
+              {isActive && (
+                <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full animate-pulse"
+                  style={{ background: `${color}20`, color }}>AKTİF</span>
+              )}
+              {isCooldown && (
+                <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full"
+                  style={{ background: `${color}20`, color }}>COOLDOWN</span>
+              )}
+            </div>
+            <p className="text-[10px] font-mono mt-0.5" style={{ color: theme.vars['--ct-muted'] }}>
+              {isActive
+                ? `⚡ +${boostPct}% · ${formatTime(secondsLeft)} kaldı`
+                : isCooldown
+                  ? `❄️ −${penaltyPct}% ceza · ${formatTime(cooldownSecondsLeft)} kaldı`
+                  : `+${boostPct}% hashrate · ${cfg?.durationMinutes}dk · ${cfg?.costTp} TP`}
+            </p>
+          </div>
+        </div>
+
+        {/* Sağ: Büyük multiplier + buton */}
+        <div className="flex flex-col items-end gap-2 shrink-0">
+          <span className="text-xl font-black tabular-nums" style={{ color }}>
+            {isActive ? `×${multiplier.toFixed(2)}` : isCooldown ? `×${multiplier.toFixed(2)}` : `×${cfg?.multiplier?.toFixed(1) || '1.5'}`}
+          </span>
+          <button
+            onClick={onActivate}
+            disabled={!canActivate}
+            className="px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all active:scale-95 disabled:cursor-not-allowed"
+            style={canActivate
+              ? { background: color, color: '#000', boxShadow: `0 4px 16px ${color}40` }
+              : { background: `${color}15`, color: `${color}60`, border: `1px solid ${color}20` }
+            }>
+            {isActive ? 'Aktif' : isCooldown ? `❄️ ${formatTime(cooldownSecondsLeft)}` : canAfford ? 'Başlat' : `${cfg?.costTp} TP Yok`}
+          </button>
+        </div>
+      </div>
+
+      {/* Alt bilgi satırı (sadece normal durumda) */}
+      {!isActive && !isCooldown && (
+        <div className="flex items-center gap-4 mt-3 pt-3 relative z-10"
+          style={{ borderTop: `1px solid ${color}15` }}>
+          {[
+            { label: 'Süre', val: `${cfg?.durationMinutes}dk`, icon: Timer },
+            { label: 'Cooldown', val: `${cfg?.cooldownMinutes}dk`, icon: Snowflake },
+            { label: 'Ceza', val: `-${penaltyPct}%`, icon: AlertTriangle },
+            { label: 'Maliyet', val: `${cfg?.costTp} TP`, icon: Zap },
+          ].map((item, i) => {
+            const ItemIcon = item.icon;
+            return (
+              <div key={i} className="flex items-center gap-1">
+                <ItemIcon size={9} style={{ color: `${color}80` }} />
+                <span className="text-[8px] font-bold" style={{ color: theme.vars['--ct-muted'] }}>
+                  {item.label}: <span style={{ color: `${color}CC` }}>{item.val}</span>
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
 export default function MiningPanel({
   onOpenContracts,
   onWatchAd,
@@ -67,7 +196,9 @@ export default function MiningPanel({
 }) {
   const { 
     state, btcToUsd, effectiveHashRate, energyScale, currentBtcPerSecond, isVipActive,
-    dailyEarnedPct, dailyCapReached, isVipCapExempt, dailyEarnedBtc 
+    dailyEarnedPct, dailyCapReached, isVipCapExempt, dailyEarnedBtc,
+    activateOverclock, isOverclockActive, isOverclockCooldown,
+    overclockMultiplier, overclockSecondsLeft, cooldownSecondsLeft
   } = useGame();
   const { notify, requestPushPermission, pushEnabled } = useNotify();
   const { theme } = useTheme();
@@ -407,7 +538,30 @@ export default function MiningPanel({
       </div>
 
       <SocialFeed />
-      
+
+      {/* ── Overclock ──────────────────────────────────────────── */}
+      {state.overclockConfig?.enabled && (
+        <OverclockCard
+          isActive={isOverclockActive}
+          isCooldown={isOverclockCooldown}
+          multiplier={overclockMultiplier}
+          secondsLeft={overclockSecondsLeft}
+          cooldownSecondsLeft={cooldownSecondsLeft}
+          cfg={state.overclockConfig}
+          tycoonPoints={state.tycoonPoints}
+          onActivate={() => {
+            const result = activateOverclock();
+            if (result.success) {
+              notify({ type: 'mining', title: '⚡ Overclock Aktif!', message: result.message });
+            } else {
+              notify({ type: 'warning', title: 'Overclock', message: result.message });
+            }
+          }}
+          accentColor={a1}
+          theme={theme}
+        />
+      )}
+
       {/* ── Daily Cap Progress ─────────────────────────────────── */}
       <div className="rounded-2xl p-4 space-y-3"
         style={{ 

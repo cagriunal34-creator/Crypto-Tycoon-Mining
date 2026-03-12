@@ -1,4 +1,4 @@
-export type Screen = 'panel' | 'contracts' | 'wallet' | 'referral' | 'settings' | 'inbox' | 'quests' | 'farm' | 'wheel' | 'battlepass' | 'marketplace' | 'vip' | 'infrastructure' | 'shop' | 'research' | 'guild';
+export type Screen = 'panel' | 'contracts' | 'wallet' | 'referral' | 'settings' | 'inbox' | 'quests' | 'farm' | 'wheel' | 'battlepass' | 'marketplace' | 'vip' | 'infrastructure' | 'shop' | 'research';
 
 export type LightingColor = 'emerald' | 'blue' | 'purple' | 'orange' | 'red';
 export type RigTier = 'Basic' | 'Pro' | 'Ultra';
@@ -26,11 +26,17 @@ export interface FarmSettings {
 export interface OwnedContract {
   id: string;
   name: string;
-  tier: 'Bronze' | 'Silver' | 'Gold' | 'Flash';
+  tier: 'Bronze' | 'Silver' | 'Gold' | 'Flash' | 'Diamond';
   hashRate: number;
   purchasedAt: number;
   durationDays: number;
   condition: number; // 0-100
+
+  // ── Kazanç Tavanı Sistemi ──────────────────────────────────────
+  purchasePriceUsd: number;      // Satın alım fiyatı ($ cinsinden)
+  maxEarningsBtc: number;        // Bu cihazın ömür boyu kazanabileceği max BTC
+  totalEarnedBtc: number;        // Şimdiye kadar bu cihazdan kazanılan BTC
+  dailyBtcTarget: number;        // Hedef günlük BTC (UI gösterimi için)
   lastMaintenance: number;
 }
 
@@ -66,18 +72,6 @@ export interface Guild {
   level: number;
   xp: number;
   xpToNextLevel: number;
-}
-
-export interface GuildGoal {
-  id: string;
-  label: string;
-  description: string;
-  requirement: number; // e.g., total hashrate or level
-  type: 'hashrate' | 'level' | 'members';
-  reward: {
-    type: 'btc' | 'tp' | 'multiplier';
-    value: number;
-  };
 }
 
 export type MiningEventType = 'flash_pool' | 'hash_storm' | 'energy_surge' | 'block_halving';

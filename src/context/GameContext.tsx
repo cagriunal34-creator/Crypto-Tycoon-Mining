@@ -55,10 +55,13 @@ export interface DynamicMiningItem {
   id: string;
   name: string;
   tier: string;
-  price: number;
+  price: number;         // TP maliyeti (oyun içi para)
+  price_usd: number;     // Gerçek USD fiyatı (IAP için)
   hashrate: number;
   daily_btc: number;
   energy_cost: number;
+  duration_days: number; // Cihaz ömrü (gün)
+  return_rate: number;   // Kullanıcıya geri dönüş oranı (örn: 0.25 = %25)
   description?: string;
   available?: boolean;
 }
@@ -77,7 +80,7 @@ export interface InboxNotification {
   id: string;
   title: string;
   body: string;
-  type: string; // 'info' | 'warning' | 'reward' | 'system' | 'success'
+  type: string; // 'info' | 'warning' | 'reward' | 'system'
   target_id: string;
   created_at: string;
   read: boolean;
@@ -113,7 +116,6 @@ export interface GameState {
   // Guilds
   guilds: Guild[];
   userGuildId: string | null;
-  claimedGuildRewards: string[];
 
   // Transactions
   transactions: Transaction[];
@@ -249,14 +251,42 @@ export interface GameState {
     interstitialFrequencyMinutes: number;
   } | null;
   dailyEarningsBtc: number;
-  dailyEarnedBtc: number;
-  dailyAdEarnedBtc: number;
   lastEarningsResetDate: string; // ISO yyyy-mm-dd
 
   // ── Realtime Admin-Driven Data ──────────────────────────────────────────────
   dynamicMiningItems: DynamicMiningItem[];   // admin'den çekilen ekipmanlar
   activeGameEvents: ActiveGameEvent[];       // admin'den gelen aktif etkinlikler
   inboxNotifications: InboxNotification[];   // admin'den gelen bildirimler
+
+  // ── Overclock Sistemi ───────────────────────────────────────────────────────
+  overclockActive: boolean;          // şu an overclock açık mı
+  overclockEndsAt: number;           // overclock bitiş timestamp (ms)
+  overclockCooldownUntil: number;
+  overclockConfig: {
+    enabled: boolean;
+    multiplier: number;
+    penalty: number;
+    durationMinutes: number;
+    cooldownMinutes: number;
+    costTp: number;
+    costBtc: number;
+  };
+
+  // ── Çekim Limit Sistemi ─────────────────────────────────────────────────────
+  totalLifetimeDeposit: number;      // kullanıcının toplam yatırdığı BTC (tüm zamanlar)
+  totalLifetimeWithdrawn: number;    // kullanıcının toplam çektiği BTC (tüm zamanlar)
+  dailyWithdrawnBtc: number;         // bugün çekilen BTC
+  lastWithdrawDate: string;          // ISO yyyy-mm-dd
+  adsWatchedForWithdraw: number;     // çekim için izlenen reklam sayısı (bugünkü)
+  withdrawConfig: {                  // admin'den ayarlanabilir
+    enabled: boolean;
+    minAmountBtc: number;            // minimum çekim miktarı
+    maxMultiplier: number;           // max_withdraw = totalDeposit × maxMultiplier
+    dailyLimitBtc: number;           // günlük toplam çekim limiti (0 = sınırsız)
+    adsRequired: number;             // çekim başına gereken reklam izleme sayısı (0 = zorunlu değil)
+    depositRequiredBtc: number;      // minimum deposit olmadan çekim yapılamaz
+    adRewardMultiplier: number;      // reklam izleyince limit ne kadar artar
+  };
 }
 
 // ─── Initial State ────────────────────────────────────────────────────────────
@@ -283,7 +313,6 @@ export const INITIAL_STATE: GameState = {
 
   guilds: [],
   userGuildId: null,
-  claimedGuildRewards: [],
 
   transactions: [],
 
@@ -404,12 +433,36 @@ export const INITIAL_STATE: GameState = {
   adFrequencyMinutes: 5,
   googleAdsConfig: null,
   dailyEarningsBtc: 0,
-  dailyEarnedBtc: 0,
-  dailyAdEarnedBtc: 0,
   lastEarningsResetDate: new Date().toISOString().split('T')[0],
   dynamicMiningItems: [],
   activeGameEvents: [],
   inboxNotifications: [],
+  overclockActive: false,
+  overclockEndsAt: 0,
+  overclockCooldownUntil: 0,
+  overclockConfig: {
+    enabled: true,
+    multiplier: 1.5,
+    penalty: 0.8,
+    durationMinutes: 120,
+    cooldownMinutes: 240,
+    costTp: 50,
+    costBtc: 0,
+  },
+  totalLifetimeDeposit: 0,
+  totalLifetimeWithdrawn: 0,
+  dailyWithdrawnBtc: 0,
+  lastWithdrawDate: new Date().toISOString().split('T')[0],
+  adsWatchedForWithdraw: 0,
+  withdrawConfig: {
+    enabled: true,
+    minAmountBtc: 0.001,
+    maxMultiplier: 0.25,
+    dailyLimitBtc: 0.005,
+    adsRequired: 3,
+    depositRequiredBtc: 0.0001,
+    adRewardMultiplier: 1.0,
+  },
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -445,7 +498,6 @@ type Action =
   | { type: 'SET_MARKETPLACE'; listings: MarketListing[] }
   | { type: 'SET_LEADERBOARD'; leaders: any[] }
   | { type: 'SET_GUILDS'; guilds: Guild[] }
-  | { type: 'CLAIM_GUILD_REWARD'; rewardId: string }
   | { type: 'SET_AD_REWARD'; btc: number; tp: number; dailyLimit: number; duration: number; enabled: boolean }
   | { type: 'SET_GLOBAL_MULTIPLIER'; multiplier: number }
   | { type: 'SET_MAINTENANCE'; isMaintenance: boolean }
@@ -463,7 +515,7 @@ type Action =
   | { type: 'APPLY_REFERRAL_CODE'; code: string }
   | { type: 'ADMIN_RESET_GAME' }
   | { type: 'PRESTIGE' }
-  | { type: 'CLAIM_QUEST'; questId: string; reward: { tp?: number; speedBoost?: number; hashRate?: number } }
+  | { type: 'CLAIM_QUEST'; questId: string; reward: { tp?: number; speedBoost?: number } }
   | { type: 'VIP_ACTIVATE'; tier: 'silver' | 'gold'; days: number; cost: number }
   | { type: 'UPDATE_FARM'; settings: Partial<FarmSettings> }
   | { type: 'PURCHASE_CONTRACT'; contract: OwnedContract; cost: number }
@@ -478,7 +530,17 @@ type Action =
   | { type: 'SET_INBOX_NOTIFICATIONS'; notifications: InboxNotification[] }
   | { type: 'MARK_NOTIFICATION_READ'; id: string }
   | { type: 'PREPEND_INBOX_NOTIFICATION'; notification: InboxNotification }
-  | { type: 'REDEEM_PROMO_CODE'; code: string; btc: number; tp: number };
+  | { type: 'REDEEM_PROMO_CODE'; code: string; btc: number; tp: number }
+  | { type: 'OVERCLOCK_ACTIVATE' }
+  | { type: 'OVERCLOCK_TICK' }
+  | { type: 'SET_OVERCLOCK_CONFIG'; config: Partial<GameState['overclockConfig']> }
+  | { type: 'CONTRACT_ADD_EARNINGS'; contractId: string; btcEarned: number }
+  | { type: 'AD_BOOST_MINING'; hoursEquivalent: number } // reklam izle → X saatlik kazanç anında al
+  | { type: 'RECORD_WITHDRAWAL'; amount: number }
+  | { type: 'SET_WITHDRAW_CONFIG'; config: Partial<GameState['withdrawConfig']> }
+  | { type: 'INCREMENT_ADS_FOR_WITHDRAW' }
+  | { type: 'RESET_ADS_FOR_WITHDRAW' }
+  | { type: 'SET_DEPOSIT_STATS'; totalDeposit: number; totalWithdrawn: number };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -496,7 +558,8 @@ export function calcBtcPerSecond(
   isFever: boolean = false,
   researchedNodes: string[] = [],
   vipMult: number = 1.0,
-  globalMult: number = 1.0
+  globalMult: number = 1.0,
+  overclockMult: number = 1.0    // ← YENİ: sadece bu satır eklendi
 ): number {
   if (baseHashRate < 0) return 0;
   let eventMult = isFever ? 10.0 : 1.0;
@@ -515,7 +578,7 @@ export function calcBtcPerSecond(
   if (researchedNodes?.includes('mining-1')) researchMult += 0.1;
   if (researchedNodes?.includes('mining-2')) researchMult += 0.5;
 
-  const finalMult = eventMult * prestigeMultiplier * energyScale * researchMult * (vipMult || 1.0) * (globalMult || 1.0);
+  const finalMult = eventMult * prestigeMultiplier * energyScale * researchMult * (vipMult || 1.0) * (globalMult || 1.0) * overclockMult;
   return base * finalMult;
 }
 
@@ -568,7 +631,17 @@ function gameReducer(state: GameState, action: Action): GameState {
       const vipBtcBonus = isVipActiveNow ? (state.vip.tier === 'gold' ? 1.5 : 1.2) : 1.0;
       const farmHashRate = state.farmSettings.rigStatuses.filter((_, i) => i < state.farmSettings.activeRigs).reduce((acc, rig) => acc + (rig.isBroken ? 0 : Math.floor(rig.efficiency * 1.2)), 0);
       const totalHashRateWithFarm = state.totalHashRate + farmHashRate;
-      const btcPerSecond = calcBtcPerSecond(totalHashRateWithFarm, activeEvents, state.prestigeMultiplier, energyScale, state.isFeverMode, state.researchedNodes, vipBtcBonus, state.globalMultiplier);
+
+      // Overclock hesaplama: aktifse boost, cooldown'daysa ceza, normalse 1.0
+      const isOverclockActive = state.overclockActive && state.overclockEndsAt > now;
+      const isInCooldown = !isOverclockActive && now < state.overclockCooldownUntil;
+      const overclockMult = isOverclockActive
+        ? (state.overclockConfig?.multiplier ?? 1.5)
+        : isInCooldown
+          ? (state.overclockConfig?.penalty ?? 0.8)
+          : 1.0;
+
+      const btcPerSecond = calcBtcPerSecond(totalHashRateWithFarm, activeEvents, state.prestigeMultiplier, energyScale, state.isFeverMode, state.researchedNodes, vipBtcBonus, state.globalMultiplier, overclockMult);
       
       let earnedBtc = btcPerSecond * elapsed;
       
@@ -601,18 +674,11 @@ function gameReducer(state: GameState, action: Action): GameState {
     case 'SET_AUTH_USER': return { ...state, user: action.user };
     case 'SET_GAME_STATE': {
       const { user: _u, isLoading: _l, ...safeState } = action.state as any;
-      // Ensure questProgress is merged safely if present
-      if (safeState.questProgress) {
-        safeState.questProgress = {
-           ...INITIAL_STATE.questProgress,
-           ...safeState.questProgress
-        };
-      }
       return {
         ...state,
         ...safeState,
         user: state.user,
-        isLoading: false
+        isLoading: (action.state as any).isLoading ?? state.isLoading,
       };
     }
     case 'ADD_TP': return { ...state, tycoonPoints: state.tycoonPoints + action.amount };
@@ -632,22 +698,17 @@ function gameReducer(state: GameState, action: Action): GameState {
     };
     case 'SET_MAINTENANCE': return { ...state, isMaintenance: action.isMaintenance };
     case 'SET_GUILDS': return { ...state, guilds: action.guilds };
-    case 'CLAIM_GUILD_REWARD': return { ...state, claimedGuildRewards: [...state.claimedGuildRewards, action.rewardId] };
     case 'SET_MARKETPLACE': return { ...state, marketListings: action.listings };
     case 'SET_LEADERBOARD': return { ...state, leaderboard: action.leaders };
     case 'SET_USD_RATE': return { ...state, usdRate: action.rate };
     case 'SET_TRANSACTIONS': return { ...state, transactions: action.transactions };
     case 'APPLY_REFERRAL_CODE': {
       if (state.redeemedReferralCode) return state;
-      // Admin panelinden ayarlanan referral ödüllerini kullan (referralBtcReward, referralTpReward)
-      const refBtcReward = (state.globalSettings as any)?.referralBtcReward ?? 0.0001;
-      const refTpReward  = (state.globalSettings as any)?.referralTpReward  ?? 1000;
       return {
         ...state,
-        btcBalance:           state.btcBalance + refBtcReward,
-        tycoonPoints:         state.tycoonPoints + refTpReward,
+        tycoonPoints: state.tycoonPoints + 1000,
         redeemedReferralCode: action.code,
-        globalMultiplier:     state.globalMultiplier * 1.05
+        globalMultiplier: state.globalMultiplier * 1.05
       };
     }
     case 'ADMIN_SET_BTC': return { ...state, btcBalance: action.amount };
@@ -674,7 +735,6 @@ function gameReducer(state: GameState, action: Action): GameState {
     case 'CLAIM_QUEST': return {
       ...state,
       tycoonPoints: state.tycoonPoints + (action.reward.tp || 0),
-      totalHashRate: state.totalHashRate + (action.reward.hashRate || 0),
       questProgress: {
         ...state.questProgress,
         claimedQuestIds: [...state.questProgress.claimedQuestIds, action.questId]
@@ -697,8 +757,42 @@ function gameReducer(state: GameState, action: Action): GameState {
     case 'PURCHASE_CONTRACT': return {
       ...state,
       btcBalance: state.btcBalance - action.cost,
-      ownedContracts: [...state.ownedContracts, action.contract]
+      ownedContracts: [...state.ownedContracts, {
+        ...action.contract,
+        totalEarnedBtc: action.contract.totalEarnedBtc ?? 0,
+        maxEarningsBtc: action.contract.maxEarningsBtc ?? 0,
+        purchasePriceUsd: action.contract.purchasePriceUsd ?? 0,
+        dailyBtcTarget: action.contract.dailyBtcTarget ?? 0,
+      }]
     };
+
+    // Cihazın kazancını güncelle; tavan aşılmışsa cihazı deaktive et
+    case 'CONTRACT_ADD_EARNINGS': {
+      const updated = state.ownedContracts.map(c => {
+        if (c.id !== action.contractId) return c;
+        const newTotal = (c.totalEarnedBtc ?? 0) + action.btcEarned;
+        const capReached = c.maxEarningsBtc > 0 && newTotal >= c.maxEarningsBtc;
+        return {
+          ...c,
+          totalEarnedBtc: Math.min(newTotal, c.maxEarningsBtc || newTotal),
+          condition: capReached ? 0 : c.condition,
+        };
+      });
+      return { ...state, ownedContracts: updated };
+    }
+
+    // Reklam izle → X saatlik madencilik kazancını anında ver
+    case 'AD_BOOST_MINING': {
+      const energyScaleAd = energyToHashScale(state.energyCells, state.maxEnergyCells);
+      const btcPerSec = calcBtcPerSecond(state.totalHashRate, state.activeMiningEvents, state.prestigeMultiplier, energyScaleAd, state.isFeverMode, state.researchedNodes);
+      const boostSeconds = action.hoursEquivalent * 3600;
+      const earned = btcPerSec * boostSeconds;
+      return {
+        ...state,
+        btcBalance: state.btcBalance + earned,
+        dailyEarningsBtc: (state.dailyEarningsBtc || 0) + earned,
+      };
+    }
     case 'CALC_OFFLINE_EARNINGS': {
       // Very simple offline calc for now
       const energyScale = energyToHashScale(state.energyCells, state.maxEnergyCells);
@@ -765,7 +859,7 @@ function gameReducer(state: GameState, action: Action): GameState {
       if (lastClaimDate === today) return state;
 
       const currentDayIndex = state.streak.count % 7;
-      const rewards = [
+      const reward = [
         { type: 'tp', value: 100 },
         { type: 'tp', value: 250 },
         { type: 'btc', value: 0.000001 },
@@ -773,19 +867,15 @@ function gameReducer(state: GameState, action: Action): GameState {
         { type: 'energy', value: 5 },
         { type: 'tp', value: 1000 },
         { type: 'btc', value: 0.00001 },
-      ];
-      const reward = rewards[currentDayIndex];
-
-      const newStreakCount = state.streak.count + 1;
-      const newLastClaim = Date.now();
+      ][currentDayIndex];
 
       let newState = {
         ...state,
         streak: {
-          count: newStreakCount,
-          lastClaim: newLastClaim
+          count: state.streak.count + 1,
+          lastClaim: Date.now()
         },
-        loginStreak: newStreakCount
+        loginStreak: state.streak.count + 1 // Keep both for now (legacy compatibility)
       };
 
       if (reward.type === 'tp') newState.tycoonPoints += reward.value;
@@ -811,6 +901,70 @@ function gameReducer(state: GameState, action: Action): GameState {
       ...state,
       btcBalance: state.btcBalance + action.btc,
       tycoonPoints: state.tycoonPoints + action.tp
+    };
+
+    case 'OVERCLOCK_ACTIVATE': {
+      const cfg = state.overclockConfig;
+      const now = Date.now();
+      // Guard: cooldown bitmemişse, yeterli TP/BTC yoksa veya feature kapalıysa reddet
+      if (!cfg.enabled) return state;
+      if (now < state.overclockCooldownUntil) return state;
+      if (state.overclockActive) return state;
+      if (state.tycoonPoints < cfg.costTp) return state;
+      if (cfg.costBtc > 0 && state.btcBalance < cfg.costBtc) return state;
+      return {
+        ...state,
+        overclockActive: true,
+        overclockEndsAt: now + cfg.durationMinutes * 60 * 1000,
+        overclockCooldownUntil: now + (cfg.durationMinutes + cfg.cooldownMinutes) * 60 * 1000,
+        tycoonPoints: state.tycoonPoints - cfg.costTp,
+        btcBalance: cfg.costBtc > 0 ? Math.max(0, state.btcBalance - cfg.costBtc) : state.btcBalance,
+      };
+    }
+
+    case 'OVERCLOCK_TICK': {
+      if (!state.overclockActive) return state;
+      if (Date.now() < state.overclockEndsAt) return state;
+      // Süre bitti — overclock kapat
+      return { ...state, overclockActive: false };
+    }
+
+    case 'SET_OVERCLOCK_CONFIG': return {
+      ...state,
+      overclockConfig: { ...state.overclockConfig, ...action.config }
+    };
+
+    case 'RECORD_WITHDRAWAL': {
+      const today = new Date().toISOString().split('T')[0];
+      const isToday = state.lastWithdrawDate === today;
+      return {
+        ...state,
+        totalLifetimeWithdrawn: state.totalLifetimeWithdrawn + action.amount,
+        dailyWithdrawnBtc: isToday ? state.dailyWithdrawnBtc + action.amount : action.amount,
+        lastWithdrawDate: today,
+        adsWatchedForWithdraw: 0, // çekim sonrası sıfırla
+      };
+    }
+
+    case 'SET_WITHDRAW_CONFIG': return {
+      ...state,
+      withdrawConfig: { ...state.withdrawConfig, ...action.config }
+    };
+
+    case 'INCREMENT_ADS_FOR_WITHDRAW': return {
+      ...state,
+      adsWatchedForWithdraw: state.adsWatchedForWithdraw + 1
+    };
+
+    case 'RESET_ADS_FOR_WITHDRAW': return {
+      ...state,
+      adsWatchedForWithdraw: 0
+    };
+
+    case 'SET_DEPOSIT_STATS': return {
+      ...state,
+      totalLifetimeDeposit: action.totalDeposit,
+      totalLifetimeWithdrawn: action.totalWithdrawn,
     };
     default: return state;
   }
@@ -843,7 +997,6 @@ interface GameContextValue {
   joinGuildInFirestore: (guild: Guild) => Promise<void>;
   leaveGuildInFirestore: (guildId: string) => Promise<void>;
   donateToGuildInFirestore: (amount: number) => Promise<void>;
-  claimGuildReward: (rewardId: string, btcReward: number) => Promise<void>;
   // Admin Helpers
   adminSetBtc: (amount: number, userId?: string) => Promise<void>;
   adminSetTp: (amount: number, userId?: string) => Promise<void>;
@@ -854,14 +1007,20 @@ interface GameContextValue {
   uploadAvatar: (file: File) => Promise<string | null>;
   claimStreakReward: () => Promise<void>;
   redeemPromoCode: (code: string) => Promise<{ success: boolean; message: string }>;
-  markNotificationRead: (id: string) => Promise<void>;
+  activateOverclock: () => { success: boolean; message: string };
+  isOverclockActive: boolean;
+  isOverclockCooldown: boolean;
+  overclockMultiplier: number;
+  overclockSecondsLeft: number;
+  cooldownSecondsLeft: number;
+  adBoostMining: (hoursEquivalent: number) => void;
+  calcWithdrawLimits: () => ReturnType<any>;
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
 
 export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(gameReducer, INITIAL_STATE);
-  const lastSyncedHashRef = useRef<number>(INITIAL_STATE.totalHashRate);
 
   const fetchTransactions = async (userId: string) => {
     try {
@@ -928,32 +1087,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .maybeSingle();
 
       if (profile && !error) {
-        const { id, user: _u, isLoading: _i, ...rest } = profile as any;
-        
-        // Ensure streak object exists with defaults
-        const rawStreak = rest.streak || {};
-        const streak = {
-          count: rawStreak.count ?? rest.loginStreak ?? 0,
-          lastClaim: rawStreak.lastClaim ?? 0
-        };
-
-        // Ensure questProgress object exists with defaults
-        const rawQuestProgress = rest.questProgress || {};
-        const questProgress = {
-          adsWatched: rawQuestProgress.adsWatched ?? 0,
-          contractsPurchased: rawQuestProgress.contractsPurchased ?? 0,
-          referralsDone: rawQuestProgress.referralsDone ?? 0,
-          loginStreak: rawQuestProgress.loginStreak ?? 0,
-          claimedQuestIds: rawQuestProgress.claimedQuestIds ?? []
-        };
-
-        const gameData = { 
-          ...rest, 
-          userId: id,
-          streak: streak,
-          loginStreak: streak.count,
-          questProgress: questProgress
-        };
+        const { id, user: _u, isLoading: _l, ...rest } = profile as any;
+        const gameData = { ...rest, userId: id };
         
         // Referral code yoksa üret ve güncelle
         if (!profile.referralCode) {
@@ -1032,22 +1167,28 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (firebaseUser) {
         // 1. User'ı hemen set et
         dispatch({ type: 'SET_AUTH_USER', user: firebaseUser });
-        // NOT: isLoading=false'ı burada AÇMIYORUZ.
-        // fetchProfile tamamlanınca aşağıda kapatılır (race condition önlemi).
-
-        // 2. Profil yükle ve ardından isLoading'i kapat
-        try {
-          await fetchProfile(
-            firebaseUser.uid,
-            firebaseUser.displayName || undefined,
-            firebaseUser.email    || undefined
-          );
-        } catch (_) { /* fetchProfile kendi içinde hata yönetiyor */ }
-        // Profil verileri state'e yazıldıktan sonra loading bayrağını indir
+        // 2. isLoading'i kapat
         dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
 
-        // 3. İşlemler (kritik değil, paralel çalışabilir)
+        // 3. Yardımcıları kullanarak veri çek
+        fetchProfile(firebaseUser.uid, firebaseUser.displayName || undefined, firebaseUser.email || undefined);
         fetchTransactions(firebaseUser.uid);
+
+        // 4a. Deposit & withdraw istatistiklerini yükle
+        (async () => {
+          try {
+            const { data: txs } = await supabase
+              .from(TABLES.TRANSACTIONS)
+              .select('amount, type, timestamp')
+              .eq('user_id', firebaseUser.uid)
+              .in('type', ['deposit', 'transfer_out']);
+            if (txs) {
+              const totalDeposit = txs.filter(t => t.type === 'deposit' && t.amount > 0).reduce((s, t) => s + t.amount, 0);
+              const totalWithdrawn = txs.filter(t => t.type === 'transfer_out').reduce((s, t) => s + Math.abs(t.amount), 0);
+              dispatch({ type: 'SET_DEPOSIT_STATS', totalDeposit, totalWithdrawn });
+            }
+          } catch (_) {}
+        })();
 
         // 4. Realtime profile subscription
         const profileSub = supabase
@@ -1074,27 +1215,36 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // ── Global Data (auth gerektirmiyor) ────────────────────────
     const loadGlobal = async () => {
       try {
-        const { data: allSettings } = await supabase.from(TABLES.SETTINGS).select('*');
-        
-        if (allSettings) {
-          const settings = allSettings.find(s => String(s.id) === 'v1' || s.id === 1);
-          if (settings) {
-            dispatch({ type: 'SET_GLOBAL_SETTINGS', settings });
-            dispatch({ type: 'SET_MAINTENANCE', isMaintenance: settings.isMaintenance });
-            if (settings.announcement) dispatch({ type: 'SET_ANNOUNCEMENT', announcement: settings.announcement });
-            dispatch({ type: 'SET_GLOBAL_MULTIPLIER', multiplier: settings.globalMultiplier || 1.0 });
-          }
+        const { data: settings } = await supabase
+          .from(TABLES.SETTINGS)
+          .select('*')
+          .eq('id', 'v1')
+          .maybeSingle();
 
-          const adsRow = allSettings.find(s => String(s.id) === 'google_ads_config' || s.id === 2);
+        if (settings) {
+          dispatch({ type: 'SET_GLOBAL_SETTINGS', settings });
+          dispatch({ type: 'SET_MAINTENANCE', isMaintenance: settings.isMaintenance });
+          if (settings.announcement) dispatch({ type: 'SET_ANNOUNCEMENT', announcement: settings.announcement });
+          dispatch({ type: 'SET_GLOBAL_MULTIPLIER', multiplier: settings.globalMultiplier || 1.0 });
+        }
+
+        // ── Google Ads Config yükle ──────────────────────────────────────
+        try {
+          const { data: adsRow } = await supabase
+            .from(TABLES.SETTINGS)
+            .select('value')
+            .eq('id', 'google_ads_config')
+            .maybeSingle();
           if (adsRow?.value) {
             dispatch({ type: 'SET_GOOGLE_ADS_CONFIG', config: adsRow.value });
+            // Google Ads Manager'ı başlat
             if (typeof window !== 'undefined') {
               import('../lib/googleAds').then(({ googleAds }) => {
                 googleAds.init(adsRow.value).catch(() => {});
               }).catch(() => {});
             }
           }
-        }
+        } catch (_) {}
 
         const [{ data: marketData }, { data: guilds }] = await Promise.all([
           supabase.from(TABLES.MARKETPLACE).select('*').order('created_at', { ascending: false }),
@@ -1163,6 +1313,26 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             .eq('active', true);
           if (gameEvents) dispatch({ type: 'SET_ACTIVE_GAME_EVENTS', events: gameEvents });
         } catch (_) {}
+
+        // ── Overclock Config ──────────────────────────────────────────────
+        try {
+          const { data: ocRow } = await supabase
+            .from(TABLES.SETTINGS)
+            .select('value')
+            .eq('id', 'overclock_config')
+            .maybeSingle();
+          if (ocRow?.value) dispatch({ type: 'SET_OVERCLOCK_CONFIG', config: ocRow.value });
+        } catch (_) {}
+
+        // ── Withdraw Config ───────────────────────────────────────────────
+        try {
+          const { data: wdRow } = await supabase
+            .from(TABLES.SETTINGS)
+            .select('value')
+            .eq('id', 'withdraw_config')
+            .maybeSingle();
+          if (wdRow?.value) dispatch({ type: 'SET_WITHDRAW_CONFIG', config: wdRow.value });
+        } catch (_) {}
       } catch (e) {
         console.error('Global data error:', e);
       }
@@ -1194,11 +1364,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
           // v1 → global settings
           if (s.id === 'v1') {
-            // Tüm admin ayarları (botCount, miningDifficulty, referralBtcReward vs.) globalSettings'e yazılır
             dispatch({ type: 'SET_GLOBAL_SETTINGS', settings: s });
-            dispatch({ type: 'SET_MAINTENANCE', isMaintenance: !!s.isMaintenance });
+            dispatch({ type: 'SET_MAINTENANCE', isMaintenance: s.isMaintenance });
             if (s.announcement) dispatch({ type: 'SET_ANNOUNCEMENT', announcement: s.announcement });
-            dispatch({ type: 'SET_GLOBAL_MULTIPLIER', multiplier: parseFloat(s.globalMultiplier) || 1.0 });
+            dispatch({ type: 'SET_GLOBAL_MULTIPLIER', multiplier: s.globalMultiplier || 1.0 });
           }
 
           // hashrate_settings → hashrate konfigürasyonu anında güncelle
@@ -1210,6 +1379,16 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           // google_ads_config → Google Ads ayarları anında güncelle
           if (s.id === 'google_ads_config' && s.value) {
             dispatch({ type: 'SET_GOOGLE_ADS_CONFIG', config: s.value });
+          }
+
+          // overclock_config → overclock ayarları anında güncelle
+          if (s.id === 'overclock_config' && s.value) {
+            dispatch({ type: 'SET_OVERCLOCK_CONFIG', config: s.value });
+          }
+
+          // withdraw_config → çekim kuralları anında güncelle
+          if (s.id === 'withdraw_config' && s.value) {
+            dispatch({ type: 'SET_WITHDRAW_CONFIG', config: s.value });
           }
 
           // free_options → reklam ödülleri anında güncelle
@@ -1281,75 +1460,25 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const syncInterval = setInterval(async () => {
       try {
-        // Update guild total hashrate if joined
-        if (state.userGuildId) {
-          try {
-            const { data: guild } = await supabase.from(TABLES.GUILDS).select('totalHash').eq('id', state.userGuildId).single();
-            if (guild) {
-              const lastSyncedHash = lastSyncedHashRef.current;
-              const currentHash = state.totalHashRate;
-              const hashDelta = currentHash - lastSyncedHash;
-
-              if (Math.abs(hashDelta) > 0.01) {
-                await supabase.from(TABLES.GUILDS).update({
-                  totalHash: Math.max(0, guild.totalHash + hashDelta)
-                }).eq('id', state.userGuildId);
-                lastSyncedHashRef.current = currentHash;
-              }
-            }
-          } catch (err) {
-            console.warn('Guild hashrate sync failed:', err);
-          }
-        }
-
-        // Build sync object - only send fields if they are defined
-        // Using snake_case for system fields and camelCase for user fields based on existing schema
-        const syncData: any = {
+        // Sync current balances to Supabase profile
+        await supabase.from(TABLES.PROFILES).update({
           btcBalance: state.btcBalance,
           tycoonPoints: state.tycoonPoints,
           lastMiningTick: state.lastMiningTick,
-          totalHashRate: state.totalHashRate,
           xp: state.xp,
           level: state.level,
           energyCells: state.energyCells,
           dailyEarningsBtc: state.dailyEarningsBtc,
-          dailyEarnedBtc: state.dailyEarnedBtc,
-          dailyAdEarnedBtc: state.dailyAdEarnedBtc,
           lastEarningsResetDate: state.lastEarningsResetDate,
           streak: state.streak,
-          vip: state.vip,
-          prestigeLevel: state.prestigeLevel,
-          prestigeMultiplier: state.prestigeMultiplier,
-          claimedGuildRewards: state.claimedGuildRewards,
+          ownedContracts: state.ownedContracts,
+          questProgress: state.questProgress,
+          farmSettings: state.farmSettings,
+          researchedNodes: state.researchedNodes,
+          battlePass: state.battlePass,
+          redeemedReferralCode: state.redeemedReferralCode,
           updated_at: new Date().toISOString()
-        };
-
-        // Deep JSON fields can sometimes cause 406 if column doesn't exist or is wrong type
-        if (state.ownedContracts) syncData.ownedContracts = state.ownedContracts;
-        if (state.questProgress) syncData.questProgress = state.questProgress;
-        if (state.farmSettings) syncData.farmSettings = state.farmSettings;
-        if (state.researchedNodes) syncData.researchedNodes = state.researchedNodes;
-        if (state.battlePass) syncData.battlePass = state.battlePass;
-        if (state.redeemedReferralCode) syncData.redeemedReferralCode = state.redeemedReferralCode;
-
-        const { error } = await supabase
-          .from(TABLES.PROFILES)
-          .update(syncData)
-          .eq('id', state.user.uid);
-        
-        if (error) {
-          // If we get a 406, it likely means one of the columns doesn't exist or type mismatch
-          if (error.code === 'PGRST106' || (error as any).status === 406 || (error as any).status === 400) {
-             console.warn('Sync error detected (likely schema mismatch). Retrying with minimal set.');
-             await supabase.from(TABLES.PROFILES).update({
-                btcBalance: state.btcBalance,
-                tycoonPoints: state.tycoonPoints,
-                updated_at: new Date().toISOString()
-             }).eq('id', state.user.uid);
-          } else {
-            throw error;
-          }
-        }
+        }).eq('id', state.user.uid);
         
         console.info('🔄 Veriler senkronize edildi (Periyodik)');
       } catch (error) {
@@ -1384,49 +1513,66 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       })
       .subscribe();
 
-    // ── Çekim durumu değişince kullanıcıya inbox bildirimi gönder ────────────
-    const wSub = supabase.channel(`withdrawals-user-${state.user.uid}`)
-      .on('postgres_changes', {
-        event: 'UPDATE', schema: 'public', table: TABLES.WITHDRAWALS,
-        filter: `user_id=eq.${state.user.uid}`
-      }, (payload) => {
-        if (!payload.new) return;
-        const w = payload.new as any;
-        if (w.status === 'approved') {
-          dispatch({ type: 'PREPEND_INBOX_NOTIFICATION', notification: {
-            id: `w-ok-${w.id}-${Date.now()}`,
-            title: '✅ Çekim Onaylandı',
-            body: `${(w.amount || 0).toFixed(8)} BTC çekiminiz onaylandı ve işleme alındı.`,
-            type: 'success',
-            target_id: state.user.uid,
-            created_at: new Date().toISOString(),
-            read: false
-          }});
-        } else if (w.status === 'rejected') {
-          dispatch({ type: 'PREPEND_INBOX_NOTIFICATION', notification: {
-            id: `w-rej-${w.id}-${Date.now()}`,
-            title: '❌ Çekim Reddedildi',
-            body: 'Çekim talebiniz reddedildi. Detaylar için destek ekibiyle iletişime geçin.',
-            type: 'warning',
-            target_id: state.user.uid,
-            created_at: new Date().toISOString(),
-            read: false
-          }});
-        }
-      })
-      .subscribe();
-
     return () => {
       pSub.unsubscribe();
       tSub.unsubscribe();
-      wSub.unsubscribe();
     };
   }, [state.user?.uid]);
 
   const btcToUsd = (btc: number) => `$${(btc * state.usdRate).toFixed(2)}`;
   const formatBtc = (btc: number) => btc.toFixed(10);
   const energyScale = energyToHashScale(state.energyCells, state.maxEnergyCells);
-  const currentBtcPerSecond = calcBtcPerSecond(state.totalHashRate, state.activeMiningEvents, state.prestigeMultiplier, energyScale, state.isFeverMode, state.researchedNodes);
+
+  // ── Çekim Limit Hesaplama ────────────────────────────────────────────────
+  const calcWithdrawLimits = () => {
+    const cfg = state.withdrawConfig;
+    const today = new Date().toISOString().split('T')[0];
+    const dailyUsed = state.lastWithdrawDate === today ? state.dailyWithdrawnBtc : 0;
+
+    // Maksimum çekilebilir = toplam deposit × çarpan (örn: %25)
+    const maxFromDeposit = state.totalLifetimeDeposit * cfg.maxMultiplier;
+    // Bugün kalan günlük limit
+    const dailyRemaining = cfg.dailyLimitBtc > 0
+      ? Math.max(0, cfg.dailyLimitBtc - dailyUsed)
+      : Infinity;
+    // Fiilen çekilebilecek max
+    const availableToWithdraw = Math.min(
+      state.btcBalance,
+      maxFromDeposit - state.totalLifetimeWithdrawn,
+      dailyRemaining,
+    );
+
+    // Reklam şartı
+    const adsNeeded = Math.max(0, cfg.adsRequired - state.adsWatchedForWithdraw);
+    const adsOk = cfg.adsRequired === 0 || state.adsWatchedForWithdraw >= cfg.adsRequired;
+
+    // Deposit şartı
+    const depositOk = state.totalLifetimeDeposit >= cfg.depositRequiredBtc;
+
+    return {
+      maxFromDeposit,
+      dailyUsed,
+      dailyRemaining: dailyRemaining === Infinity ? null : dailyRemaining,
+      availableToWithdraw: Math.max(0, availableToWithdraw),
+      adsNeeded,
+      adsOk,
+      depositOk,
+      minAmount: cfg.minAmountBtc,
+      canWithdraw: availableToWithdraw >= cfg.minAmountBtc && adsOk && depositOk,
+    };
+  };
+
+  // Overclock multiplier hesapla (context dışına da expose edilecek)
+  const nowTs = Date.now();
+  const isOverclockActiveNow = state.overclockActive && state.overclockEndsAt > nowTs;
+  const isOverclockCooldown = !isOverclockActiveNow && nowTs < state.overclockCooldownUntil;
+  const overclockMultiplier = isOverclockActiveNow
+    ? (state.overclockConfig?.multiplier ?? 1.5)
+    : isOverclockCooldown
+      ? (state.overclockConfig?.penalty ?? 0.8)
+      : 1.0;
+
+  const currentBtcPerSecond = calcBtcPerSecond(state.totalHashRate, state.activeMiningEvents, state.prestigeMultiplier, energyScale, state.isFeverMode, state.researchedNodes, 1.0, state.globalMultiplier, overclockMultiplier);
   const earnedTodayBtc = currentBtcPerSecond * 86400;
   
   const todayStr = new Date().toISOString().split('T')[0];
@@ -1436,6 +1582,25 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const dailyCapBtc = 1.0 / (state.usdRate || 91200);
   const dailyCapReached = !isVipCapExempt && currentDailyEarned >= dailyCapBtc;
   const dailyEarnedPct = Math.min(100, (currentDailyEarned / dailyCapBtc) * 100);
+
+  // Overclock tick — süre bittiyse kapat, Supabase'e kaydet
+  useEffect(() => {
+    if (!state.overclockActive) return;
+    const id = setInterval(() => {
+      dispatch({ type: 'OVERCLOCK_TICK' });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [state.overclockActive]);
+
+  // Overclock state'ini Supabase'e yaz (persist)
+  useEffect(() => {
+    if (!state.user?.uid) return;
+    supabase.from(TABLES.PROFILES).update({
+      overclockActive: state.overclockActive,
+      overclockEndsAt: state.overclockEndsAt,
+      overclockCooldownUntil: state.overclockCooldownUntil,
+    }).eq('id', state.user.uid).then(() => {});
+  }, [state.overclockActive, state.overclockEndsAt]);
 
   // ─── Marketplace Functions ──────────────────────────────────────────────────
   const listContractOnMarket = async (contract: OwnedContract, price: number) => {
@@ -1584,8 +1749,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       members: guild.members + 1,
       totalHash: guild.totalHash + state.totalHashRate
     }).eq('id', guild.id);
-
-    lastSyncedHashRef.current = state.totalHashRate;
   };
 
   const leaveGuildInFirestore = async (guildId: string) => {
@@ -1598,8 +1761,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       members: Math.max(0, guild.members - 1),
       totalHash: Math.max(0, guild.totalHash - state.totalHashRate)
     }).eq('id', guildId);
-
-    lastSyncedHashRef.current = 0;
   };
 
   const donateToGuildInFirestore = async (amount: number) => {
@@ -1624,23 +1785,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       level: newLevel,
       xpToNextLevel: nextXp
     }).eq('id', state.userGuildId);
-  };
-
-  const claimGuildReward = async (rewardId: string, btcReward: number) => {
-    if (!state.user) throw new Error("Auth required");
-    if (state.claimedGuildRewards.includes(rewardId)) throw new Error("Already claimed");
-
-    const newClaimed = [...state.claimedGuildRewards, rewardId];
-    const newBtc = state.btcBalance + btcReward;
-
-    const { error } = await supabase.from(TABLES.PROFILES).update({
-      claimedGuildRewards: newClaimed,
-      btcBalance: newBtc
-    }).eq('id', state.user.uid);
-
-    if (error) throw error;
-
-    dispatch({ type: 'CLAIM_GUILD_REWARD', rewardId });
   };
 
   // ─── Admin Helpers ────────────────────────────────────────────────────────
@@ -1683,82 +1827,53 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const claimStreakReward = async () => {
     if (!state.user) return;
     
-    try {
-      // 1. Ödülü hesapla (State henüz güncellenmediği için mevcut state'i kullanıyoruz)
-      const currentDayIndex = state.streak.count % 7;
-      const rewards = [
-          { type: 'tp', value: 100 },
-          { type: 'tp', value: 250 },
-          { type: 'btc', value: 0.000001 },
-          { type: 'tp', value: 500 },
-          { type: 'energy', value: 5 },
-          { type: 'tp', value: 1000 },
-          { type: 'btc', value: 0.00001 },
-      ];
-      const reward = rewards[currentDayIndex];
-      
-      const newStreak = {
-        count: state.streak.count + 1,
-        lastClaim: Date.now()
-      };
-      
-      let newTp = state.tycoonPoints;
-      let newBtc = state.btcBalance;
-      let newEnergy = state.energyCells;
-      
-      if (reward.type === 'tp') newTp += reward.value;
-      if (reward.type === 'btc') newBtc += reward.value;
-      if (reward.type === 'energy') newEnergy = Math.min(state.maxEnergyCells, state.energyCells + reward.value);
+    // 1. Reducer işlemi (state'i anında günceller)
+    dispatch({ type: 'CLAIM_STREAK_REWARD' });
+    
+    // 2. Side effect: Ödülü hesapla (tekrar hesaplıyoruz çünkü newState henüz elimizde değil veya o anki state'i kullanabiliriz)
+    const currentDayIndex = state.streak.count % 7;
+    const rewards = [
+        { type: 'tp', value: 100 },
+        { type: 'tp', value: 250 },
+        { type: 'btc', value: 0.000001 },
+        { type: 'tp', value: 500 },
+        { type: 'energy', value: 5 },
+        { type: 'tp', value: 1000 },
+        { type: 'btc', value: 0.00001 },
+    ];
+    const reward = rewards[currentDayIndex];
+    
+    const newStreak = {
+      count: state.streak.count + 1,
+      lastClaim: Date.now()
+    };
+    
+    let newTp = state.tycoonPoints;
+    let newBtc = state.btcBalance;
+    let newEnergy = state.energyCells;
+    
+    if (reward.type === 'tp') newTp += reward.value;
+    if (reward.type === 'btc') newBtc += reward.value;
+    if (reward.type === 'energy') newEnergy = Math.min(state.maxEnergyCells, state.energyCells + reward.value);
 
-      // 2. Önce veritabanına yaz (Persistence First)
-      const { error } = await supabase.from(TABLES.PROFILES).update({
-        streak: newStreak,
-        loginStreak: newStreak.count,
-        tycoonPoints: newTp,
-        btcBalance: newBtc,
-        energyCells: newEnergy,
-        updated_at: new Date().toISOString()
-      }).eq('id', state.user.uid);
-
-      if (error) throw error;
-      
-      // 3. Veritabanı başarılıysa state'i güncelle
-      dispatch({ type: 'CLAIM_STREAK_REWARD' });
-      console.info('🎁 Günlük ödül başarıyla kaydedildi ve state güncellendi:', newStreak.count);
-    } catch (e: any) {
-      console.error('❌ Ödül talep hatası:', e);
-      throw e;
-    }
+    // 3. Veritabanına anında yaz (Sync bekleme)
+    await supabase.from(TABLES.PROFILES).update({
+      streak: newStreak,
+      loginStreak: newStreak.count,
+      tycoonPoints: newTp,
+      btcBalance: newBtc,
+      energyCells: newEnergy,
+      updated_at: new Date().toISOString()
+    }).eq('id', state.user.uid);
+    
+    console.info('🎁 Günlük ödül veritabanına kaydedildi:', newStreak.count);
   };
 
   const updateUserProfile = async (updates: Partial<{ username: string; email: string; phone: string; avatarUrl: string }>) => {
     if (!state.user) throw new Error("Auth required");
-    
-    try {
-      const { error } = await supabase.from(TABLES.PROFILES).update(updates).eq('id', state.user.uid);
-      
-      if (error) {
-        // If we get a schema mismatch error, try to update only the most reliable fields
-        if (error.code === 'PGRST106' || (error as any).status === 406 || (error as any).status === 400) {
-          console.warn('Profile update failed (likely schema mismatch). Retrying with essential fields only.');
-          
-          const filteredUpdates: any = {};
-          if (updates.username) filteredUpdates.username = updates.username;
-          if (updates.email) filteredUpdates.email = updates.email;
-          if (updates.avatarUrl) filteredUpdates.avatarUrl = updates.avatarUrl;
-          
-          const { error: retryError } = await supabase.from(TABLES.PROFILES).update(filteredUpdates).eq('id', state.user.uid);
-          if (retryError) throw retryError;
-        } else {
-          throw error;
-        }
-      }
-      
-      dispatch({ type: 'UPDATE_PROFILE', updates });
-    } catch (e: any) {
-      console.error('❌ Profile update failed:', e);
-      throw e;
-    }
+    const { error } = await supabase.from(TABLES.PROFILES).update(updates).eq('id', state.user.uid);
+    if (error) throw error;
+    dispatch({ type: 'UPDATE_PROFILE', updates });
   };
 
   const uploadAvatar = async (file: File) => {
@@ -1778,6 +1893,45 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       .getPublicUrl(filePath);
 
     return publicUrl;
+  };
+
+  // ── Reklam → Hızlandırma ─────────────────────────────────────────────────
+  const adBoostMining = (hoursEquivalent: number) => {
+    dispatch({ type: 'AD_BOOST_MINING', hoursEquivalent });
+    if (state.user?.uid) {
+      const energyScaleFn = energyToHashScale(state.energyCells, state.maxEnergyCells);
+      const btcPerSec = calcBtcPerSecond(state.totalHashRate, state.activeMiningEvents, state.prestigeMultiplier, energyScaleFn);
+      const earned = btcPerSec * hoursEquivalent * 3600;
+      supabase.from(TABLES.TRANSACTIONS).insert({
+        user_id: state.user.uid,
+        username: state.username,
+        type: 'bonus',
+        amount: earned,
+        status: 'approved',
+        note: `Reklam boost: ${hoursEquivalent}s madencilik hızlandırması`,
+        created_at: new Date().toISOString(),
+      }).then(() => {});
+    }
+  };
+
+  // ── Overclock Aktivasyon ──────────────────────────────────────────────────
+  const activateOverclock = (): { success: boolean; message: string } => {
+    const cfg = state.overclockConfig;
+    const now = Date.now();
+    if (!cfg.enabled) return { success: false, message: 'Overclock şu an devre dışı.' };
+    if (state.overclockActive) return { success: false, message: 'Overclock zaten aktif!' };
+    if (now < state.overclockCooldownUntil) {
+      const left = Math.ceil((state.overclockCooldownUntil - now) / 60000);
+      return { success: false, message: `Cooldown: ${left} dakika kaldı.` };
+    }
+    if (state.tycoonPoints < cfg.costTp) {
+      return { success: false, message: `Yetersiz TP. ${cfg.costTp} TP gerekli (${state.tycoonPoints} TP mevcut).` };
+    }
+    if (cfg.costBtc > 0 && state.btcBalance < cfg.costBtc) {
+      return { success: false, message: `Yetersiz BTC. ${cfg.costBtc} BTC gerekli.` };
+    }
+    dispatch({ type: 'OVERCLOCK_ACTIVATE' });
+    return { success: true, message: `Overclock aktif! ${cfg.durationMinutes} dakika boyunca +${Math.round((cfg.multiplier - 1) * 100)}% hashrate.` };
   };
 
   // ── Promo Code Redemption ─────────────────────────────────────────────────
@@ -1831,27 +1985,24 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, message: 'Bir hata oluştu. Lütfen tekrar dene.' };
     }
   };
-  
-  const markNotificationRead = async (id: string) => {
-    try {
-      await supabase.from(TABLES.NOTIFICATIONS).update({ read: true }).eq('id', id);
-      dispatch({ type: 'MARK_NOTIFICATION_READ', id });
-    } catch (e) {
-      console.error('Notification mark read error:', e);
-    }
-  };
 
   return (
     <GameContext.Provider value={{
       state, dispatch, btcToUsd, formatBtc, earnedTodayBtc, earnedTodayUsd: btcToUsd(earnedTodayBtc),
-      effectiveHashRate: state.totalHashRate * energyScale, energyScale, currentBtcPerSecond, canPrestige: state.level >= 10, 
+      effectiveHashRate: state.totalHashRate * energyScale * overclockMultiplier, energyScale, currentBtcPerSecond, canPrestige: state.level >= 10, 
       isVipActive: isVipCapExempt, vipBtcBonus: isVipCapExempt ? (state.vip?.tier === 'gold' ? 1.5 : 1.2) : 1.0,
       dailyEarnedBtc: currentDailyEarned, dailyCapBtc, dailyEarnedPct, dailyCapReached, isVipCapExempt,
       listContractOnMarket, buyContractFromMarket, cancelMarketListing,
       createGuildInFirestore, joinGuildInFirestore, leaveGuildInFirestore, donateToGuildInFirestore,
-      claimGuildReward,
       adminSetBtc, adminSetTp, adminSetLevel, adminUpdateSettings, adminTriggerEvent,
-      updateUserProfile, uploadAvatar, claimStreakReward, redeemPromoCode, markNotificationRead
+      updateUserProfile, uploadAvatar, claimStreakReward, redeemPromoCode,
+      activateOverclock, adBoostMining,
+      isOverclockActive: isOverclockActiveNow,
+      isOverclockCooldown,
+      overclockMultiplier,
+      overclockSecondsLeft: isOverclockActiveNow ? Math.max(0, Math.ceil((state.overclockEndsAt - Date.now()) / 1000)) : 0,
+      cooldownSecondsLeft: isOverclockCooldown ? Math.max(0, Math.ceil((state.overclockCooldownUntil - Date.now()) / 1000)) : 0,
+      calcWithdrawLimits,
     }}>
       {children}
     </GameContext.Provider>

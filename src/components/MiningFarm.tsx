@@ -10,6 +10,13 @@ export default function MiningFarm() {
   const { state, dispatch } = useGame();
   const { theme } = useTheme();
   const [selectedRigId, setSelectedRigId] = useState<number | null>(null);
+  const [, setTick] = useState(0);
+
+  // Local tick to refresh countdown timers
+  React.useEffect(() => {
+    const timer = setInterval(() => setTick(t => t + 1), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const a1 = theme.vars['--ct-a1'];
   const a2 = theme.vars['--ct-a2'];
@@ -45,6 +52,63 @@ export default function MiningFarm() {
                 <span className="text-xs font-black text-white">{((activeCount / 48) * 100).toFixed(0)}%</span>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Power Surge Control */}
+        <div className="mt-4 p-4 rounded-2xl bg-zinc-900/50 border border-white/5 relative overflow-hidden group">
+          {state.farmSettings.surgeEndsAt > Date.now() && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="absolute inset-0 bg-orange-500/5 animate-pulse pointer-events-none"
+            />
+          )}
+          
+          <div className="flex items-center justify-between relative z-10">
+            <div className="flex items-center gap-3">
+              <div className={cn(
+                "w-10 h-10 rounded-xl flex items-center justify-center border transition-all duration-500",
+                state.farmSettings.surgeEndsAt > Date.now() 
+                  ? "bg-orange-500/20 border-orange-500/40 shadow-[0_0_15px_rgba(249,115,22,0.3)]" 
+                  : "bg-white/5 border-white/10"
+              )}>
+                <Zap size={20} className={cn(
+                  "transition-all duration-500",
+                  state.farmSettings.surgeEndsAt > Date.now() ? "text-orange-500 scale-110" : "text-zinc-500"
+                )} />
+              </div>
+              <div>
+                <h3 className="text-xs font-black uppercase tracking-widest text-white flex items-center gap-2">
+                  Enerji Patlaması
+                  {state.farmSettings.surgeEndsAt > Date.now() && (
+                    <span className="px-1.5 py-0.5 rounded-md bg-orange-500 text-[8px] text-black font-black">AKTİF</span>
+                  )}
+                </h3>
+                <p className="text-[9px] text-zinc-500 font-bold uppercase mt-0.5">2x Hashrate / 3x Enerji Tüketimi</p>
+              </div>
+            </div>
+
+            <button
+              disabled={state.farmSettings.surgeNextAvailableAt > Date.now() || state.energyCells < 5}
+              onClick={() => dispatch({ type: 'ACTIVATE_SURGE' })}
+              className={cn(
+                "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95",
+                state.farmSettings.surgeEndsAt > Date.now()
+                  ? "bg-orange-500 text-black shadow-[0_0_20px_rgba(249,115,22,0.4)]"
+                  : state.farmSettings.surgeNextAvailableAt > Date.now()
+                  ? "bg-zinc-800 text-zinc-500 cursor-not-allowed"
+                  : "bg-white/10 text-white hover:bg-white/20"
+              )}
+            >
+              {state.farmSettings.surgeEndsAt > Date.now() ? (
+                <span>{Math.ceil((state.farmSettings.surgeEndsAt - Date.now()) / 1000)}s</span>
+              ) : state.farmSettings.surgeNextAvailableAt > Date.now() ? (
+                <span>{Math.ceil((state.farmSettings.surgeNextAvailableAt - Date.now()) / 1000)}s</span>
+              ) : (
+                "Ateşle"
+              )}
+            </button>
           </div>
         </div>
       </div>
