@@ -136,6 +136,7 @@ export interface GameState {
   referralCode: string;
   referralCount: number;
   redeemedReferralCode: string | null;
+  claimedMilestones: number[]; // Milestone threshold counts: [1, 3, 5, 10, 25]
 
   // User
   username: string;
@@ -475,6 +476,7 @@ export const INITIAL_STATE: GameState = {
     adRewardMultiplier: 1.0,
   },
   claimedGuildRewards: [],
+  claimedMilestones: [],
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -554,6 +556,7 @@ type Action =
   | { type: 'RESET_ADS_FOR_WITHDRAW' }
   | { type: 'SET_DEPOSIT_STATS'; totalDeposit: number; totalWithdrawn: number }
   | { type: 'CLAIM_GUILD_REWARD'; goalId: string; rewardBtc: number }
+  | { type: 'CLAIM_MILESTONE'; milestone: number; tpReward: number }
   | { type: 'SET_WHEEL_REWARDS'; rewards: any[] }
   | { type: 'ACTIVATE_SURGE' }
   | { type: 'ADD_BTC', amount: number };
@@ -1113,11 +1116,10 @@ function gameReducer(state: GameState, action: Action): GameState {
       totalLifetimeDeposit: action.totalDeposit,
       totalLifetimeWithdrawn: action.totalWithdrawn,
     };
-    case 'CLAIM_GUILD_REWARD': return {
-      ...state,
-      btcBalance: state.btcBalance + action.rewardBtc,
-      claimedGuildRewards: [...state.claimedGuildRewards, action.goalId]
-    };
+    case 'CLAIM_GUILD_REWARD':
+      return { ...state, claimedGuildRewards: [...state.claimedGuildRewards, action.goalId], btcBalance: state.btcBalance + action.rewardBtc };
+    case 'CLAIM_MILESTONE':
+      return { ...state, claimedMilestones: [...state.claimedMilestones, action.milestone], tycoonPoints: state.tycoonPoints + action.tpReward };
 
     // ── ACCEPT_CONTRACT ─────────────────────────────────────────
     case 'ACCEPT_CONTRACT':
@@ -1798,6 +1800,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           vip: state.vip,
           redeemedReferralCode: state.redeemedReferralCode,
           claimedGuildRewards: state.claimedGuildRewards,
+          claimedMilestones: state.claimedMilestones,
+          userGuildId: state.userGuildId,
           updated_at: new Date().toISOString()
         }).eq('id', state.user.uid);
         
@@ -2056,6 +2060,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       tycoonPoints: state.tycoonPoints - cost,
       userGuildId: newGuild.id
     }).eq('id', state.user.uid);
+
+    dispatch({ type: 'SET_GAME_STATE', state: { tycoonPoints: state.tycoonPoints - cost, userGuildId: newGuild.id } as any });
   };
 
   const onWatchAd = async () => {
@@ -2087,23 +2093,37 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!state.user) throw new Error("Auth required");
     if (state.userGuildId) throw new Error("Already in a guild");
 
+    // Fetch latest guild state to avoid stale member count
+    const { data: latestGuild, error: gError } = await supabase
+      .from(TABLES.GUILDS)
+      .select('members, totalHash')
+      .eq('id', guild.id)
+      .single();
+
+    if (gError || !latestGuild) throw new Error("Lonca bulunamadı");
+
     await supabase.from(TABLES.PROFILES).update({ userGuildId: guild.id }).eq('id', state.user.uid);
     await supabase.from(TABLES.GUILDS).update({
-      members: guild.members + 1,
-      totalHash: guild.totalHash + state.totalHashRate
+      members: (latestGuild.members || 0) + 1,
+      totalHash: (latestGuild.totalHash || 0) + state.totalHashRate
     }).eq('id', guild.id);
+
+    dispatch({ type: 'SET_GAME_STATE', state: { userGuildId: guild.id } as any });
   };
 
   const leaveGuildInFirestore = async (guildId: string) => {
     if (!state.user) throw new Error("Auth required");
-    const { data: guild } = await supabase.from(TABLES.GUILDS).select('*').eq('id', guildId).single();
-    if (!guild) return;
+    // Fetch latest guild state
+    const { data: guild, error: gError } = await supabase.from(TABLES.GUILDS).select('*').eq('id', guildId).single();
+    if (gError || !guild) throw new Error("Lonca bulunamadı");
 
     await supabase.from(TABLES.PROFILES).update({ userGuildId: null }).eq('id', state.user.uid);
     await supabase.from(TABLES.GUILDS).update({
-      members: Math.max(0, guild.members - 1),
-      totalHash: Math.max(0, guild.totalHash - state.totalHashRate)
+      members: Math.max(0, (guild.members || 0) - 1),
+      totalHash: Math.max(0, (guild.totalHash || 0) - state.totalHashRate)
     }).eq('id', guildId);
+
+    dispatch({ type: 'SET_GAME_STATE', state: { userGuildId: null } as any });
   };
 
   const donateToGuildInFirestore = async (amount: number) => {
