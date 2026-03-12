@@ -1984,7 +1984,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // ── 1. Önce Supabase'e yaz (gerçek kayıt) ────────────────────
     const { error } = await supabase.from(TABLES.PROFILES).update({
       streak:       newStreak,
-      loginStreak:  newStreak.count,
       tycoonPoints: newTp,
       btcBalance:   newBtc,
       energyCells:  newEnergy,

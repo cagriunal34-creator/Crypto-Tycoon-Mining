@@ -5,7 +5,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Calendar, Gift, CheckCircle2, Zap, Coins, Trophy, Sparkles } from 'lucide-react';
+import { Calendar, Gift, CheckCircle2, Zap, Coins, Trophy, Sparkles, X } from 'lucide-react';
 import { useGame } from '../context/GameContext';
 import { useNotify } from '../context/NotificationContext';
 import { useTheme } from '../context/ThemeContext';
@@ -130,6 +130,14 @@ export default function LoginStreak() {
                     >
                         {/* Arka plan efekti */}
                         <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-emerald-500/10 to-transparent pointer-events-none" />
+
+                        {/* Kapatma Butonu */}
+                        <button
+                            onClick={() => setIsOpen(false)}
+                            className="absolute top-6 right-6 p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors z-10"
+                        >
+                            <X size={20} className="text-zinc-400" />
+                        </button>
 
                         {/* Başlık */}
                         <div className="text-center space-y-2 mb-8 relative">
