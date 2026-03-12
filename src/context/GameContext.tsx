@@ -1514,46 +1514,46 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  // ── Periodic Balance Sync (Real-time update) ───────────────
+  // ── Periodic Balance Sync (Stable interval using Refs) ───────────────
+  const stateRef = React.useRef(state);
+  React.useEffect(() => { stateRef.current = state; }, [state]);
+
   useEffect(() => {
-    if (!state.user?.uid || state.isLoading) return;
+    if (!state.user?.uid) return;
 
     const syncInterval = setInterval(async () => {
+      const s = stateRef.current;
+      if (s.isLoading || !s.user?.uid) return;
+
       try {
-        // Sync current balances to Supabase profile
         await supabase.from(TABLES.PROFILES).update({
-          btcBalance: state.btcBalance,
-          tycoonPoints: state.tycoonPoints,
-          lastMiningTick: state.lastMiningTick,
-          xp: state.xp,
-          level: state.level,
-          energyCells: state.energyCells,
-          dailyEarningsBtc: state.dailyEarningsBtc,
-          lastEarningsResetDate: state.lastEarningsResetDate,
-          streak: state.streak,
-          ownedContracts: state.ownedContracts,
-          questProgress: state.questProgress,
-          farmSettings: state.farmSettings,
-          researchedNodes: state.researchedNodes,
-          battlePass: state.battlePass,
-          redeemedReferralCode: state.redeemedReferralCode,
-          claimedGuildRewards: state.claimedGuildRewards,
+          btcBalance: s.btcBalance,
+          tycoonPoints: s.tycoonPoints,
+          lastMiningTick: s.lastMiningTick,
+          xp: s.xp,
+          level: s.level,
+          energyCells: s.energyCells,
+          dailyEarningsBtc: s.dailyEarningsBtc,
+          lastEarningsResetDate: s.lastEarningsResetDate,
+          streak: s.streak,
+          ownedContracts: s.ownedContracts,
+          questProgress: s.questProgress,
+          farmSettings: s.farmSettings,
+          researchedNodes: s.researchedNodes,
+          battlePass: s.battlePass,
+          redeemedReferralCode: s.redeemedReferralCode,
+          claimedGuildRewards: s.claimedGuildRewards,
           updated_at: new Date().toISOString()
-        }).eq('id', state.user.uid);
+        }).eq('id', s.user.uid);
         
-        console.info('🔄 Veriler senkronize edildi (Periyodik)');
+        console.info('🔄 Veriler senkronize edildi (Stabil Periyodik)');
       } catch (error) {
         console.error('Sync error:', error);
       }
-    }, 15000); // 15 seconds
+    }, 30000); // 30 seconds for better performance and stability
 
     return () => clearInterval(syncInterval);
-  }, [
-    state.user?.uid, state.isLoading, 
-    state.btcBalance, state.tycoonPoints, state.xp, state.level, state.energyCells,
-    state.streak, state.ownedContracts, state.questProgress, state.farmSettings,
-    state.researchedNodes, state.battlePass
-  ]);
+  }, [state.user?.uid]);
 
   // User Data Subscriptions
   useEffect(() => {
@@ -1819,14 +1819,25 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!state.user) throw new Error("Auth required");
     if (state.userGuildId) throw new Error("Already in a guild");
 
-    await supabase.from(TABLES.PROFILES).update({ userGuildId: guild.id }).eq('id', state.user.uid);
+    // Double check DB state to prevent duplicate member increments
+    const { data: profile } = await supabase.from(TABLES.PROFILES).select('userGuildId').eq('id', state.user.uid).single();
+    if (profile?.userGuildId) {
+       dispatch({ type: 'SET_GAME_STATE', state: { userGuildId: profile.userGuildId } as any });
+       return;
+    }
+
+    const { error: pError } = await supabase.from(TABLES.PROFILES).update({ userGuildId: guild.id }).eq('id', state.user.uid);
+    if (pError) throw pError;
+
     await supabase.from(TABLES.GUILDS).update({
       members: (guild.members || 0) + 1,
       totalHash: (guild.totalHash || 0) + state.totalHashRate
     }).eq('id', guild.id);
 
-    // Sync local state immediately to avoid race conditions in UI
+    // Sync local state immediately
     dispatch({ type: 'SET_GAME_STATE', state: { userGuildId: guild.id } as any });
+    // Update stateRef manually to prevent periodic sync overwrite
+    stateRef.current = { ...stateRef.current, userGuildId: guild.id };
   };
 
   const leaveGuildInFirestore = async (guildId: string) => {
@@ -1836,9 +1847,14 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     await supabase.from(TABLES.PROFILES).update({ userGuildId: null }).eq('id', state.user.uid);
     await supabase.from(TABLES.GUILDS).update({
-      members: Math.max(0, guild.members - 1),
-      totalHash: Math.max(0, guild.totalHash - state.totalHashRate)
+      members: Math.max(0, (guild.members || 0) - 1),
+      totalHash: Math.max(0, (guild.totalHash || 0) - state.totalHashRate)
     }).eq('id', guildId);
+
+    // Sync local state immediately
+    dispatch({ type: 'SET_GAME_STATE', state: { userGuildId: null } as any });
+    // Update stateRef manually to prevent periodic sync overwrite
+    stateRef.current = { ...stateRef.current, userGuildId: null };
   };
 
   const donateToGuildInFirestore = async (amount: number) => {
@@ -1959,7 +1975,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (reward.type === 'energy') newEnergy = Math.min(state.maxEnergyCells, state.energyCells + reward.value);
 
     // 3. Veritabanına anında yaz (Sync bekleme)
-    await supabase.from(TABLES.PROFILES).update({
+    const { error } = await supabase.from(TABLES.PROFILES).update({
       streak: newStreak,
       loginStreak: newStreak.count,
       tycoonPoints: newTp,
@@ -1967,8 +1983,18 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       energyCells: newEnergy,
       updated_at: new Date().toISOString()
     }).eq('id', state.user.uid);
-    
-    console.info('🎁 Günlük ödül veritabanına kaydedildi:', newStreak.count);
+
+    if (!error) {
+       console.info('🎁 Günlük ödül veritabanına kaydedildi:', newStreak.count);
+       // Manuel olarak stateRef'i güncelle ki periyodik sync eski veriyle ezmesin
+       stateRef.current = { 
+         ...stateRef.current, 
+         streak: newStreak, 
+         tycoonPoints: newTp, 
+         btcBalance: newBtc, 
+         energyCells: newEnergy 
+       };
+    }
   };
 
   const updateUserProfile = async (updates: Partial<{ username: string; email: string; phone: string; avatarUrl: string }>) => {
