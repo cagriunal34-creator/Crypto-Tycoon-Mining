@@ -5393,7 +5393,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                     <SettingsIcon size={14} className="text-indigo-500"/> Genel Sistem Durumu
                                 </h3>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {/* Bakım Modu */}
+                                    {/* Bakm Modu */}
                                     <button
                                         onClick={() => handleUpdateSettings({ isMaintenance: !state.globalSettings.isMaintenance })}
                                         className={cn("w-full h-20 rounded-2xl border-2 flex items-center gap-5 px-6 transition-all group",
@@ -5446,9 +5446,9 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                             )}/>
                                         </div>
                                     </button>
+                                </div>
                             </div>
-                        </div>
-                        {/* Vercel Build Trigger: Ensured clean JSX structure for settings tab */}
+
                             <div className="p-7 bg-white border border-zinc-200 rounded-[2rem] shadow-sm space-y-4">
                                 <h3 className="text-zinc-800 font-black text-xs uppercase tracking-widest flex items-center gap-2">
                                     <Bell size={14} className="text-blue-500"/> Sistem Duyurusu
@@ -5489,7 +5489,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                 </div>
                             </div>
                         </div>
-                    )}
+                    ) }
 
                     {/* ===== DESTEK / TICKET SİSTEMİ ===== */}
                     {(activeTab === 'support_pending' || activeTab === 'support_all' || activeTab === 'support_answered' || activeTab === 'support_closed') && (
