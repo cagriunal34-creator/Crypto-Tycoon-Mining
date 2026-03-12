@@ -195,7 +195,7 @@ export default function MiningPanel({
   onNavigate: (screen: string) => void;
 }) {
   const { 
-    state, btcToUsd, effectiveHashRate, energyScale, currentBtcPerSecond, isVipActive,
+    state, dispatch, btcToUsd, effectiveHashRate, energyScale, currentBtcPerSecond, isVipActive,
     dailyEarnedPct, dailyCapReached, isVipCapExempt, dailyEarnedBtc,
     activateOverclock, isOverclockActive, isOverclockCooldown,
     overclockMultiplier, overclockSecondsLeft, cooldownSecondsLeft
