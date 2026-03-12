@@ -9,7 +9,7 @@ import {
   TrendingUp, Award, RotateCcw, Users, Box, Menu, X,
   Star, ShoppingCart, Crown, Shield, Zap, RefreshCw, Microscope, Gift
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import AdRewardModal from './components/AdRewardModal';
 import AdBanner from './components/AdBanner';
 import { LoginScreen } from './components/LoginScreen';
@@ -58,7 +58,7 @@ import GuildScreen from './components/GuildScreen';
 import WebLayout from './components/WebLayout';
 import { usePushNotifications } from './hooks/usePushNotifications';
 import NotificationPermissionBanner from './components/NotificationPermissionBanner';
-import LowEnergyAdBanner from './components/LowEnergyAdBanner';
+import LowEnergyAdBanner from './components/LowEnergyAdBanner.tsx';
 
 // ── Push Notification Manager ─────────────────────────────────────────────────
 // Ayrı bileşen: GameContext state'ine erişir, hook'u çalıştırır, banner'ı gösterir
@@ -342,6 +342,8 @@ function AppInner() {
             onWatchAd={handleWatchAd}
           />
         )}
+        <PushNotificationManager hackerActive={showHackerAttack} btcPerSecond={btcPerSecond} />
+        <LowEnergyAdBanner onWatchAd={handleWatchAd} />
         <PrestigeModal isOpen={isPrestigeOpen} onClose={() => setIsPrestigeOpen(false)} />
       </WebLayout>
     );

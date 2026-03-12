@@ -4,7 +4,7 @@ import {
   Wallet, Users, Shield, Box, RotateCcw, Star, Zap, Crown, 
   Bell, Settings, TrendingUp 
 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { useGame } from '../context/GameContext';
 import { useTheme } from '../context/ThemeContext';
@@ -60,9 +60,9 @@ const WebSidebar: React.FC<WebSidebarProps> = ({ activeScreen, onNavigate }) => 
       <div className="p-6 border-b border-white/5 flex items-center gap-3">
         <div className="relative w-10 h-10">
           <div className="absolute inset-0 rounded-xl blur-lg opacity-40 animate-pulse" 
-               style={{ background: `linear-gradient(135deg,${a1},${a2})` }} />
+               style={{ background: `linear-gradient(135deg, ${a1}, ${a2})` }} />
           <div className="relative w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden"
-               style={{ background: `linear-gradient(135deg,${a1}30,${a2}25)`, border: `1px solid ${a1}40` }}>
+               style={{ background: `linear-gradient(135deg, ${a1}30, ${a2}25)`, border: `1px solid ${a1}40` }}>
             <TrendingUp size={20} style={{ color: a1 }} />
             <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent" />
           </div>

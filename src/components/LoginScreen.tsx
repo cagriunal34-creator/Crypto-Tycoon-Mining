@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { signInWithGoogle } from '../lib/firebase';
 import { LogIn, Loader2, ShieldCheck, Sparkles } from 'lucide-react';
 
