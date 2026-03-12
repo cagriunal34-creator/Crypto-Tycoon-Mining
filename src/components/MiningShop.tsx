@@ -173,6 +173,9 @@ export default function MiningShop({ onPurchaseSuccess, onWatchAd }: { onPurchas
       ? (item.price_usd * returnRate) / usdRate
       : (item.daily_btc || 0) * durationDays * returnRate;
 
+    const priceInBtc = item.price_usd > 0 ? item.price_usd / usdRate : 0;
+    const cost = item.price_usd > 0 ? priceInBtc : (item.price || 0);
+
     dispatch({
       type: 'PURCHASE_CONTRACT',
       contract: {
@@ -189,7 +192,7 @@ export default function MiningShop({ onPurchaseSuccess, onWatchAd }: { onPurchas
         totalEarnedBtc: 0,
         dailyBtcTarget: item.daily_btc || 0,
       },
-      cost: item.price_usd > 0 ? 0 : (item.price || 0),
+      cost: cost,
     });
     if (state.user?.uid) {
       supabase.from(TABLES.TRANSACTIONS).insert({

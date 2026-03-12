@@ -786,17 +786,26 @@ function gameReducer(state: GameState, action: Action): GameState {
       ...state,
       farmSettings: { ...state.farmSettings, ...action.settings }
     };
-    case 'PURCHASE_CONTRACT': return {
-      ...state,
-      btcBalance: state.btcBalance - action.cost,
-      ownedContracts: [...state.ownedContracts, {
-        ...action.contract,
-        totalEarnedBtc: action.contract.totalEarnedBtc ?? 0,
-        maxEarningsBtc: action.contract.maxEarningsBtc ?? 0,
-        purchasePriceUsd: action.contract.purchasePriceUsd ?? 0,
-        dailyBtcTarget: action.contract.dailyBtcTarget ?? 0,
-      }]
-    };
+    case 'PURCHASE_CONTRACT': {
+      // cost, TP ise TP'den; BTC ise BTC'den düşer (MiningShop'tan gelen değere göre)
+      const isBtcPurchase = action.cost > 0 && action.cost < 1; // Küçük değerler genelde BTC'dir ama kontrol ediyoruz
+      return {
+        ...state,
+        btcBalance: action.contract.purchasePriceUsd > 0 
+          ? state.btcBalance - action.cost // MiningShop artık BTC karşılığını 'cost' olarak gönderiyor
+          : state.btcBalance,
+        tycoonPoints: action.contract.purchasePriceUsd === 0 
+          ? state.tycoonPoints - action.cost 
+          : state.tycoonPoints,
+        ownedContracts: [...state.ownedContracts, {
+          ...action.contract,
+          totalEarnedBtc: action.contract.totalEarnedBtc ?? 0,
+          maxEarningsBtc: action.contract.maxEarningsBtc ?? 0,
+          purchasePriceUsd: action.contract.purchasePriceUsd ?? 0,
+          dailyBtcTarget: action.contract.dailyBtcTarget ?? 0,
+        }]
+      };
+    }
 
     // Cihazın kazancını güncelle; tavan aşılmışsa cihazı deaktive et
     case 'CONTRACT_ADD_EARNINGS': {
@@ -876,11 +885,25 @@ function gameReducer(state: GameState, action: Action): GameState {
       lastWheelSpin: Date.now()
     };
     case 'CLAIM_WHEEL_REWARD': {
-      const { type, value } = action.reward;
+      const { type, value, label } = action.reward;
       if (type === 'tp') return { ...state, tycoonPoints: state.tycoonPoints + (value as number) };
       if (type === 'btc') return { ...state, btcBalance: state.btcBalance + (value as number) };
-      // Speed boost is handled differently in this app (usually by globalMultiplier or event)
-      // For now we just return state for other types
+      if (type === 'speed') {
+        const multiplier = label.includes('5x') ? 5.0 : 2.0;
+        const durationMs = label.includes('1 Saat') ? 3600000 : 1800000;
+        const newEvent: MiningEvent = {
+          id: `wheel-${Date.now()}`,
+          type: 'WHEEL_BOOST',
+          multiplier,
+          hashBoost: 0,
+          endsAt: Date.now() + durationMs,
+          label: `Çark Bonusu (${label})`
+        };
+        return {
+          ...state,
+          activeMiningEvents: [...state.activeMiningEvents, newEvent]
+        };
+      }
       return state;
     }
     case 'WATCH_AD': {
@@ -1564,7 +1587,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch (error) {
         console.error('Sync error:', error);
       }
-    }, 15000); // 15 seconds
+    }, 7500); // 7.5 seconds for higher sync frequency
 
     return () => clearInterval(syncInterval);
   }, [state.user?.uid, state.isLoading]);
@@ -2126,6 +2149,21 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, message: 'Bir hata oluştu. Lütfen tekrar dene.' };
     }
   };
+
+  // ── E2E Test Helper ──────────────────────────────────────────
+  useEffect(() => {
+    (window as any).TEST_LOGIN = async (uid: string, name: string, email: string) => {
+      console.info('🛠️ Test Login Triggered:', uid);
+      const mockUser = { uid, displayName: name, email, photoURL: null } as any;
+      dispatch({ type: 'SET_AUTH_USER', user: mockUser });
+      try {
+        await fetchProfile(uid, name, email);
+      } catch (e) {
+        console.error('Test fetch error:', e);
+      }
+      dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
+    };
+  }, []);
 
   return (
     <GameContext.Provider value={{

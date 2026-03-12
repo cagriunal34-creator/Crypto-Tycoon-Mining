@@ -96,10 +96,19 @@ export const LoginScreen: React.FC = () => {
               <div className="absolute inset-0 bg-gradient-to-r from-emerald-400/20 to-blue-500/20 opacity-0 group-hover:opacity-100 transition-opacity" />
             </button>
 
-            <div className="pt-4 border-t border-white/5 w-full">
+            <div className="pt-4 border-t border-white/5 w-full flex flex-col gap-2">
               <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest">
                 Güvenli Giriş · Firebase Auth · Supabase Cloud
               </p>
+              {/* Dev-only Test Access */}
+              <button 
+                onClick={() => {
+                  (window as any).TEST_LOGIN?.("test-user-123", "Test User", "test@example.com");
+                }}
+                className="text-[9px] font-black text-emerald-500/40 hover:text-emerald-500/80 transition-colors uppercase tracking-[0.3em]"
+              >
+                Test Girişi (Dev Mode)
+              </button>
             </div>
           </div>
         </div>
