@@ -215,7 +215,7 @@ function AppInner() {
       case 'vip': return <VIPScreen />;
       case 'infrastructure': return <InfrastructureScreen />;
       case 'research': return <ResearchTree />;
-      case 'guild': return <GuildScreen />;
+      case 'guild': return <GuildScreen userId={state.user?.uid ?? null} />;
       default: return <MiningPanel onOpenContracts={() => setActiveScreen('contracts')} onWatchAd={handleWatchAd} onOpenPrestige={() => setIsPrestigeOpen(true)} onNavigate={(screen) => setActiveScreen(screen as Screen)} />;
     }
   };

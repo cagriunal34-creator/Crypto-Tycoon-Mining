@@ -19,7 +19,7 @@ import { useTheme } from '../context/ThemeContext';
 
 type GuildTab = 'overview' | 'members' | 'goals' | 'battle';
 
-export default function GuildScreen() {
+export default function GuildScreen({ userId }: { userId: string | null }) {
   const { 
     state, createGuildInFirestore, joinGuildInFirestore, 
     leaveGuildInFirestore, donateToGuildInFirestore, claimGuildReward 
