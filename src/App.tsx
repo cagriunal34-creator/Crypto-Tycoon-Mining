@@ -58,6 +58,7 @@ import GuildScreen from './components/GuildScreen';
 import WebLayout from './components/WebLayout';
 import { usePushNotifications } from './hooks/usePushNotifications';
 import NotificationPermissionBanner from './components/NotificationPermissionBanner';
+import LowEnergyAdBanner from './components/LowEnergyAdBanner';
 
 // ── Push Notification Manager ─────────────────────────────────────────────────
 // Ayrı bileşen: GameContext state'ine erişir, hook'u çalıştırır, banner'ı gösterir
@@ -314,14 +315,9 @@ function AppInner() {
     return <LoginScreen />;
   }
 
-  // Calculate current BTC/s for notifications
-  const { effectiveHashRate } = useGame();
-  const btcPerSecond = effectiveHashRate * 1e-9 * 0.5 * (state.happyHourActive ? 1.2 : 1);
-
   if (isDesktop) {
     return (
       <WebLayout activeScreen={activeScreen} onNavigate={navigate}>
-        <PushNotificationManager hackerActive={showHackerAttack} btcPerSecond={btcPerSecond} />
         {isWatchingAd && (
           <AdRewardModal isOpen={isWatchingAd} onClose={() => setIsWatchingAd(false)} />
         )}
@@ -339,6 +335,7 @@ function AppInner() {
           <OfflineEarningsModal
             earnings={state.pendingOfflineEarnings}
             onClose={() => dispatch({ type: 'DISMISS_OFFLINE_EARNINGS' })}
+            onWatchAd={handleWatchAd}
           />
         )}
         <PrestigeModal isOpen={isPrestigeOpen} onClose={() => setIsPrestigeOpen(false)} />
@@ -451,6 +448,7 @@ function AppInner() {
       <LoginStreak />
       <OfflineEarningsHandler />
       <PushNotificationManager hackerActive={showHackerAttack} btcPerSecond={btcPerSecond} />
+      <LowEnergyAdBanner onWatchAd={handleWatchAd} />
 
       {/* ── Header ─────────────────────────────────────────────── */}
       <header className="flex items-center justify-between px-5 py-3 sticky top-0 z-50 backdrop-blur-xl relative"
@@ -565,6 +563,7 @@ function AppInner() {
         <OfflineEarningsModal
           earnings={state.pendingOfflineEarnings}
           onClose={() => dispatch({ type: 'DISMISS_OFFLINE_EARNINGS' })}
+          onWatchAd={handleWatchAd}
         />
       )}
       <PrestigeModal isOpen={isPrestigeOpen} onClose={() => setIsPrestigeOpen(false)} />

@@ -422,9 +422,17 @@ export default function MiningPanel({
             <ShoppingCart size={20} className="text-blue-500" />
             <span className="text-[10px] font-black uppercase tracking-widest">PAZAR</span>
           </button>
-          <button onClick={handleWatchAd} className="premium-glass p-4 rounded-2xl flex flex-col items-center gap-2 hover:bg-white/5 transition-all">
-            <Gift size={20} className="text-orange-500" />
-            <span className="text-[10px] font-black uppercase tracking-widest">BONUS</span>
+          <button onClick={handleWatchAd} className="premium-glass p-4 rounded-2xl flex flex-col items-center gap-2 hover:bg-amber-500/10 transition-all group relative overflow-hidden"
+            style={{ border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+            <div className="absolute inset-0 bg-amber-500/5 blur-xl group-hover:bg-amber-500/10 transition-colors" />
+            <motion.div
+              animate={{ scale: [1, 1.2, 1] }}
+              transition={{ duration: 2, repeat: Infinity }}
+              className="relative z-10"
+            >
+              <Gift size={20} className="text-amber-500" />
+            </motion.div>
+            <span className="text-[10px] font-black uppercase tracking-widest text-amber-500 relative z-10">BONUS</span>
           </button>
         </div>
       </div>

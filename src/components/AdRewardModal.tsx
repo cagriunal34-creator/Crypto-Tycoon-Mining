@@ -9,6 +9,7 @@ import { X, Play, CheckCircle2, XCircle, Gift, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { googleAds } from '../lib/googleAds';
 import { useGame } from '../context/GameContext';
+import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../lib/supabase';
 
 interface Props {
