@@ -11,13 +11,13 @@ import { useNotify } from '../context/NotificationContext';
 import { useTheme } from '../context/ThemeContext';
 
 const REWARDS = [
-    { day: 1, type: 'tp', value: 100, label: '100 TP' },
-    { day: 2, type: 'tp', value: 250, label: '250 TP' },
-    { day: 3, type: 'btc', value: 0.000001, label: '0.000001 BTC' },
-    { day: 4, type: 'tp', value: 500, label: '500 TP' },
-    { day: 5, type: 'energy', value: 5, label: '5 Enerji' },
-    { day: 6, type: 'tp', value: 1000, label: '1000 TP' },
-    { day: 7, type: 'btc', value: 0.00001, label: '0.00001 BTC' },
+    { day: 1, type: 'tp', value: 250, label: '250 TP' },
+    { day: 2, type: 'tp', value: 500, label: '500 TP' },
+    { day: 3, type: 'btc', value: 0.000005, label: '0.000005 BTC' },
+    { day: 4, type: 'tp', value: 1000, label: '1000 TP' },
+    { day: 5, type: 'energy', value: 10, label: '10 Enerji' },
+    { day: 6, type: 'tp', value: 2000, label: '2000 TP' },
+    { day: 7, type: 'btc', value: 0.00005, label: '0.00005 BTC' },
 ];
 
 export default function LoginStreak() {
@@ -25,17 +25,21 @@ export default function LoginStreak() {
     const { notify } = useNotify();
     const { theme } = useTheme();
     const [isOpen, setIsOpen] = useState(false);
+    const [hasBeenShown, setHasBeenShown] = useState(false);
 
     const a1 = theme.vars['--ct-a1'];
 
     useEffect(() => {
+        if (state.isLoading || hasBeenShown) return;
+
         const today = new Date().toISOString().split('T')[0];
         const lastClaimDate = state.streak.lastClaim ? new Date(state.streak.lastClaim).toISOString().split('T')[0] : null;
 
         if (lastClaimDate !== today) {
             setIsOpen(true);
+            setHasBeenShown(true);
         }
-    }, [state.streak.lastClaim]);
+    }, [state.streak.lastClaim, state.isLoading, hasBeenShown]);
 
     const handleClaim = () => {
         claimStreakReward();

@@ -914,13 +914,13 @@ function gameReducer(state: GameState, action: Action): GameState {
 
       const currentDayIndex = state.streak.count % 7;
       const reward = [
-        { type: 'tp', value: 100 },
         { type: 'tp', value: 250 },
-        { type: 'btc', value: 0.000001 },
         { type: 'tp', value: 500 },
-        { type: 'energy', value: 5 },
+        { type: 'btc', value: 0.000005 },
         { type: 'tp', value: 1000 },
-        { type: 'btc', value: 0.00001 },
+        { type: 'energy', value: 10 },
+        { type: 'tp', value: 2000 },
+        { type: 'btc', value: 0.00005 },
       ][currentDayIndex];
 
       let newState = {
@@ -1773,8 +1773,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       name,
       description: desc,
       badge,
-      ownerId: state.user.uid,
-      members: 1,
+      leader_id: state.user.uid,
+      leaderName: state.username || state.user.email?.split('@')[0],
+      members: 1, // members columns in SQL is JSONB but used as number here, but the schema shows JSONB default '[]'
       totalHash: state.totalHashRate,
       level: 1,
       xp: 0,
@@ -1931,13 +1932,13 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // 2. Side effect: Ödülü hesapla (tekrar hesaplıyoruz çünkü newState henüz elimizde değil veya o anki state'i kullanabiliriz)
     const currentDayIndex = state.streak.count % 7;
     const rewards = [
-        { type: 'tp', value: 100 },
         { type: 'tp', value: 250 },
-        { type: 'btc', value: 0.000001 },
         { type: 'tp', value: 500 },
-        { type: 'energy', value: 5 },
+        { type: 'btc', value: 0.000005 },
         { type: 'tp', value: 1000 },
-        { type: 'btc', value: 0.00001 },
+        { type: 'energy', value: 10 },
+        { type: 'tp', value: 2000 },
+        { type: 'btc', value: 0.00005 },
     ];
     const reward = rewards[currentDayIndex];
     
