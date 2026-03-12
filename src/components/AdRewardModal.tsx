@@ -94,14 +94,8 @@ export default function AdRewardModal({ isOpen, onClose }: Props) {
     setEarnedBtc(rewardBtc);
     setEarnedTp(rewardTp);
 
-    // BTC ekle
-    if (rewardBtc > 0) {
-      dispatch({ type: 'ADD_BTC', amount: rewardBtc, label: 'Reklam Ödülü' } as any);
-    }
-    // TP ekle
-    if (rewardTp > 0) {
-      dispatch({ type: 'ADD_TP', amount: rewardTp });
-    }
+    // WATCH_AD case hem BTC hem TP ekler + daily cap kontrolü yapar
+    dispatch({ type: 'WATCH_AD' });
 
     // Supabase'e kaydet (opsiyonel - izleme sayısı)
     try {

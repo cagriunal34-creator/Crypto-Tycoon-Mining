@@ -25,4 +25,5 @@ export const TABLES = {
   PROMO_CODES: 'promo_codes',
   NOTIFICATIONS: 'notifications',
   SUPPORT_TICKETS: 'support_tickets',
+  LUCKY_WHEEL_REWARDS: 'lucky_wheel_rewards',
 };

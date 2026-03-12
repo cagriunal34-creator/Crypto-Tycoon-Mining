@@ -55,6 +55,7 @@ export interface QuestProgress {
   contractsPurchased: number;
   referralsDone: number;
   loginStreak: number;
+  contractsCompleted: number;
   claimedQuestIds: string[];
 }
 
@@ -74,7 +75,7 @@ export interface Guild {
   xpToNextLevel: number;
 }
 
-export type MiningEventType = 'flash_pool' | 'hash_storm' | 'energy_surge' | 'block_halving' | 'WHEEL_BOOST';
+export type MiningEventType = 'flash_pool' | 'hash_storm' | 'energy_surge' | 'block_halving' | 'WHEEL_BOOST' | 'wheel_speed';
 
 export interface MiningEvent {
   id: string;

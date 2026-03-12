@@ -62,7 +62,7 @@ export default function WithdrawModal({ isOpen, onClose, onSuccess, balance }: W
       const { data: profile, error: profileErr } = await supabase
         .from(TABLES.PROFILES)
         .select('btcBalance')
-        .eq('id', state.user.id)
+        .eq('id', state.user.uid)
         .single();
 
       if (profileErr || !profile) {
@@ -80,13 +80,13 @@ export default function WithdrawModal({ isOpen, onClose, onSuccess, balance }: W
       // 2. Update Profile Balance (Deduct first to "lock" it)
       const { error: updateErr } = await supabase.from(TABLES.PROFILES)
         .update({ btcBalance: newBalance })
-        .eq('id', state.user.id);
+        .eq('id', state.user.uid);
 
       if (updateErr) throw updateErr;
 
       // 3. Create Withdrawal Request
       await supabase.from(TABLES.WITHDRAWALS).insert({
-        user_id: state.user.id,
+        user_id: state.user.uid,
         username: state.username,
         amount: numAmount,
         address: address.trim(),
@@ -97,7 +97,7 @@ export default function WithdrawModal({ isOpen, onClose, onSuccess, balance }: W
 
       // 4. Add to User Transactions
       await supabase.from(TABLES.TRANSACTIONS).insert({
-        user_id: state.user.id,
+        user_id: state.user.uid,
         amount: -numAmount,
         type: 'transfer_out',
         description: 'BTC Çekim Talebi',

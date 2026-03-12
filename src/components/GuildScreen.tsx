@@ -27,6 +27,7 @@ export default function GuildScreen() {
 
   const [activeTab, setActiveTab] = useState<GuildTab>('overview');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [showGoalDetails, setShowGoalDetails] = useState<string | null>(null);
   const [membersList, setMembersList] = useState<any[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
@@ -100,21 +101,6 @@ export default function GuildScreen() {
     }
   }, [state.userGuildId, state.user?.uid, state.guilds]);
 
-  const [joiningId, setJoiningId] = useState<string | null>(null);
-
-  const handleJoin = async (guild: Guild) => {
-    if (state.userGuildId || joiningId) return;
-    setJoiningId(guild.id);
-    try {
-      await joinGuildInFirestore(guild);
-      notify({ type: 'success', title: 'Loncaya Katıldın!', message: `${guild.name} ailesine hoş geldin.` });
-    } catch (e: any) {
-      notify({ type: 'warning', title: 'Hata', message: e.message });
-    } finally {
-      setJoiningId(null);
-    }
-  };
-
   if (!userGuild) {
     return (
       <div className="space-y-6 pt-4 pb-20">
@@ -144,7 +130,13 @@ export default function GuildScreen() {
             <h3 className="text-xs font-black text-zinc-500 uppercase tracking-[0.2em]">Aktif Loncalar</h3>
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10">
               <Search size={12} className="text-zinc-500" />
-              <input type="text" placeholder="Ara..." className="bg-transparent border-none text-[10px] focus:outline-none text-zinc-300 w-20" />
+              <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="Ara..."
+                  className="bg-transparent border-none text-[10px] focus:outline-none text-zinc-300 w-20"
+                />
             </div>
           </div>
           
@@ -154,22 +146,23 @@ export default function GuildScreen() {
                 <p className="text-xs text-zinc-600 font-bold italic">Henüz lonca bulunmuyor...</p>
               </div>
             ) : (
-              state.guilds.map(guild => (
+              state.guilds
+                .filter(g => !searchQuery || g.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                .map(guild => (
                 <motion.div 
                   key={guild.id}
-                  whileHover={{ scale: joiningId === guild.id ? 1 : 1.01 }}
-                  whileTap={{ scale: joiningId === guild.id ? 1 : 0.98 }}
-                  onClick={() => handleJoin(guild)}
-                  className={cn(
-                    "p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center gap-4 cursor-pointer hover:bg-white/[0.05] transition-all relative overflow-hidden",
-                    joiningId === guild.id && "opacity-75 pointer-events-none"
-                  )}
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={async () => {
+                    try {
+                      await joinGuildInFirestore(guild);
+                      notify({ type: 'success', title: 'Loncaya Katıldın!', message: `${guild.name} ailesine hoş geldin.` });
+                    } catch (e: any) {
+                      notify({ type: 'warning', title: 'Hata', message: e.message });
+                    }
+                  }}
+                  className="p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center gap-4 cursor-pointer hover:bg-white/[0.05] transition-all"
                 >
-                  {joiningId === guild.id && (
-                    <div className="absolute inset-0 bg-emerald-500/10 flex items-center justify-center">
-                      <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-                    </div>
-                  )}
                   <div className="text-2xl w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center border border-white/5">
                     {guild.badge}
                   </div>

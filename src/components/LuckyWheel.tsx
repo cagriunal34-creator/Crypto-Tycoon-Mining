@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import {
-  Dices,
   Zap,
   Gift,
   Trophy,
   Coins,
   Play,
-  RotateCcw
+  RotateCcw,
+  Bitcoin,
+  Database,
+  Award
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -14,35 +16,23 @@ import { useGame } from '../context/GameContext';
 import { useNotify } from '../context/NotificationContext';
 import CoinShower from './CoinShower';
 
-interface Reward {
-  id: number;
-  label: string;
-  type: 'speed' | 'btc' | 'tp' | 'badge';
-  value: string;
-  color: string;
-}
-
-const rewards: Reward[] = [
-  { id: 0, label: '2x Hız', type: 'speed', value: '1 Saat', color: '#10b981' },
-  { id: 1, label: '500 TP', type: 'tp', value: '500', color: '#3b82f6' },
-  { id: 2, label: '0.00001 BTC', type: 'btc', value: '0.00001', color: '#f59e0b' },
-  { id: 3, label: 'Özel Rozet', type: 'badge', value: 'Lucky', color: '#a855f7' },
-  { id: 4, label: '1000 TP', type: 'tp', value: '1000', color: '#ec4899' },
-  { id: 5, label: '5x Hız', type: 'speed', value: '30 Dakika', color: '#ef4444' },
-  { id: 6, label: '0.00005 BTC', type: 'btc', value: '0.00005', color: '#10b981' },
-  { id: 7, label: 'Pas', type: 'tp', value: '0', color: '#3f3f46' },
-];
-
 export default function LuckyWheel() {
   const { state, dispatch } = useGame();
   const { notify } = useNotify();
   const [isSpinning, setIsSpinning] = useState(false);
   const [rotation, setRotation] = useState(0);
-  const [result, setResult] = useState<Reward | null>(null);
+  const [result, setResult] = useState<any | null>(null);
   const [showResult, setShowResult] = useState(false);
+
+  const rewards = state.wheelRewards || [];
 
   const spinWheel = () => {
     if (isSpinning) return;
+    
+    if (rewards.length === 0) {
+      notify({ type: 'error', title: 'Hata', message: 'Çark ödülleri yüklenemedi. Lütfen daha sonra tekrar deneyin.' });
+      return;
+    }
 
     const cooldown = 60000; // 60s
     const lastSpin = state.lastWheelSpin || 0;
@@ -59,29 +49,51 @@ export default function LuckyWheel() {
       return;
     }
 
+    // --- Weighted Random Selection ---
+    const totalProb = rewards.reduce((acc, r) => acc + (parseFloat(r.probability) || 0), 0);
+    let random = Math.random() * totalProb;
+    let winningIndex = 0;
+    
+    for (let i = 0; i < rewards.length; i++) {
+        random -= (parseFloat(rewards[i].probability) || 0);
+        if (random <= 0) {
+            winningIndex = i;
+            break;
+        }
+    }
+
+    const winningReward = rewards[winningIndex];
+
     // Deduct cost and start spin
     dispatch({ type: 'LUCKY_WHEEL_SPIN', cost: SPIN_COST });
     setIsSpinning(true);
     setShowResult(false);
 
-    const extraDegrees = Math.floor(Math.random() * 360) + 1440; // En az 4 tam tur
-    const newRotation = rotation + extraDegrees;
-    setRotation(newRotation);
+    // Calculate rotation to stop at winningIndex
+    // Segment i starts at i * bucketSize.
+    const segmentSize = 360 / rewards.length;
+    
+    // Normalize current rotation to find base
+    const currentBase = rotation - (rotation % 360);
+    const targetRotationOffset = 360 - (winningIndex * segmentSize);
+    
+    // Add 4-5 full turns for effect
+    const finalRotation = currentBase + 1440 + targetRotationOffset;
+    
+    setRotation(finalRotation);
 
     setTimeout(() => {
       setIsSpinning(false);
-      const segmentSize = 360 / rewards.length;
-      // Çarkın gerçek durduğu konumu hesapla (işaretçi en üstte → 0°)
-      const normalizedRotation = ((newRotation % 360) + 360) % 360;
-      // İşaretçi üstte olduğundan, hangi segment üste geldiğini bul
-      const winningIndex = Math.floor(((360 - normalizedRotation + segmentSize / 2) % 360) / segmentSize) % rewards.length;
-
-      const winningReward = rewards[winningIndex];
       setResult(winningReward);
       setShowResult(true);
 
       // Claim reward in global state
-      if (winningReward.type !== 'badge' && winningReward.label !== 'Pas') {
+      const labelLower = winningReward.label.toLowerCase();
+      const isBoilerplate = labelLower.includes('pas') || 
+                            labelLower.includes('boş') ||
+                            (winningReward.type === 'tp' && parseFloat(winningReward.value) === 0);
+
+      if (winningReward.type !== 'badge' && !isBoilerplate) {
         dispatch({
           type: 'CLAIM_WHEEL_REWARD',
           reward: {
@@ -93,15 +105,15 @@ export default function LuckyWheel() {
       }
 
       notify({
-        type: (winningReward.label === 'Pas') ? 'info' : 'success',
+        type: isBoilerplate ? 'info' : 'success',
         title: 'Çark Sonucu',
-        message: winningReward.label === 'Pas' ? 'Bu sefer boş çıktı!' : `${winningReward.label} kazandın!`
+        message: isBoilerplate ? 'Bu sefer boş çıktı!' : `${winningReward.label} kazandın!`
       });
     }, 4000);
   };
 
   return (
-    <div className="space-y-6 pt-2 pb-8">
+    <div className="space-y-6 pt-2 pb-8 text-white">
       <div className="space-y-1">
         <h2 className="text-2xl font-black tracking-tight">Şans Çarkı</h2>
         <p className="text-xs text-zinc-500">TycoonPoints harca, büyük ödülleri yakala!</p>
@@ -124,7 +136,7 @@ export default function LuckyWheel() {
         >
           {rewards.map((reward, i) => (
             <div
-              key={reward.id}
+              key={reward.id || i}
               className="absolute top-0 left-1/2 w-1/2 h-1/2 origin-bottom-left"
               style={{
                 transform: `rotate(${i * (360 / rewards.length)}deg)`,
@@ -132,17 +144,17 @@ export default function LuckyWheel() {
               }}
             >
               <div
-                className="absolute top-4 left-4 transform -rotate-45 origin-top-left text-center w-20"
-                style={{ transform: `rotate(22.5deg) translateX(20px) translateY(10px)` }}
+                className="absolute top-4 left-4 transform text-center w-20"
+                style={{ transform: `rotate(${180 / rewards.length}deg) translateX(20px) translateY(10px)` }}
               >
                 <p className="text-[8px] font-black uppercase tracking-tighter leading-tight" style={{ color: reward.color }}>
                   {reward.label}
                 </p>
                 <div className="mt-1 flex justify-center">
                   {reward.type === 'speed' && <Zap size={10} className="text-zinc-500" />}
-                  {reward.type === 'btc' && <Coins size={10} className="text-zinc-500" />}
-                  {reward.type === 'tp' && <RotateCcw size={10} className="text-zinc-500" />}
-                  {reward.type === 'badge' && <Trophy size={10} className="text-zinc-500" />}
+                  {reward.type === 'btc' && <Bitcoin size={10} className="text-zinc-500" />}
+                  {reward.type === 'tp' && <Database size={10} className="text-zinc-500" />}
+                  {reward.type === 'badge' && <Award size={10} className="text-zinc-500" />}
                 </div>
               </div>
             </div>
@@ -164,17 +176,17 @@ export default function LuckyWheel() {
             <span className="text-sm font-bold">{state.tycoonPoints.toLocaleString()} TP</span>
           </div>
           <div className="glass-card rounded-2xl px-4 py-2 flex items-center gap-2">
-            <RotateCcw size={14} className="text-emerald-500" />
-            <span className="text-sm font-bold">1 Ücretsiz</span>
+            <RotateCcw size={14} className="text-zinc-500" />
+            <span className="text-sm font-bold text-zinc-400">60s bekleme</span>
           </div>
         </div>
 
         <button
           onClick={spinWheel}
-          disabled={isSpinning}
+          disabled={isSpinning || rewards.length === 0}
           className={cn(
             "w-full py-4 rounded-2xl font-black text-lg flex items-center justify-center gap-3 transition-all active:scale-95",
-            isSpinning
+            (isSpinning || rewards.length === 0)
               ? "bg-zinc-800 text-zinc-500 cursor-not-allowed"
               : "bg-emerald-500 text-black neon-glow hover:brightness-110"
           )}
@@ -212,7 +224,7 @@ export default function LuckyWheel() {
       </div>
 
       {/* Coin Shower Effect */}
-      <CoinShower active={showResult && result !== null && result.label !== 'Pas'} />
+      <CoinShower active={showResult && result !== null && !result.label.toLowerCase().includes('pas') && !result.label.toLowerCase().includes('boş') && (result.type !== 'tp' || parseFloat(result.value) > 0)} />
 
       {/* Result Modal */}
       <AnimatePresence>

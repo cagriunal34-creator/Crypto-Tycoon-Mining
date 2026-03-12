@@ -74,7 +74,7 @@ export default function SocialScreen() {
     }
 
     dispatch({ type: 'APPLY_REFERRAL_CODE', code: redeemCode });
-    notify({ type: 'success', title: 'Başarılı', message: 'Kod uygulandı! +1000 TP ve %5 Hız Bonusu kazandın.' });
+    notify({ type: 'success', title: 'Başarılı', message: `Kod uygulandı! +${(state.globalSettings as any)?.referralTpReward ?? 1000} TP ve %5 Hız Bonusu kazandın.` });
     setRedeemCode('');
   };
 
@@ -94,8 +94,12 @@ export default function SocialScreen() {
   };
 
   const leaders = state.leaderboard || [];
-  const topThree = (leaders || []).slice(0, 3);
-  const others = (leaders || []).slice(3);
+  // Tab'a göre liderboard filtresi
+  const visibleLeaders = activeTab === 'friends'
+    ? leaders.filter(l => l.isCurrentUser) // Sadece kendin (arkadaş sistemi henüz yok)
+    : leaders;
+  const topThree = (visibleLeaders || []).slice(0, 3);
+  const others = (visibleLeaders || []).slice(3);
   const myEntry = (leaders || []).find(l => l.isCurrentUser) || leaders[0] || { rank: '?', avatar: '👤', name: 'Madenci', rankTitle: 'Yeni', level: 1, hashRate: 0, btcMined: 0 };
 
   const handleCopy = async () => {
@@ -279,8 +283,14 @@ export default function SocialScreen() {
         </div>
 
         {/* Top 3 Podium */}
+        {activeTab === 'friends' && visibleLeaders.length === 0 && (
+          <div className="py-8 text-center">
+            <p className="text-zinc-500 text-sm font-bold">Arkadaş sistemi yakında geliyor!</p>
+            <p className="text-zinc-600 text-[10px] mt-1">Referans koduyla davet ettiğin kişiler burada görünecek.</p>
+          </div>
+        )}
         <div className="flex items-end justify-center gap-2 py-4">
-          {[leaders[1], leaders[0], leaders[2]].map((leader, i) => {
+          {[visibleLeaders[1], visibleLeaders[0], visibleLeaders[2]].map((leader, i) => {
             if (!leader) return null;
             const heights = ['h-16', 'h-20', 'h-14'];
             const rank = i === 0 ? 2 : i === 1 ? 1 : 3;

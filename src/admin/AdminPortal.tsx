@@ -74,6 +74,7 @@ import {
     ShoppingBag,
     Layers,
     Snowflake,
+    Plus,
 } from 'lucide-react';
 import { useGame } from '../context/GameContext';
 import { useTheme } from '../context/ThemeContext';
@@ -228,6 +229,18 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
 
     // ── orders state ──────────────────────────────────────────────────────
     const [orders, setOrders] = useState<any[]>([]);
+
+    // ── Lucky Wheel Rewards state ─────────────────────────────────────────
+    const [wheelRewards, setWheelRewards] = useState<any[]>([]);
+    const [editingWheelReward, setEditingWheelReward] = useState<any>(null);
+    const [wheelRewardForm, setWheelRewardForm] = useState<any>({
+        label: '',
+        type: 'tp',
+        value: '',
+        color: '#3b82f6',
+        probability: 12.5
+    });
+    const [wheelRewardsLoading, setWheelRewardsLoading] = useState(false);
 
     // ── securityDirectives (güvenlik skoru widget'ı için) ─────────────────
     const securityDirectives = [
@@ -717,9 +730,67 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'subscribers' }, (p) => {
                 setSubscribers(prev => [p.new as any, ...prev]);
             })
+            .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.LUCKY_WHEEL_REWARDS }, (p) => {
+                if (p.eventType === 'INSERT') setWheelRewards(prev => [...prev, p.new]);
+                if (p.eventType === 'UPDATE') setWheelRewards(prev => prev.map(r => r.id === p.new.id ? p.new : r));
+                if (p.eventType === 'DELETE') setWheelRewards(prev => prev.filter(r => r.id !== p.old.id));
+            })
             .subscribe();
         return () => { supabase.removeChannel(ch); };
     }, []);
+
+    // --- Lucky Wheel CRUD ---
+    const fetchWheelRewards = async () => {
+        setWheelRewardsLoading(true);
+        try {
+            const { data } = await supabase.from(TABLES.LUCKY_WHEEL_REWARDS).select('*').order('created_at', { ascending: true });
+            if (data) setWheelRewards(data);
+        } catch (e) {
+            console.error('Fetch wheel rewards failed:', e);
+        } finally {
+            setWheelRewardsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (activeTab === 'economy') {
+            fetchWheelRewards();
+        }
+    }, [activeTab]);
+
+    const handleSaveWheelReward = async () => {
+        if (!wheelRewardForm.label || !wheelRewardForm.value) {
+            notify({ type: 'warning', title: 'Hata', message: 'Lütfen tüm alanları doldurun.' });
+            return;
+        }
+
+        try {
+            if (editingWheelReward) {
+                const { error } = await supabase.from(TABLES.LUCKY_WHEEL_REWARDS).update(wheelRewardForm).eq('id', editingWheelReward.id);
+                if (error) throw error;
+                notify({ type: 'success', title: 'Başarılı', message: 'Ödül güncellendi.' });
+            } else {
+                const { error } = await supabase.from(TABLES.LUCKY_WHEEL_REWARDS).insert(wheelRewardForm);
+                if (error) throw error;
+                notify({ type: 'success', title: 'Başarılı', message: 'Yeni ödül eklendi.' });
+            }
+            setEditingWheelReward(null);
+            setWheelRewardForm({ label: '', type: 'tp', value: '', color: '#3b82f6', probability: 12.5 });
+        } catch (e: any) {
+            notify({ type: 'warning', title: 'Hata', message: e.message || 'Ödül kaydedilemedi.' });
+        }
+    };
+
+    const handleDeleteWheelReward = async (id: string) => {
+        if (!window.confirm('Bu ödülü silmek istediğinize emin misiniz?')) return;
+        try {
+            const { error } = await supabase.from(TABLES.LUCKY_WHEEL_REWARDS).delete().eq('id', id);
+            if (error) throw error;
+            notify({ type: 'success', title: 'Başarılı', message: 'Ödül silindi.' });
+        } catch (e: any) {
+            notify({ type: 'warning', title: 'Hata', message: e.message || 'Ödül silinemedi.' });
+        }
+    };
 
     const logAdminAction = async (action: string, targetId?: string, details?: any) => {
         try {
@@ -2990,6 +3061,198 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                                 <p className="text-[9px] text-amber-600 font-bold">
                                                     Cooldown ≥ Boost süresi olmalı. Şu an: {overclockCfg.cooldownMinutes >= overclockCfg.durationMinutes ? '✅ Dengeli' : '❌ Cooldown çok kısa!'}
                                                 </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* ══════════════════════════════════════════════
+                                ŞANS ÇARKI ÖDÜL YÖNETİMİ
+                            ══════════════════════════════════════════════ */}
+                            <div className="bg-white border border-zinc-200 rounded-[2rem] overflow-hidden shadow-sm">
+                                <div className="flex items-center justify-between px-8 py-5 bg-gradient-to-r from-purple-50 via-white to-white border-b border-zinc-100">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-12 h-12 rounded-2xl bg-purple-500 flex items-center justify-center shadow-lg shadow-purple-500/30">
+                                            <Gift size={20} className="text-white" />
+                                        </div>
+                                        <div>
+                                            <h3 className="font-black text-sm text-zinc-800 uppercase tracking-widest">Şans Çarkı Yönetimi</h3>
+                                            <p className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest mt-0.5">
+                                                Ödülleri, değerleri ve çıkma olasılıklarını yönetin
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                        <div className="px-4 py-2 bg-zinc-50 border border-zinc-200 rounded-xl flex items-center gap-3">
+                                            <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Toplam Olasılık:</span>
+                                            <span className={cn(
+                                                "text-xs font-black tabular-nums",
+                                                Math.abs(wheelRewards.reduce((acc, r) => acc + parseFloat(r.probability || 0), 0) - 100) < 0.01 
+                                                    ? "text-emerald-600" 
+                                                    : "text-red-500"
+                                            )}>
+                                                %{wheelRewards.reduce((acc, r) => acc + parseFloat(r.probability || 0), 0).toFixed(1)}
+                                            </span>
+                                        </div>
+                                        <button
+                                            onClick={() => {
+                                                setEditingWheelReward(null);
+                                                setWheelRewardForm({ label: '', type: 'tp', value: '', color: '#3b82f6', probability: 12.5 });
+                                            }}
+                                            className="h-11 px-6 rounded-xl bg-purple-600 text-white font-black text-[10px] uppercase tracking-widest hover:bg-purple-700 transition-all flex items-center gap-2"
+                                        >
+                                            <Plus size={14} /> Yeni Ödül
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="p-8 grid grid-cols-1 lg:grid-cols-3 gap-10">
+                                    {/* Reward List */}
+                                    <div className="lg:col-span-2 space-y-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {wheelRewards.map((reward) => (
+                                                <div key={reward.id} className="p-5 rounded-2xl border border-zinc-100 bg-zinc-50/50 hover:bg-white hover:border-purple-200 transition-all group relative">
+                                                    <div className="flex items-start justify-between mb-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-sm" style={{ backgroundColor: reward.color }}>
+                                                                {reward.type === 'btc' && <Bitcoin size={18} />}
+                                                                {reward.type === 'tp' && <Database size={18} />}
+                                                                {reward.type === 'speed' && <Zap size={18} />}
+                                                                {reward.type === 'badge' && <Award size={18} />}
+                                                            </div>
+                                                            <div>
+                                                                <h4 className="font-black text-sm text-zinc-800 uppercase tracking-tight">{reward.label}</h4>
+                                                                <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">{reward.type} • {reward.value}</p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <p className="text-sm font-black text-purple-600 tabular-nums">%{reward.probability}</p>
+                                                            <p className="text-[8px] font-bold text-zinc-400 uppercase tracking-widest">Olasılık</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <button 
+                                                            onClick={() => {
+                                                                setEditingWheelReward(reward);
+                                                                setWheelRewardForm({ ...reward });
+                                                                // window.scrollTo(0,0) might be annoying, we just let them see it
+                                                            }}
+                                                            className="p-2 rounded-lg bg-white border border-zinc-200 text-zinc-400 hover:text-purple-600 hover:border-purple-200 transition-all"
+                                                        >
+                                                            <Edit3 size={14} />
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => handleDeleteWheelReward(reward.id)}
+                                                            className="p-2 rounded-lg bg-white border border-zinc-200 text-zinc-400 hover:text-red-600 hover:border-red-200 transition-all"
+                                                        >
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            {wheelRewards.length === 0 && (
+                                                <div className="col-span-full py-20 text-center border-2 border-dashed border-zinc-100 rounded-3xl">
+                                                    <Gift size={40} className="mx-auto text-zinc-200 mb-4" />
+                                                    <p className="text-zinc-400 font-bold uppercase text-[10px] tracking-widest">Henüz ödül eklenmemiş</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Add/Edit Form */}
+                                    <div className="bg-zinc-50 rounded-3xl p-7 border border-zinc-100 h-fit">
+                                        <h4 className="text-[11px] font-black text-zinc-800 uppercase tracking-widest mb-6 flex items-center gap-2">
+                                            {editingWheelReward ? <Edit3 size={14} className="text-purple-500" /> : <Plus size={14} className="text-purple-500" />}
+                                            {editingWheelReward ? 'Ödülü Düzenle' : 'Yeni Ödül Ekle'}
+                                        </h4>
+                                        <div className="space-y-5">
+                                            <div>
+                                                <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Ödül Etiketi</p>
+                                                <input 
+                                                    type="text" 
+                                                    value={wheelRewardForm.label}
+                                                    onChange={e => setWheelRewardForm({...wheelRewardForm, label: e.target.value})}
+                                                    className="w-full h-11 px-4 bg-white border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 focus:outline-none focus:border-purple-300 transition-all"
+                                                    placeholder="Örn: 1000 TP"
+                                                />
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Tür</p>
+                                                    <select 
+                                                        value={wheelRewardForm.type}
+                                                        onChange={e => setWheelRewardForm({...wheelRewardForm, type: e.target.value})}
+                                                        className="w-full h-11 px-3 bg-white border border-zinc-200 rounded-xl text-xs font-black text-zinc-800 focus:outline-none focus:border-purple-300"
+                                                    >
+                                                        <option value="tp">Tycoon Points</option>
+                                                        <option value="btc">Bitcoin (BTC)</option>
+                                                        <option value="speed">Hız Takviyesi</option>
+                                                        <option value="badge">Rozet</option>
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Renk</p>
+                                                    <div className="flex gap-2">
+                                                        <input 
+                                                            type="color" 
+                                                            value={wheelRewardForm.color}
+                                                            onChange={e => setWheelRewardForm({...wheelRewardForm, color: e.target.value})}
+                                                            className="w-11 h-11 p-1 bg-white border border-zinc-200 rounded-xl cursor-pointer"
+                                                        />
+                                                        <input 
+                                                            type="text" 
+                                                            value={wheelRewardForm.color}
+                                                            onChange={e => setWheelRewardForm({...wheelRewardForm, color: e.target.value})}
+                                                            className="flex-1 h-11 px-2 bg-white border border-zinc-200 rounded-xl text-[10px] font-mono font-bold text-zinc-700 uppercase"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-2">Değer</p>
+                                                <input 
+                                                    type="text" 
+                                                    value={wheelRewardForm.value}
+                                                    onChange={e => setWheelRewardForm({...wheelRewardForm, value: e.target.value})}
+                                                    className="w-full h-11 px-4 bg-white border border-zinc-200 rounded-xl text-xs font-bold text-zinc-800 focus:outline-none focus:border-purple-300 transition-all"
+                                                    placeholder="Örn: 1000 veya 1 Saat"
+                                                />
+                                            </div>
+                                            <div>
+                                                <div className="flex justify-between items-center mb-2">
+                                                    <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Çıkma Olasılığı (%)</p>
+                                                    <span className="text-xs font-black text-purple-600 tabular-nums">%{wheelRewardForm.probability}</span>
+                                                </div>
+                                                <input 
+                                                    type="range" min="0" max="100" step="0.1"
+                                                    value={wheelRewardForm.probability}
+                                                    onChange={e => setWheelRewardForm({...wheelRewardForm, probability: parseFloat(e.target.value)})}
+                                                    className="w-full accent-purple-600 mb-2 cursor-pointer"
+                                                />
+                                                <p className="text-[8px] text-zinc-400 font-bold leading-tight">
+                                                    Daha yüksek olasılık, çarkın bu ödül üzerinde durma şansını artırır.
+                                                </p>
+                                            </div>
+                                            <div className="flex gap-3 pt-2">
+                                                {editingWheelReward && (
+                                                    <button 
+                                                        onClick={() => {
+                                                            setEditingWheelReward(null);
+                                                            setWheelRewardForm({ label: '', type: 'tp', value: '', color: '#3b82f6', probability: 12.5 });
+                                                        }}
+                                                        className="flex-1 h-12 rounded-xl bg-zinc-200 text-zinc-600 font-black text-[10px] uppercase tracking-widest hover:bg-zinc-300 transition-all"
+                                                    >
+                                                        İptal
+                                                    </button>
+                                                )}
+                                                <button 
+                                                    onClick={handleSaveWheelReward}
+                                                    className="flex-[2] h-12 rounded-xl bg-purple-600 text-white font-black text-[10px] uppercase tracking-widest hover:bg-purple-700 shadow-lg shadow-purple-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+                                                >
+                                                    <CheckCircle2 size={16} />
+                                                    {editingWheelReward ? 'Güncelle' : 'Ödülü Kaydet'}
+                                                </button>
                                             </div>
                                         </div>
                                     </div>

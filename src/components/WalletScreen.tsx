@@ -19,7 +19,8 @@ export default function WalletScreen({ onOpenWithdraw }: { onOpenWithdraw: () =>
   const [isReceiveOpen, setIsReceiveOpen] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
 
-  const myAddress = "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh";
+  // BTC yatırma adresi — admin panelinden yapılandırılabilir (şu an merkezi cüzdan)
+  const myAddress = (state as any).depositAddress || "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh";
 
   const handleCopy = () => {
     navigator.clipboard.writeText(myAddress);
@@ -86,7 +87,10 @@ export default function WalletScreen({ onOpenWithdraw }: { onOpenWithdraw: () =>
         {[
           { icon: ArrowUpRight, label: 'GÖNDER', color: 'bg-emerald-500 text-black', action: onOpenWithdraw },
           { icon: ArrowDownLeft, label: 'AL', color: 'bg-zinc-900 text-emerald-500 border border-white/5', action: () => setIsReceiveOpen(true) },
-          { icon: RefreshCw, label: 'DEĞİŞTİR', color: 'bg-zinc-900 text-emerald-500 border border-white/5', action: () => {} },
+          { icon: RefreshCw, label: 'DEĞİŞTİR', color: 'bg-zinc-900 text-emerald-500 border border-white/5', action: () => {
+            // Swap özelliği - yakında eklenecek
+            alert('Yakında: BTC ↔ USDT dönüşümü');
+          } },
         ].map(action => (
           <button
             key={action.label}
