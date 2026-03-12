@@ -732,9 +732,13 @@ function gameReducer(state: GameState, action: Action): GameState {
     case 'SET_TRANSACTIONS': return { ...state, transactions: action.transactions };
     case 'APPLY_REFERRAL_CODE': {
       if (state.redeemedReferralCode) return state;
+      // Admin panelinden yönetilebilir ödüller (globalSettings'den oku)
+      const refTp  = (state.globalSettings as any)?.referralTpReward  ?? 1000;
+      const refBtc = (state.globalSettings as any)?.referralBtcReward ?? 0;
       return {
         ...state,
-        tycoonPoints: state.tycoonPoints + 1000,
+        tycoonPoints: state.tycoonPoints + refTp,
+        btcBalance:   state.btcBalance + refBtc,
         redeemedReferralCode: action.code,
         globalMultiplier: state.globalMultiplier * 1.05
       };
@@ -914,13 +918,13 @@ function gameReducer(state: GameState, action: Action): GameState {
 
       const currentDayIndex = state.streak.count % 7;
       const reward = [
+        { type: 'tp', value: 100 },
         { type: 'tp', value: 250 },
+        { type: 'btc', value: 0.000001 },
         { type: 'tp', value: 500 },
-        { type: 'btc', value: 0.000005 },
+        { type: 'energy', value: 5 },
         { type: 'tp', value: 1000 },
-        { type: 'energy', value: 10 },
-        { type: 'tp', value: 2000 },
-        { type: 'btc', value: 0.00005 },
+        { type: 'btc', value: 0.00001 },
       ][currentDayIndex];
 
       let newState = {
@@ -1227,11 +1231,20 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (firebaseUser) {
         // 1. User'ı hemen set et
         dispatch({ type: 'SET_AUTH_USER', user: firebaseUser });
-        // 2. isLoading'i kapat
+        // NOT: isLoading'i hemen KAPAMIYORUZ — race condition önlemi.
+        // Profil yüklenmeden admin kontrolü yanlış sonuç verir.
+
+        // 2. Profil yükle → SONRA isLoading kapat (senkron sıra)
+        try {
+          await fetchProfile(
+            firebaseUser.uid,
+            firebaseUser.displayName || undefined,
+            firebaseUser.email       || undefined
+          );
+        } catch (_) { /* fetchProfile kendi hatasını yönetiyor */ }
         dispatch({ type: 'SET_GAME_STATE', state: { isLoading: false } as any });
 
-        // 3. Yardımcıları kullanarak veri çek
-        fetchProfile(firebaseUser.uid, firebaseUser.displayName || undefined, firebaseUser.email || undefined);
+        // 3. İşlemler — sıra önemli değil, paralel çalışabilir
         fetchTransactions(firebaseUser.uid);
 
         // 4a. Deposit & withdraw istatistiklerini yükle
@@ -1250,21 +1263,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           } catch (_) {}
         })();
 
-        // 4. Realtime profile subscription
-        const profileSub = supabase
-          .channel(`profiles:${firebaseUser.uid}`)
-          .on('postgres_changes', {
-            event: '*',
-            schema: 'public',
-            table: TABLES.PROFILES,
-            filter: `id=eq.${firebaseUser.uid}`
-          }, (payload) => {
-            const { user: _u, isLoading: _i, ...gameData } = payload.new as any;
-            dispatch({ type: 'SET_GAME_STATE', state: gameData as any });
-          })
-          .subscribe();
-
-        return () => profileSub.unsubscribe();
+        // 4. Realtime profile subscription → user subs effect'teki
+        //    'public:profiles:uid' kanalı bu görevi üstleniyor.
+        //    Burada tekrar açmak çift dispatch yaratır → kaldırıldı.
       } else {
         // Kullanıcı çıkış yaptı
         dispatch({ type: 'SET_AUTH_USER', user: null });
@@ -1471,9 +1472,14 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.GUILDS }, () => {
         loadGlobal(); // Refresh guilds
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: TABLES.PROFILES }, () => {
-        fetchLeaderboard();
-      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: TABLES.PROFILES }, (() => {
+        // Throttle: her 60 saniyede en fazla 1 kez leaderboard yenile
+        let lbTimer: ReturnType<typeof setTimeout> | null = null;
+        return () => {
+          if (lbTimer) return;
+          lbTimer = setTimeout(() => { fetchLeaderboard(); lbTimer = null; }, 60000);
+        };
+      })())
       // ── Game Events realtime (admin toggle/create) ────────────
       .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.GAME_EVENTS }, async () => {
         try {
@@ -1519,13 +1525,14 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   React.useEffect(() => { stateRef.current = state; }, [state]);
 
   useEffect(() => {
-    if (!state.user?.uid) return;
+    if (!state.user?.uid || state.isLoading) return;
 
     const syncInterval = setInterval(async () => {
       const s = stateRef.current;
       if (s.isLoading || !s.user?.uid) return;
 
       try {
+        // Sync current balances to Supabase profile
         await supabase.from(TABLES.PROFILES).update({
           btcBalance: s.btcBalance,
           tycoonPoints: s.tycoonPoints,
@@ -1543,6 +1550,13 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           battlePass: s.battlePass,
           redeemedReferralCode: s.redeemedReferralCode,
           claimedGuildRewards: s.claimedGuildRewards,
+          // ── Admin ↔ App senkronizasyonu için ek alanlar ───
+          vip: s.vip,
+          prestigeLevel: s.prestigeLevel,
+          prestigeMultiplier: s.prestigeMultiplier,
+          totalHashRate: s.totalHashRate,
+          dailyEarnedBtc: (s as any).dailyEarnedBtc ?? 0,
+          dailyAdEarnedBtc: (s as any).dailyAdEarnedBtc ?? 0,
           updated_at: new Date().toISOString()
         }).eq('id', s.user.uid);
         
@@ -1550,10 +1564,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch (error) {
         console.error('Sync error:', error);
       }
-    }, 30000); // 30 seconds for better performance and stability
+    }, 15000); // 15 seconds
 
     return () => clearInterval(syncInterval);
-  }, [state.user?.uid]);
+  }, [state.user?.uid, state.isLoading]);
+  // NOT: Geniş deps listesi her state değişiminde intervali yeniden başlatıyordu.
+  // syncInterval zaten closure ile güncel state'i okur — deps sadeleştirildi.
 
   // User Data Subscriptions
   useEffect(() => {
@@ -1570,13 +1586,40 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const tSub = supabase.channel(`public:transactions:${state.user.uid}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.TRANSACTIONS, filter: `user_id=eq.${state.user.uid}` }, () => {
-        fetchTransactions(state.user!.id);
+        fetchTransactions(state.user!.uid);
+      })
+      .subscribe();
+
+    // ── Çekim sonucu kullanıcıya inbox bildirimi ────────────
+    const wSub = supabase
+      .channel(`withdrawals-user:${state.user.uid}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: TABLES.WITHDRAWALS,
+        filter: `user_id=eq.${state.user.uid}`
+      }, (payload) => {
+        const w = payload.new as any;
+        if (w.status === 'approved') {
+          dispatch({ type: 'PREPEND_INBOX_NOTIFICATION', notification: {
+            id: `w-ok-${w.id}`, title: '✅ Çekim Onaylandı',
+            body: `${w.amount} BTC çekiminiz onaylandı ve gönderildi.`,
+            type: 'success', read: false, createdAt: new Date().toISOString()
+          }} as any);
+        } else if (w.status === 'rejected') {
+          dispatch({ type: 'PREPEND_INBOX_NOTIFICATION', notification: {
+            id: `w-rej-${w.id}`, title: '❌ Çekim Reddedildi',
+            body: 'Çekim talebiniz reddedildi. Bakiyeniz iade edildi.',
+            type: 'warning', read: false, createdAt: new Date().toISOString()
+          }} as any);
+        }
       })
       .subscribe();
 
     return () => {
       pSub.unsubscribe();
       tSub.unsubscribe();
+      wSub.unsubscribe();
     };
   }, [state.user?.uid]);
 
@@ -1773,9 +1816,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       name,
       description: desc,
       badge,
-      leader_id: state.user.uid,
-      leaderName: state.username || state.user.email?.split('@')[0],
-      members: 1, // members columns in SQL is JSONB but used as number here, but the schema shows JSONB default '[]'
+      ownerId: state.user.uid,
+      members: 1,
       totalHash: state.totalHashRate,
       level: 1,
       xp: 0,
@@ -1819,25 +1861,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!state.user) throw new Error("Auth required");
     if (state.userGuildId) throw new Error("Already in a guild");
 
-    // Double check DB state to prevent duplicate member increments
-    const { data: profile } = await supabase.from(TABLES.PROFILES).select('userGuildId').eq('id', state.user.uid).single();
-    if (profile?.userGuildId) {
-       dispatch({ type: 'SET_GAME_STATE', state: { userGuildId: profile.userGuildId } as any });
-       return;
-    }
-
-    const { error: pError } = await supabase.from(TABLES.PROFILES).update({ userGuildId: guild.id }).eq('id', state.user.uid);
-    if (pError) throw pError;
-
+    await supabase.from(TABLES.PROFILES).update({ userGuildId: guild.id }).eq('id', state.user.uid);
     await supabase.from(TABLES.GUILDS).update({
-      members: (guild.members || 0) + 1,
-      totalHash: (guild.totalHash || 0) + state.totalHashRate
+      members: guild.members + 1,
+      totalHash: guild.totalHash + state.totalHashRate
     }).eq('id', guild.id);
-
-    // Sync local state immediately
-    dispatch({ type: 'SET_GAME_STATE', state: { userGuildId: guild.id } as any });
-    // Update stateRef manually
-    stateRef.current = { ...stateRef.current, userGuildId: guild.id };
   };
 
   const leaveGuildInFirestore = async (guildId: string) => {
@@ -1847,14 +1875,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     await supabase.from(TABLES.PROFILES).update({ userGuildId: null }).eq('id', state.user.uid);
     await supabase.from(TABLES.GUILDS).update({
-      members: Math.max(0, (guild.members || 0) - 1),
-      totalHash: Math.max(0, (guild.totalHash || 0) - state.totalHashRate)
+      members: Math.max(0, guild.members - 1),
+      totalHash: Math.max(0, guild.totalHash - state.totalHashRate)
     }).eq('id', guildId);
-
-    // Sync local state
-    dispatch({ type: 'SET_GAME_STATE', state: { userGuildId: null } as any });
-    // Update stateRef
-    stateRef.current = { ...stateRef.current, userGuildId: null };
   };
 
   const donateToGuildInFirestore = async (amount: number) => {
@@ -1944,70 +1967,47 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const claimStreakReward = async () => {
     if (!state.user) return;
-
-    // ── Guard: Bugün zaten alındıysa işlem yapma ──────────────────
-    const today = new Date().toISOString().split('T')[0];
-    const lastClaimDate = state.streak?.lastClaim
-      ? new Date(state.streak.lastClaim).toISOString().split('T')[0]
-      : null;
-    if (lastClaimDate === today) {
-      console.warn('⚠️ Günlük ödül zaten alındı:', today);
-      return;
-    }
-
-    // ── Ödülü hesapla ─────────────────────────────────────────────
-    const currentDayIndex = (state.streak?.count ?? 0) % 7;
+    
+    // 1. Reducer işlemi (state'i anında günceller)
+    dispatch({ type: 'CLAIM_STREAK_REWARD' });
+    
+    // 2. Side effect: Ödülü hesapla (tekrar hesaplıyoruz çünkü newState henüz elimizde değil veya o anki state'i kullanabiliriz)
+    const currentDayIndex = state.streak.count % 7;
     const rewards = [
-      { type: 'tp',     value: 250      },
-      { type: 'tp',     value: 500      },
-      { type: 'btc',    value: 0.000005 },
-      { type: 'tp',     value: 1000     },
-      { type: 'energy', value: 10       },
-      { type: 'tp',     value: 2000     },
-      { type: 'btc',    value: 0.00005  },
+        { type: 'tp', value: 100 },
+        { type: 'tp', value: 250 },
+        { type: 'btc', value: 0.000001 },
+        { type: 'tp', value: 500 },
+        { type: 'energy', value: 5 },
+        { type: 'tp', value: 1000 },
+        { type: 'btc', value: 0.00001 },
     ];
     const reward = rewards[currentDayIndex];
-
+    
     const newStreak = {
-      count: (state.streak?.count ?? 0) + 1,
-      lastClaim: Date.now(),
+      count: state.streak.count + 1,
+      lastClaim: Date.now()
     };
-
-    let newTp     = state.tycoonPoints;
-    let newBtc    = state.btcBalance;
+    
+    let newTp = state.tycoonPoints;
+    let newBtc = state.btcBalance;
     let newEnergy = state.energyCells;
+    
+    if (reward.type === 'tp') newTp += reward.value;
+    if (reward.type === 'btc') newBtc += reward.value;
+    if (reward.type === 'energy') newEnergy = Math.min(state.maxEnergyCells, state.energyCells + reward.value);
 
-    if (reward.type === 'tp')     newTp     += reward.value;
-    if (reward.type === 'btc')    newBtc    += reward.value;
-    if (reward.type === 'energy') newEnergy  = Math.min(state.maxEnergyCells, state.energyCells + reward.value);
-
-    // ── 1. Önce Supabase'e yaz (gerçek kayıt) ────────────────────
-    const { error } = await supabase.from(TABLES.PROFILES).update({
-      streak:       newStreak,
+    // 3. Veritabanına anında yaz (Sync bekleme)
+    await supabase.from(TABLES.PROFILES).update({
+      streak: newStreak,
+      loginStreak: newStreak.count,
       tycoonPoints: newTp,
-      btcBalance:   newBtc,
-      energyCells:  newEnergy,
-      updated_at:   new Date().toISOString(),
+      btcBalance: newBtc,
+      energyCells: newEnergy,
+      updated_at: new Date().toISOString()
     }).eq('id', state.user.uid);
-
-    if (error) {
-      console.error('❌ Streak DB yazma hatası:', error);
-      throw error; // UI'ya hata bildir
-    }
-
-    // ── 2. DB başarılıysa state'i güncelle ───────────────────────
-    dispatch({ type: 'CLAIM_STREAK_REWARD' });
-
-    // ── 3. stateRef günceller (sync interval için) ───────────────
-    stateRef.current = { 
-      ...stateRef.current, 
-      streak: newStreak, 
-      tycoonPoints: newTp, 
-      btcBalance: newBtc, 
-      energyCells: newEnergy 
-    };
-
-    console.info('🎁 Günlük ödül veritabanına kaydedildi. Seri:', newStreak.count);
+    
+    console.info('🎁 Günlük ödül veritabanına kaydedildi:', newStreak.count);
   };
 
   const updateUserProfile = async (updates: Partial<{ username: string; email: string; phone: string; avatarUrl: string }>) => {

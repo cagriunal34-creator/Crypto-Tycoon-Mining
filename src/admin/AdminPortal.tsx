@@ -163,10 +163,12 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
     const [notifTargetUid, setNotifTargetUid] = useState('');
     const [notifType, setNotifType] = useState<'info' | 'success' | 'warning'>('info');
     const [notifSending, setNotifSending] = useState(false);
+    const [sentNotifications, setSentNotifications] = useState<any[]>([]);
 
     // --- NEW: Support/Ticket System ---
     const [tickets, setTickets] = useState<any[]>([]);
     const [selectedTicket, setSelectedTicket] = useState<any>(null);
+    const [selectedLogDetail, setSelectedLogDetail] = useState<any>(null); // log detay modal
     const [ticketReply, setTicketReply] = useState('');
     const [ticketFilter, setTicketFilter] = useState<'all' | 'open' | 'closed' | 'answered'>('open');
 
@@ -307,6 +309,9 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
         interstitialFrequencyMinutes: 5,
     });
     const [googleAdsSaving, setGoogleAdsSaving] = useState(false);
+    const [appVersion, setAppVersion] = useState('2.4.0');
+    const [updateNotes, setUpdateNotes] = useState('');
+    const [isUpdating, setIsUpdating] = useState(false);
 
     // --- NEW: KPI Chart Data ---
     const [kpiRange, setKpiRange] = useState<'7d' | '30d' | '90d'>('7d');
@@ -351,10 +356,6 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                 { id: 'players_active' as AdminTab, label: 'Aktif Kullanıcılar', icon: <UserCheck size={16} /> },
                 { id: 'players_banned' as AdminTab, label: 'Yasaklı Kullanıcılar', icon: <ShieldAlert size={16} />, badge: players.filter(p => p.isBanned).length || undefined },
                 { id: 'players_kyc_pending' as AdminTab, label: 'KYC Beklemede', icon: <Clock size={16} />, badge: players.filter(p => (p.riskScore || 0) > 50).length || undefined },
-                { id: 'players_email_unverified' as AdminTab, label: 'E-posta Onaysız', icon: <Mail size={16} />, badge: players.filter(p => p.email_verified === false).length || undefined },
-                { id: 'players_mobile_unverified' as AdminTab, label: 'Mobil Onaysız', icon: <Smartphone size={16} />, badge: players.filter(p => p.phone_verified === false).length || undefined },
-                { id: 'players_kyc_unverified' as AdminTab, label: 'KYC Onaysız', icon: <ShieldAlert size={16} />, badge: players.filter(p => !p.kyc_verified).length || undefined },
-                { id: 'players_balance' as AdminTab, label: 'Bakiyeye Göre', icon: <Bitcoin size={16} /> },
                 { id: 'players_all' as AdminTab, label: 'Tüm Kullanıcılar', icon: <Users size={16} />, badge: players.length || undefined },
                 { id: 'players_notification' as AdminTab, label: 'Bildirim Gönder', icon: <Send size={16} /> },
             ]
@@ -364,14 +365,8 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
             id: 'finance_ops',
             color: 'bg-indigo-700',
             items: [
-                { id: 'deposits_all' as AdminTab, label: 'Tüm Yatırmalar', icon: <Download size={16} />, badge: allTransactions.filter(t => t.type === 'deposit' && t.status === 'pending').length || undefined },
-                { id: 'deposits_pending' as AdminTab, label: 'Bekleyen Yatırmalar', icon: <Clock size={16} />, badge: allTransactions.filter(t => t.type === 'deposit' && t.status === 'pending').length || undefined },
-                { id: 'deposits_approved' as AdminTab, label: 'Onaylı Yatırmalar', icon: <CheckCircle2 size={16} /> },
-                { id: 'deposits_rejected' as AdminTab, label: 'Reddedilen Yatırmalar', icon: <XCircle size={16} /> },
-                { id: 'withdrawals_all' as AdminTab, label: 'Tüm Çekimler', icon: <Upload size={16} />, badge: withdrawals.filter(w => w.status === 'pending').length || undefined },
-                { id: 'withdrawals_pending' as AdminTab, label: 'Bekleyen Çekimler', icon: <Clock size={16} />, badge: withdrawals.filter(w => w.status === 'pending').length || undefined },
-                { id: 'withdrawals_approved' as AdminTab, label: 'Onaylı Çekimler', icon: <CheckCircle2 size={16} /> },
-                { id: 'withdrawals_rejected' as AdminTab, label: 'Reddedilen Çekimler', icon: <XCircle size={16} /> },
+                { id: 'deposits_all' as AdminTab, label: 'Para Yatırma', icon: <Download size={16} />, badge: allTransactions.filter(t => t.type === 'deposit' && t.status === 'pending').length || undefined },
+                { id: 'withdrawals_all' as AdminTab, label: 'Para Çekme', icon: <Upload size={16} />, badge: withdrawals.filter(w => w.status === 'pending').length || undefined },
             ]
         },
         {
@@ -383,10 +378,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                 { id: 'guilds' as AdminTab, label: 'Loncalar', icon: <Users size={16} />, badge: allGuilds.length || undefined },
                 { id: 'bots' as AdminTab, label: 'Bot Yönetimi', icon: <Cpu size={16} /> },
                 { id: 'economy' as AdminTab, label: 'Ekonomi Ayarları', icon: <Coins size={16} /> },
-                { id: 'currencies' as AdminTab, label: 'Para Birimleri', icon: <DollarSign size={16} /> },
                 { id: 'mining_items' as AdminTab, label: 'Madenci Ekipmanları', icon: <Zap size={16} /> },
-                { id: 'mining_plans' as AdminTab, label: 'Madencilik Planları', icon: <Layers size={16} /> },
-                { id: 'mining_paths' as AdminTab, label: 'Madencilik Yolları', icon: <Route size={16} /> },
                 { id: 'game_events' as AdminTab, label: 'Oyun Etkinlikleri', icon: <Flame size={16} /> },
                 { id: 'promo_codes' as AdminTab, label: 'Promo Kodlar', icon: <Gift size={16} /> },
                 { id: 'leaderboard' as AdminTab, label: 'Sıralama Tablosu', icon: <Award size={16} /> },
@@ -400,7 +392,6 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                 { id: 'transactions_all' as AdminTab, label: 'Tüm İşlemler', icon: <Activity size={16} />, badge: allTransactions.length || undefined },
                 { id: 'orders' as AdminTab, label: 'Siparişler', icon: <Briefcase size={16} /> },
                 { id: 'referrals' as AdminTab, label: 'Referans Sistemi', icon: <Share2 size={16} /> },
-                { id: 'referral_bonus' as AdminTab, label: 'Referans Bonusu', icon: <Gift size={16} /> },
                 { id: 'vip_management' as AdminTab, label: 'VIP Yönetimi', icon: <ShieldCheck size={16} />, badge: players.filter(p => p.vip?.isActive).length || undefined },
             ]
         },
@@ -409,13 +400,10 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
             id: 'support_section',
             color: 'bg-teal-600',
             items: [
-                { id: 'support_all' as AdminTab, label: 'Tüm Talepler', icon: <LifeBuoy size={16} />, badge: tickets.filter(t => t.status === 'open').length || undefined },
-                { id: 'support_pending' as AdminTab, label: 'Bekleyen Talepler', icon: <Clock size={16} />, badge: tickets.filter(t => t.status === 'open').length || undefined },
-                { id: 'support_answered' as AdminTab, label: 'Yanıtlananlar', icon: <CheckCircle2 size={16} /> },
-                { id: 'support_closed' as AdminTab, label: 'Kapalı Talepler', icon: <XCircle size={16} /> },
+                { id: 'support_all' as AdminTab, label: 'Destek Talepleri', icon: <LifeBuoy size={16} />, badge: tickets.filter(t => t.status === 'open').length || undefined },
                 { id: 'subscribers' as AdminTab, label: 'Aboneler', icon: <Mail size={16} />, badge: subscribers.length || undefined },
                 { id: 'reports_login' as AdminTab, label: 'Giriş Raporları', icon: <History size={16} /> },
-                { id: 'reports_notifications' as AdminTab, label: 'Bildirim Raporları', icon: <Bell size={16} /> },
+                { id: 'reports_notifications' as AdminTab, label: 'Bildirim Geçmişi', icon: <Bell size={16} /> },
             ]
         },
         {
@@ -425,8 +413,6 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
             items: [
                 { id: 'settings' as AdminTab, label: 'Sistem Ayarları', icon: <SettingsIcon size={16} /> },
                 { id: 'security' as AdminTab, label: 'Güvenlik', icon: <ShieldAlert size={16} /> },
-                { id: 'cheats' as AdminTab, label: 'Hile Tespiti', icon: <Bug size={16} /> },
-                { id: 'activities' as AdminTab, label: 'Aktiviteler', icon: <Activity size={16} /> },
                 { id: 'logs' as AdminTab, label: 'İşlem Günlükleri', icon: <FileText size={16} /> },
                 { id: 'webhooks' as AdminTab, label: 'Webhook & Kurallar', icon: <Link size={16} /> },
                 { id: 'db_explorer' as AdminTab, label: 'Veritabanı Gezgini', icon: <Database size={16} /> },
@@ -447,8 +433,6 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
             items: [
                 { id: 'info_server' as AdminTab, label: 'Sunucu Durumu', icon: <Database size={16} /> },
                 { id: 'info_app' as AdminTab, label: 'Uygulama Bilgisi', icon: <Smartphone size={16} /> },
-                { id: 'info_cache' as AdminTab, label: 'Önbellek Yönetimi', icon: <RefreshCw size={16} /> },
-                { id: 'info_update' as AdminTab, label: 'Güncelleme Kontrolü', icon: <Download size={16} /> },
                 { id: 'report_request' as AdminTab, label: 'Hata Raporları', icon: <Bug size={16} /> },
             ]
         }
@@ -513,6 +497,9 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                 const { data: logs, error: lErr } = await supabase.from(TABLES.LOGS).select('*').order('created_at', { ascending: false }).limit(50);
                 if (lErr) console.error('AdminPortal Logs Error:', lErr);
                 if (logs) setAdminLogs(logs);
+
+                const { data: notifs } = await supabase.from('notifications').select('*').order('created_at', { ascending: false }).limit(20);
+                if (notifs) setSentNotifications(notifs);
 
                 const { data: txs, error: gtErr } = await supabase.from(TABLES.TRANSACTIONS).select('*').order('created_at', { ascending: false }).limit(100);
                 if (gtErr) console.error('AdminPortal Global Tx Error:', gtErr);
@@ -641,6 +628,15 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                 if (payload.new.isBanned && !payload.old?.isBanned) {
                     setLiveActivityFeed(prev => [{ id: `ban-${payload.new.id}`, type: 'ban', msg: `${payload.new.username || 'Kullanıcı'}: Hesap askıya alındı`, time: new Date(), color: 'text-red-400' }, ...prev].slice(0, 30));
                 }
+                // VIP aktivasyonu tespiti
+                if (payload.new.vip && payload.new.vip !== 'none' && (!payload.old?.vip || payload.old?.vip === 'none')) {
+                    setLiveActivityFeed(prev => [{ id: `vip-${payload.new.id}`, type: 'vip', msg: `${payload.new.username || 'Kullanıcı'}: VIP (${payload.new.vip}) satın aldı`, time: new Date(), color: 'text-amber-400' }, ...prev].slice(0, 30));
+                }
+            })
+            // ── Yeni kayıt: profiles INSERT → feed + player listesi ──
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: TABLES.PROFILES }, async (payload) => {
+                setLiveActivityFeed(prev => [{ id: `reg-${payload.new.id}`, type: 'register', msg: `${payload.new.username || 'Yeni kullanıcı'}: Kayıt oldu`, time: new Date(), color: 'text-emerald-400' }, ...prev].slice(0, 30));
+                setPlayers(prev => [payload.new as any, ...prev]);
             })
             .subscribe();
         return () => { supabase.removeChannel(feedChannel); };
@@ -717,19 +713,9 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                 if (p.eventType === 'UPDATE') setPromoCodes(prev => prev.map(c => c.id === p.new.id ? p.new : c));
                 if (p.eventType === 'DELETE') setPromoCodes(prev => prev.filter(c => c.id !== p.old.id));
             })
-            // ── App -> Admin Real-time Sync ───────────────────────
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, (p: any) => {
-                if (p.eventType === 'INSERT') setPlayers((prev: any[]) => [p.new, ...prev]);
-                if (p.eventType === 'UPDATE') setPlayers((prev: any[]) => prev.map((pl: any) => pl.id === p.new.id ? { ...pl, ...p.new } : pl));
-                if (p.eventType === 'DELETE') setPlayers((prev: any[]) => prev.filter((pl: any) => pl.id !== p.old?.id));
-            })
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'transactions' }, (p: any) => {
-                if (p.new) setAllTransactions((prev: any[]) => [p.new, ...prev].slice(0, 500));
-            })
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'withdrawals' }, (p: any) => {
-                if (p.eventType === 'INSERT') setWithdrawals((prev: any[]) => [p.new, ...prev]);
-                if (p.eventType === 'UPDATE') setWithdrawals((prev: any[]) => prev.map((w: any) => w.id === p.new.id ? { ...w, ...p.new } : w));
-                if (p.eventType === 'DELETE') setWithdrawals((prev: any[]) => prev.filter((w: any) => w.id !== p.old?.id));
+            // ── Subscribers: yeni abone → badge anında güncellenir ──
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'subscribers' }, (p) => {
+                setSubscribers(prev => [p.new as any, ...prev]);
             })
             .subscribe();
         return () => { supabase.removeChannel(ch); };
@@ -980,7 +966,9 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
             if (notifRows.length > 0) {
                 // Batch insert (max 50 at a time)
                 for (let i = 0; i < notifRows.length; i += 50) {
-                    await supabase.from('notifications').insert(notifRows.slice(i, i + 50));
+                    const chunk = notifRows.slice(i, i + 50);
+                    const { data } = await supabase.from('notifications').insert(chunk).select();
+                    if (data) setSentNotifications(prev => [...data, ...prev].slice(0, 50));
                 }
             }
 
@@ -1027,13 +1015,43 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
 
     const handleUpdatePlayer = async (uid: string, updates: any) => {
         const cleanUid = uid.trim();
-        try {
-            await supabase.from(TABLES.PROFILES).update(updates).eq('id', cleanUid);
-            await logAdminAction('update_player', cleanUid, updates);
-            notify({ type: 'success', title: 'Başarılı', message: 'Oyuncu verileri güncellendi.' });
-        } catch (e) { notify({ type: 'warning', title: 'Hata', message: 'Güncelleme başarısız.' }); }
+        await supabase.from(TABLES.PROFILES).update(updates).eq('id', cleanUid);
+        setPlayers(prev => prev.map(p => p.id === cleanUid ? { ...p, ...updates } : p));
+        notify({ type: 'success', title: 'Güncellendi', message: 'Oyuncu verileri kaydedildi.' });
     };
 
+    const handleBroadcastUpdate = async () => {
+        if (!updateNotes) return notify({ type: 'warning', title: 'Eksik Alan', message: 'Güncelleme notları gereklidir.' });
+        setIsUpdating(true);
+        try {
+            // 1. Send notification to all users
+            const notifRows = players.map(p => ({
+                target_id: p.id,
+                title: `Sistem Güncellemesi v${appVersion}`,
+                body: updateNotes,
+                type: 'system',
+                read: false,
+                created_at: new Date().toISOString()
+            }));
+
+            if (notifRows.length > 0) {
+                for (let i = 0; i < notifRows.length; i += 50) {
+                    const chunk = notifRows.slice(i, i + 50);
+                    await supabase.from('notifications').insert(chunk);
+                }
+            }
+
+            // 2. Update global settings with new version (optional if wanted to force refresh)
+            await handleUpdateSettings({ lastUpdateVersion: appVersion, updateNotes });
+
+            notify({ type: 'success', title: 'Dağıtıldı', message: `v${appVersion} güncellemesi tüm kullanıcılara duyuruldu.` });
+            setUpdateNotes('');
+        } catch (e) {
+            notify({ type: 'warning', title: 'Hata', message: 'Güncelleme duyurusu başarısız.' });
+        } finally {
+            setIsUpdating(false);
+        }
+    };
     const handleDeletePlayer = async (uid: string) => {
         const cleanUid = uid.trim();
         if (!window.confirm('Bu oyuncuyu TAMAMEN silmek istediğinize emin misiniz?')) return;
@@ -1834,8 +1852,6 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                                     if (activeTab === 'players_active') return !p.isBanned;
                                                     if (activeTab === 'players_banned') return p.isBanned;
                                                     if (activeTab === 'players_email_unverified') return p.email_verified === false;
-                                                    if (activeTab === 'players_mobile_unverified') return p.phone_verified === false;
-                                                    if (activeTab === 'players_kyc_unverified') return !p.kyc_verified;
                                                     if (activeTab === 'players_kyc_pending') return p.riskScore > 50;
                                                     return true;
                                                 }).sort((a, b) => {
@@ -2315,6 +2331,86 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                         </div>
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'reports_notifications' && (
+                        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
+                            <div className="flex items-center justify-between mb-2">
+                                <div>
+                                    <h2 className="text-2xl font-black text-zinc-800 uppercase tracking-tight">Bildirim Geçmişi</h2>
+                                    <p className="text-zinc-400 text-[10px] font-bold uppercase tracking-widest mt-1">Sistem tarafından gönderilen tüm bildirimlerin dökümü</p>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <button onClick={() => setActiveTab('players_notification')} className="h-11 px-6 rounded-xl bg-indigo-600 text-white font-black text-[9px] uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 flex items-center gap-2">
+                                        <Send size={14}/> Yeni Bildirim
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="bg-white border border-zinc-200 rounded-[2rem] overflow-hidden shadow-sm">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="bg-zinc-50/50 border-b border-zinc-100 text-[10px] font-black uppercase tracking-widest text-zinc-400">
+                                            <th className="p-5 pl-8">Tarih</th>
+                                            <th className="p-5">Tip</th>
+                                            <th className="p-5">Başlık</th>
+                                            <th className="p-5">Mesaj</th>
+                                            <th className="p-5">Hedef</th>
+                                            <th className="p-5 text-right pr-8">İşlem</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-zinc-50">
+                                        {sentNotifications.map((notif) => (
+                                            <tr key={notif.id} className="hover:bg-zinc-50/50 transition-colors group">
+                                                <td className="p-5 pl-8">
+                                                    <span className="text-[10px] font-mono text-zinc-400 font-bold">{new Date(notif.created_at).toLocaleString('tr-TR')}</span>
+                                                </td>
+                                                <td className="p-5">
+                                                    <span className={cn("px-2 py-1 rounded-lg text-[8px] font-black uppercase border",
+                                                        notif.type === 'info' ? "bg-blue-50 text-blue-600 border-blue-100" :
+                                                        notif.type === 'success' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+                                                        "bg-amber-50 text-amber-600 border-amber-100"
+                                                    )}>{notif.type === 'info' ? 'Bilgi' : notif.type === 'success' ? 'Başarı' : 'Uyarı'}</span>
+                                                </td>
+                                                <td className="p-5">
+                                                    <p className="text-zinc-800 font-bold text-xs uppercase tracking-tight">{notif.title}</p>
+                                                </td>
+                                                <td className="p-5">
+                                                    <p className="text-zinc-500 text-[11px] font-medium truncate max-w-[300px]">{notif.body}</p>
+                                                </td>
+                                                <td className="p-5">
+                                                    <span className="text-[10px] font-black text-indigo-500 font-mono">@{notif.target_id?.substring(0,8) || 'GLOBAL'}</span>
+                                                </td>
+                                                <td className="p-5 text-right pr-8">
+                                                    <button 
+                                                        onClick={async () => {
+                                                            if (window.confirm('Bu bildirimi silmek istediğinize emin misiniz?')) {
+                                                                await supabase.from('notifications').delete().eq('id', notif.id);
+                                                                setSentNotifications(prev => prev.filter(n => n.id !== notif.id));
+                                                                notify({ type: 'warning', title: 'Silindi', message: 'Bildirim silindi.' });
+                                                            }
+                                                        }}
+                                                        className="p-2 text-zinc-300 hover:text-red-500 transition-colors"
+                                                    >
+                                                        <Trash2 size={16}/>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {sentNotifications.length === 0 && (
+                                            <tr>
+                                                <td colSpan={6} className="p-20 text-center">
+                                                    <div className="flex flex-col items-center gap-3">
+                                                        <Bell size={40} className="text-zinc-200"/>
+                                                        <p className="text-zinc-400 font-bold uppercase text-[10px] tracking-widest">Henüz bildirim geçmişi yok</p>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     )}
@@ -3051,7 +3147,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                                     </div>
                                                 </div>
                                             </div>
-                                            <button onClick={() => console.log(log.details)} className="p-3 rounded-xl bg-white border border-zinc-200 text-zinc-400 hover:text-indigo-600 hover:border-indigo-200 transition-all opacity-0 group-hover:opacity-100 shadow-sm"><Eye size={16} /></button>
+                                            <button onClick={() => setSelectedLogDetail(log)} title="Detayı görüntüle" className="p-3 rounded-xl bg-white border border-zinc-200 text-zinc-400 hover:text-indigo-600 hover:border-indigo-200 transition-all opacity-0 group-hover:opacity-100 shadow-sm"><Eye size={16} /></button>
                                         </div>
                                     ))}
                                     {adminLogs.length === 0 && <div className="p-20 text-center text-zinc-400 font-bold uppercase text-[10px] tracking-widest italic">Güvenlik günlüğü bulunamadı</div>}
@@ -3375,14 +3471,25 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                     </div>
 
                                     <div className="grid grid-cols-2 gap-8">
-                                        <button className="p-8 rounded-[2rem] bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 transition-all group flex flex-col gap-4 text-left shadow-sm">
+                                        <button
+                                            onClick={() => {
+                                                handleUpdateSettings({ botMode: 'hyper_liquidity' });
+                                                notify({ type: 'success', title: 'Hiper Likidite Aktif', message: 'Botlar anında temizleme moduna geçti.' });
+                                            }}
+                                            className="p-8 rounded-[2rem] bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 active:scale-95 transition-all group flex flex-col gap-4 text-left shadow-sm cursor-pointer">
                                             <TrendingUp className="text-indigo-600 group-hover:scale-110 transition-transform" size={28} />
                                             <div>
                                                 <p className="text-zinc-800 font-black text-xs uppercase tracking-widest italic">Hiper Likidite</p>
                                                 <p className="text-[9px] text-zinc-400 font-bold mt-1 leading-relaxed">Botları düşük seviyeli ilanları anında temizlemeye zorlar.</p>
                                             </div>
                                         </button>
-                                        <button className="p-8 rounded-[2rem] bg-emerald-50 border border-emerald-100 hover:bg-emerald-100 transition-all group flex flex-col gap-4 text-left shadow-sm">
+                                        <button
+                                            onClick={() => {
+                                                const cur = (state.globalSettings as any)?.miningDifficulty ?? 1.0;
+                                                handleUpdateSettings({ miningDifficulty: +(cur + 0.5).toFixed(1) });
+                                                notify({ type: 'success', title: 'Zorluk Artırıldı', message: `Ağ zorluk seviyesi ${+(cur+0.5).toFixed(1)} olarak güncellendi.` });
+                                            }}
+                                            className="p-8 rounded-[2rem] bg-emerald-50 border border-emerald-100 hover:bg-emerald-100 active:scale-95 transition-all group flex flex-col gap-4 text-left shadow-sm cursor-pointer">
                                             <Zap className="text-emerald-600 group-hover:scale-110 transition-transform" size={28} />
                                             <div>
                                                 <p className="text-zinc-800 font-black text-xs uppercase tracking-widest italic">Zorluk Ayarı</p>
@@ -4180,9 +4287,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                         {allTransactions
                                             .filter(tx => tx.type === 'deposit')
                                             .filter(tx => {
-                                                const tabFilter = activeTab === 'deposits_pending' ? 'pending' : activeTab === 'deposits_approved' ? 'approved' : activeTab === 'deposits_rejected' ? 'rejected' : null;
-                                                if (tabFilter && tx.status !== tabFilter) return false;
-                                                if (!tabFilter && depositFilter !== 'all' && tx.status !== depositFilter) return false;
+                                                if (depositFilter !== 'all' && tx.status !== depositFilter) return false;
                                                 if (depositSearchTerm) return (tx.username || '').toLowerCase().includes(depositSearchTerm.toLowerCase()) || (tx.description || '').toLowerCase().includes(depositSearchTerm.toLowerCase());
                                                 return true;
                                             })
@@ -4222,152 +4327,6 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                         )}
                                     </tbody>
                                 </table>
-                            </div>
-                        </div>
-                    )}
-
-
-                    {/* ── currencies ─────────────────────────────── */}
-                    {activeTab === 'currencies' && (
-                        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                            <div className="flex items-center justify-between">
-                                <h3 className="text-white font-black text-sm uppercase italic tracking-widest flex items-center gap-3"><DollarSign className="text-yellow-400" size={20} /> Para Birimleri Yönetimi</h3>
-                            </div>
-                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                                {([
-                                    {symbol:'BTC',name:'Bitcoin',cls:'text-orange-400 bg-orange-500/10 border-orange-500/20'},
-                                    {symbol:'USD',name:'US Dollar',cls:'text-green-400 bg-green-500/10 border-green-500/20'},
-                                    {symbol:'EUR',name:'Euro',cls:'text-blue-400 bg-blue-500/10 border-blue-500/20'},
-                                    {symbol:'TP',name:'Tycoon Points',cls:'text-purple-400 bg-purple-500/10 border-purple-500/20'},
-                                    {symbol:'ETH',name:'Ethereum',cls:'text-indigo-400 bg-indigo-500/10 border-indigo-500/20'},
-                                    {symbol:'BNB',name:'BNB',cls:'text-yellow-400 bg-yellow-500/10 border-yellow-500/20'},
-                                    {symbol:'USDT',name:'Tether',cls:'text-teal-400 bg-teal-500/10 border-teal-500/20'},
-                                ] as const).map(c => (
-                                    <div key={c.symbol} className={`p-5 rounded-2xl border backdrop-blur-md ${c.cls}`}>
-                                        <div className={`text-xs font-black uppercase tracking-widest mb-1 ${c.cls.split(' ')[0]}`}>{c.symbol}</div>
-                                        <div className="text-white font-black text-lg">{c.name}</div>
-                                    </div>
-                                ))}
-                            </div>
-                            <div className="bg-white/5 border border-white/5 rounded-2xl p-6 backdrop-blur-md">
-                                <p className="text-zinc-400 text-sm font-bold uppercase tracking-widest">Kur ayarları Ekonomi Ayarları bölümünden yönetilmektedir.</p>
-                                <button onClick={() => setActiveTab('economy')} className="mt-4 px-6 py-2.5 bg-indigo-600 text-white font-black text-[9px] uppercase tracking-widest rounded-xl hover:bg-indigo-700 transition-all flex items-center gap-2"><Coins size={14} /> Ekonomi Ayarlarına Git</button>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* ── mining_plans ────────────────────────────── */}
-                    {activeTab === 'mining_plans' && (
-                        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                            <h3 className="text-white font-black text-sm uppercase italic tracking-widest flex items-center gap-3"><Layers className="text-emerald-400" size={20} /> Madencilik Planları</h3>
-                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                                {(['Başlangıç','Temel','Gelişmiş','Uzman','Elit','Efsanevi'] as const).map((plan, i) => (
-                                    <div key={plan} className="bg-white/5 border border-white/5 rounded-2xl p-5 backdrop-blur-md hover:bg-white/10 transition-all">
-                                        <div className="flex items-center justify-between mb-3">
-                                            <span className="text-white font-black text-sm uppercase">{plan}</span>
-                                            <span className={`text-[9px] font-black px-2 py-1 rounded-lg uppercase ${i < 2 ? 'bg-zinc-500/20 text-zinc-400' : i < 4 ? 'bg-blue-500/20 text-blue-400' : 'bg-amber-500/20 text-amber-400'}`}>Seviye {i + 1}</span>
-                                        </div>
-                                        <div className="space-y-2 text-zinc-400 text-xs font-bold">
-                                            <div className="flex justify-between"><span>Hashrate Carpani</span><span className="text-emerald-400">{(1 + i * 0.5).toFixed(1)}x</span></div>
-                                            <div className="flex justify-between"><span>Min. Seviye</span><span className="text-white">{i * 5}</span></div>
-                                        </div>
-                                        <button onClick={() => setActiveTab('mining_items')} className="mt-4 w-full py-2 bg-emerald-600/20 text-emerald-400 font-black text-[9px] uppercase rounded-xl hover:bg-emerald-600/40 transition-all border border-emerald-500/20">Madencileri Yonet</button>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* ── mining_paths ────────────────────────────── */}
-                    {activeTab === 'mining_paths' && (
-                        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                            <h3 className="text-white font-black text-sm uppercase italic tracking-widest flex items-center gap-3"><Route className="text-cyan-400" size={20} /> Madencilik Yollari</h3>
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                                {([
-                                    {name:'BTC Madenciligi',desc:'Bitcoin dogrudan madenciligi',cls:'bg-orange-500/10 border-orange-500/20',tcls:'text-orange-400',steps:['Temel Donanimı','GPU Madencisi','ASIC Madencisi','Ciftlik','Mega Ciftlik']},
-                                    {name:'TP Uretimi',desc:'Tycoon Puani uretim yolu',cls:'bg-purple-500/10 border-purple-500/20',tcls:'text-purple-400',steps:['Gorevler','Arastirma','Lonca','Sozlesmeler','Prestij']},
-                                    {name:'DeFi Yatirim',desc:'Merkeziyetsiz finans yolu',cls:'bg-blue-500/10 border-blue-500/20',tcls:'text-blue-400',steps:['Staking','Likidite','Yield Farm','Vault','Protokol']},
-                                    {name:'Ticaret Yolu',desc:'Pazar ve ticaret odakli',cls:'bg-teal-500/10 border-teal-500/20',tcls:'text-teal-400',steps:['Temel Ticaret','Arbitraj','Market Maker','Flas Kredi','DEX']},
-                                ] as const).map(path => (
-                                    <div key={path.name} className={`p-5 rounded-2xl border backdrop-blur-md ${path.cls}`}>
-                                        <div className={`font-black text-sm uppercase mb-1 ${path.tcls}`}>{path.name}</div>
-                                        <div className="text-zinc-400 text-xs font-bold mb-3">{path.desc}</div>
-                                        <div className="flex flex-wrap gap-2">
-                                            {path.steps.map((s, i) => <span key={s} className="text-[9px] font-black uppercase px-2 py-1 rounded-lg bg-white/5 text-zinc-400 border border-white/5">{i + 1}. {s}</span>)}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* ── players_balance ──────────────────────────── */}
-                    {activeTab === 'players_balance' && (
-                        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                            <h3 className="text-zinc-800 font-black text-sm uppercase italic tracking-widest flex items-center gap-3"><Bitcoin className="text-orange-500" size={20} /> Bakiyeye Gore Top 50 Kullanici</h3>
-                            <div className="bg-white border border-zinc-100 rounded-[2rem] overflow-hidden shadow-lg">
-                                <table className="w-full text-left border-collapse">
-                                    <thead><tr className="border-b border-zinc-100 bg-zinc-50 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">
-                                        <th className="p-4">Sira</th><th className="p-4">Kullanici</th><th className="p-4">BTC Bakiyesi</th><th className="p-4">TP</th><th className="p-4">Seviye</th><th className="p-4 text-right">Islem</th>
-                                    </tr></thead>
-                                    <tbody className="divide-y divide-zinc-50">
-                                        {[...players].sort((a: any, b: any) => (b.btcBalance || 0) - (a.btcBalance || 0)).slice(0, 50).map((p: any, idx: number) => (
-                                            <tr key={p.id} className="hover:bg-zinc-50 transition-colors">
-                                                <td className="p-4"><span className={`w-7 h-7 rounded-full inline-flex items-center justify-center font-black text-xs ${idx < 3 ? 'bg-amber-100 text-amber-600' : 'bg-zinc-100 text-zinc-500'}`}>{idx + 1}</span></td>
-                                                <td className="p-4"><span className="font-black text-zinc-800 text-sm">{p.username || '—'}</span></td>
-                                                <td className="p-4 font-mono text-orange-500 font-black">{(p.btcBalance || 0).toFixed(8)} BTC</td>
-                                                <td className="p-4 text-purple-500 font-black">{(p.tycoonPoints || 0).toLocaleString()}</td>
-                                                <td className="p-4"><span className="px-2 py-1 bg-blue-50 text-blue-600 rounded-lg text-[9px] font-black border border-blue-100">Lv.{p.level || 1}</span></td>
-                                                <td className="p-4 text-right"><button onClick={() => setSelectedPlayer(p)} className="px-3 py-1.5 rounded-xl bg-indigo-500 text-white font-black text-[9px] uppercase hover:bg-indigo-600 transition-all">Duzenle</button></td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* ── referral_bonus ───────────────────────────── */}
-                    {activeTab === 'referral_bonus' && (
-                        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                            <h3 className="text-zinc-800 font-black text-sm uppercase italic tracking-widest flex items-center gap-3"><Gift className="text-purple-500" size={20} /> Referans Bonus Yapılandırması</h3>
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                <div className="bg-white border border-zinc-100 rounded-2xl p-6 shadow-sm">
-                                    <h4 className="text-zinc-800 font-black text-xs uppercase tracking-widest mb-4">Mevcut Odul Yapisi</h4>
-                                    <div className="space-y-3">
-                                        <div className="flex items-center justify-between p-3 bg-zinc-50 rounded-xl">
-                                            <span className="text-zinc-600 text-xs font-bold uppercase">Referans Basi BTC</span>
-                                            <span className="font-mono font-black text-orange-500">{(state.globalSettings?.referralBonusBtc || 0.00001).toFixed(8)}</span>
-                                        </div>
-                                        <div className="flex items-center justify-between p-3 bg-zinc-50 rounded-xl">
-                                            <span className="text-zinc-600 text-xs font-bold uppercase">Referans Basi TP</span>
-                                            <span className="font-mono font-black text-purple-500">{state.globalSettings?.referralBonusTp || 50}</span>
-                                        </div>
-                                        <div className="flex items-center justify-between p-3 bg-zinc-50 rounded-xl">
-                                            <span className="text-zinc-600 text-xs font-bold uppercase">Kayit Bonusu (TP)</span>
-                                            <span className="font-mono font-black text-blue-500">{state.globalSettings?.signupBonusTp || 100}</span>
-                                        </div>
-                                    </div>
-                                    <button onClick={() => setActiveTab('settings')} className="mt-4 w-full py-2.5 bg-purple-600 text-white font-black text-[9px] uppercase rounded-xl hover:bg-purple-700 transition-all flex items-center justify-center gap-2"><SettingsIcon size={12} /> Sistem Ayarlarindan Duzenle</button>
-                                </div>
-                                <div className="bg-white border border-zinc-100 rounded-2xl p-6 shadow-sm">
-                                    <h4 className="text-zinc-800 font-black text-xs uppercase tracking-widest mb-4">Referans Istatistikleri</h4>
-                                    <div className="space-y-3">
-                                        <div className="flex items-center justify-between p-3 bg-zinc-50 rounded-xl">
-                                            <span className="text-zinc-600 text-xs font-bold uppercase">Toplam Referanslar</span>
-                                            <span className="font-black text-zinc-800">{players.reduce((a: number, p: any) => a + (p.referralCount || 0), 0)}</span>
-                                        </div>
-                                        <div className="flex items-center justify-between p-3 bg-zinc-50 rounded-xl">
-                                            <span className="text-zinc-600 text-xs font-bold uppercase">En Cok Referans Veren</span>
-                                            <span className="font-black text-zinc-800">{[...players].sort((a: any, b: any) => (b.referralCount || 0) - (a.referralCount || 0))[0]?.username || '—'}</span>
-                                        </div>
-                                        <div className="flex items-center justify-between p-3 bg-zinc-50 rounded-xl">
-                                            <span className="text-zinc-600 text-xs font-bold uppercase">Referansla Kayit</span>
-                                            <span className="font-black text-zinc-800">{players.filter((p: any) => p.referredBy).length}</span>
-                                        </div>
-                                    </div>
-                                    <button onClick={() => setActiveTab('referrals')} className="mt-4 w-full py-2.5 bg-blue-600 text-white font-black text-[9px] uppercase rounded-xl hover:bg-blue-700 transition-all flex items-center justify-center gap-2"><Share2 size={12} /> Referans Sistemine Git</button>
-                                </div>
                             </div>
                         </div>
                     )}
@@ -4507,21 +4466,65 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
 
                     {activeTab === 'info_update' && (
                         <div className="space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                             <div className="p-20 bg-white/5 border border-white/5 rounded-[3.5rem] shadow-xl backdrop-blur-md flex flex-col items-center justify-center text-center">
-                                <div className="w-20 h-20 rounded-3xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500 mb-6">
-                                    <Zap size={40} />
-                                </div>
-                                <h3 className="text-xl font-black text-white uppercase tracking-tight">Güncelleme Kontrolü</h3>
-                                <p className="text-zinc-500 text-sm max-w-sm mt-2 mb-8 uppercase font-bold tracking-widest text-[10px]">Mevcut versiyon (`v2.4.0`) güncel. Yeni bir dağıtım (OTA) bulunmuyor.</p>
-                                <div className="flex gap-4">
-                                    <button className="px-8 py-4 bg-white/5 text-zinc-500 rounded-xl font-black text-[9px] uppercase tracking-widest cursor-not-allowed border border-white/5">GÜNCELLEME YOK</button>
+                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                                 <div className="lg:col-span-1 p-10 bg-white/5 border border-white/5 rounded-[2.5rem] shadow-xl backdrop-blur-md flex flex-col items-center justify-center text-center">
+                                    <div className="w-20 h-20 rounded-3xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500 mb-6 font-black text-xl italic">
+                                        v{appVersion}
+                                    </div>
+                                    <h3 className="text-xl font-black text-white uppercase tracking-tight">Mevcut Sürüm</h3>
+                                    <p className="text-zinc-500 text-sm max-w-sm mt-2 mb-8 uppercase font-bold tracking-widest text-[10px]">Uygulama v{appVersion} stabil sürümünde çalışıyor.</p>
                                     <button onClick={() => {
                                         notify({ type: 'info', title: 'Kontrol Ediliyor', message: 'Sunucudaki yeni sürümler taranıyor...' });
                                         setTimeout(() => {
-                                            notify({ type: 'success', title: 'Güncelleme Kontrolü', message: 'Uygulama en güncel sürümde.' });
-                                        }, 2000);
-                                    }} className="px-8 py-4 bg-white/10 border border-white/10 text-white rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-white/20 transition-all">MANUEL KONTROL</button>
-                                </div>
+                                            notify({ type: 'success', title: 'Güncelleme Kontrolü', message: 'Sistem zaten güncel.' });
+                                        }, 1500);
+                                    }} className="w-full py-4 bg-white/10 border border-white/10 text-white rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-white/20 transition-all">SÜREKLİ KONTROL</button>
+                                 </div>
+
+                                 <div className="lg:col-span-2 p-10 bg-white/5 border border-white/5 rounded-[2.5rem] shadow-xl backdrop-blur-md space-y-8">
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <div className="w-8 h-8 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500">
+                                            <Zap size={16} />
+                                        </div>
+                                        <h4 className="text-white font-black text-xs uppercase tracking-widest">Yeni Güncelleme Yayınla (OTA)</h4>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">Hedef Versiyon</label>
+                                            <input
+                                                value={appVersion}
+                                                onChange={e => setAppVersion(e.target.value)}
+                                                className="w-full bg-black/20 border border-white/5 rounded-2xl px-5 py-4 text-white text-sm focus:outline-none focus:border-indigo-500 transition-all font-mono"
+                                                placeholder="örn: 2.4.1"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">Güncelleme Notları</label>
+                                        <textarea
+                                            value={updateNotes}
+                                            onChange={e => setUpdateNotes(e.target.value)}
+                                            rows={4}
+                                            className="w-full bg-black/20 border border-white/5 rounded-2xl px-5 py-4 text-white text-sm focus:outline-none focus:border-indigo-500 transition-all resize-none"
+                                            placeholder="Bu sürümde neler değişti? Kullanıcılara duyurulacak."
+                                        />
+                                    </div>
+
+                                    <button
+                                        onClick={handleBroadcastUpdate}
+                                        disabled={isUpdating}
+                                        className={cn(
+                                            "w-full py-5 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-xl transition-all active:scale-95 flex items-center justify-center gap-3",
+                                            isUpdating ? "opacity-50 cursor-not-allowed" : "hover:bg-indigo-500 hover:shadow-indigo-500/20"
+                                        )}
+                                    >
+                                        {isUpdating ? <RefreshCw className="animate-spin" size={16} /> : <Zap size={16} />}
+                                        GÜNCELLEMEYİ TÜM KULLANICILARA DUYUR (PUSH OTA)
+                                    </button>
+                                    <p className="text-center text-[9px] text-zinc-500 font-bold uppercase italic tracking-widest">Bu işlem tüm kullanıcılara sistem bildirimi olarak iletilecektir.</p>
+                                 </div>
                              </div>
                         </div>
                     )}
@@ -5393,7 +5396,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                     <SettingsIcon size={14} className="text-indigo-500"/> Genel Sistem Durumu
                                 </h3>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {/* Bakm Modu */}
+                                    {/* Bakım Modu */}
                                     <button
                                         onClick={() => handleUpdateSettings({ isMaintenance: !state.globalSettings.isMaintenance })}
                                         className={cn("w-full h-20 rounded-2xl border-2 flex items-center gap-5 px-6 transition-all group",
@@ -5489,7 +5492,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                 </div>
                             </div>
                         </div>
-                    ) }
+                    )}
 
                     {/* ===== DESTEK / TICKET SİSTEMİ ===== */}
                     {(activeTab === 'support_pending' || activeTab === 'support_all' || activeTab === 'support_answered' || activeTab === 'support_closed') && (
@@ -5745,6 +5748,61 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                     )}
 
                 </div>
+
+            {/* ════ Log Detay Modal ════════════════════════════════════ */}
+            {selectedLogDetail && (
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+                     onClick={() => setSelectedLogDetail(null)}>
+                    <div className="w-full max-w-xl mx-4 bg-white rounded-[2rem] shadow-2xl overflow-hidden"
+                         onClick={e => e.stopPropagation()}>
+                        {/* Header */}
+                        <div className="flex items-center justify-between px-6 py-5 border-b border-zinc-100 bg-zinc-50">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
+                                    <Terminal size={18}/>
+                                </div>
+                                <div>
+                                    <p className="text-[11px] font-black text-zinc-800 uppercase tracking-widest">İşlem Detayı</p>
+                                    <p className="text-[9px] font-bold text-zinc-400 uppercase">{selectedLogDetail.action?.replace(/_/g, ' ')}</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setSelectedLogDetail(null)}
+                                    className="p-2 rounded-xl hover:bg-zinc-100 text-zinc-400 transition-colors">
+                                <X size={18}/>
+                            </button>
+                        </div>
+                        {/* Body */}
+                        <div className="p-6 space-y-4 max-h-[65vh] overflow-y-auto">
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="p-4 bg-zinc-50 border border-zinc-100 rounded-2xl">
+                                    <p className="text-[8px] font-black text-zinc-400 uppercase mb-1">Admin</p>
+                                    <p className="text-zinc-800 font-black text-sm">{selectedLogDetail.admin_username || '—'}</p>
+                                </div>
+                                <div className="p-4 bg-zinc-50 border border-zinc-100 rounded-2xl">
+                                    <p className="text-[8px] font-black text-zinc-400 uppercase mb-1">Hedef ID</p>
+                                    <p className="text-zinc-800 font-black text-xs font-mono truncate">{selectedLogDetail.target_id || '—'}</p>
+                                </div>
+                                <div className="p-4 bg-zinc-50 border border-zinc-100 rounded-2xl col-span-2">
+                                    <p className="text-[8px] font-black text-zinc-400 uppercase mb-1">Tarih / Saat</p>
+                                    <p className="text-zinc-800 font-black">{new Date(selectedLogDetail.created_at).toLocaleString('tr-TR')}</p>
+                                </div>
+                            </div>
+                            {selectedLogDetail.details ? (
+                                <div className="bg-zinc-900 rounded-2xl p-5">
+                                    <p className="text-[8px] font-black text-zinc-500 uppercase mb-3">JSON Veri</p>
+                                    <pre className="text-emerald-400 font-mono text-[10px] whitespace-pre-wrap overflow-auto max-h-52 leading-relaxed">
+                                        {JSON.stringify(selectedLogDetail.details, null, 2)}
+                                    </pre>
+                                </div>
+                            ) : (
+                                <div className="p-8 text-center text-zinc-400 text-[10px] font-bold uppercase tracking-widest">
+                                    Bu işlem için ek detay bulunmuyor
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
             </main>
         </div>
     );
