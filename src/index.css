@@ -16,6 +16,12 @@
   --ct-glow:           0 0 30px rgba(16, 185, 129, 0.2);
   --ct-active-bg:      rgba(16, 185, 129, 0.1);
   --ct-active-border:  rgba(16, 185, 129, 0.3);
+
+  /* Premium Desktop Tokens */
+  --ct-sidebar-width:  280px;
+  --ct-web-surface:    rgba(10, 10, 10, 0.6);
+  --ct-web-border:     rgba(255, 255, 255, 0.05);
+  --ct-web-glass:      blur(20px) saturate(180%);
 }
 
 /* ── Ambient canvas animation keyframes ─────────────────── */
@@ -100,7 +106,30 @@
 .glass-panel {
   background: var(--ct-card-bg);
   border: 1px solid var(--ct-border);
-  @apply backdrop-blur-md;
+  backdrop-filter: blur(12px);
+}
+
+.premium-glass {
+  background: var(--ct-web-surface);
+  border: 1px solid var(--ct-web-border);
+  backdrop-filter: var(--ct-web-glass);
+}
+
+.bento-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+  padding: 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .desktop-only { display: block; }
+  .mobile-only { display: none; }
+}
+
+@media (max-width: 1023px) {
+  .desktop-only { display: none; }
+  .mobile-only { display: block; }
 }
 
 .mining-cell-active {

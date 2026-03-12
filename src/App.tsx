@@ -55,12 +55,20 @@ import VIPScreen from './components/VIPScreen';
 import HackerAttack from './components/HackerAttack';
 import { InfrastructureScreen } from './components/InfrastructureScreen';
 import GuildScreen from './components/GuildScreen';
-
+import WebLayout from './components/WebLayout';
 
 function AppInner() {
   const { state, dispatch } = useGame();
   const { notify } = useNotify();
   const { theme } = useTheme();
+
+  const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
+
+  useEffect(() => {
+    const handleResize = () => setIsDesktop(window.innerWidth >= 1024);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   if (!state) return null; // Safety guard for context initialization
 
@@ -255,6 +263,33 @@ function AppInner() {
 
   if (!state.user) {
     return <LoginScreen />;
+  }
+
+  if (isDesktop) {
+    return (
+      <WebLayout activeScreen={activeScreen} onNavigate={navigate}>
+        {isWatchingAd && (
+          <AdRewardModal isOpen={isWatchingAd} onClose={() => setIsWatchingAd(false)} />
+        )}
+        <AnimatePresence>
+          {showHackerAttack && (
+            <HackerAttack onSuccess={handleHackerSuccess} onFailure={handleHackerFailure} />
+          )}
+        </AnimatePresence>
+        
+        {renderScreen()}
+        
+        <WithdrawModal isOpen={isWithdrawOpen} onClose={() => setIsWithdrawOpen(false)} onSuccess={handleWithdrawSuccess} balance={state.btcBalance} />
+        <SuccessModal isOpen={successModal.isOpen} onClose={() => setSuccessModal({ ...successModal, isOpen: false })} type={successModal.type} />
+        {state.pendingOfflineEarnings > 0 && !state.offlineEarningsShown && (
+          <OfflineEarningsModal
+            earnings={state.pendingOfflineEarnings}
+            onClose={() => dispatch({ type: 'DISMISS_OFFLINE_EARNINGS' })}
+          />
+        )}
+        <PrestigeModal isOpen={isPrestigeOpen} onClose={() => setIsPrestigeOpen(false)} />
+      </WebLayout>
+    );
   }
 
   return (

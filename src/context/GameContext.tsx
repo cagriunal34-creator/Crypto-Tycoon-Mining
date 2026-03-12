@@ -657,7 +657,7 @@ function gameReducer(state: GameState, action: Action): GameState {
       
       const isVipActiveNow = state.vip?.isActive && state.vip.expiresAt > now;
       const vipBtcBonus = isVipActiveNow ? (state.vip.tier === 'gold' ? 1.5 : 1.2) : 1.0;
-      const farmHashRate = state.farmSettings.rigStatuses.filter((_, i) => i < state.farmSettings.activeRigs).reduce((acc, rig) => acc + (rig.isBroken ? 0 : Math.floor(rig.efficiency * 1.2)), 0);
+      const farmHashRate = (state.farmSettings?.rigStatuses || []).filter((_, i) => i < (state.farmSettings?.activeRigs || 0)).reduce((acc, rig) => acc + (rig.isBroken ? 0 : Math.floor(rig.efficiency * 1.2)), 0);
       const totalHashRateWithFarm = state.totalHashRate + farmHashRate;
 
       // Overclock hesaplama: aktifse boost, cooldown'daysa ceza, normalse 1.0
@@ -715,9 +715,23 @@ function gameReducer(state: GameState, action: Action): GameState {
     case 'SET_AUTH_USER': return { ...state, user: action.user };
     case 'SET_GAME_STATE': {
       const { user: _u, isLoading: _l, ...safeState } = action.state as any;
+      
+      const newState = { ...state, ...safeState };
+      
+      // Deep merge for complex objects
+      if (safeState.farmSettings) {
+        newState.farmSettings = { ...state.farmSettings, ...safeState.farmSettings };
+        if (safeState.farmSettings.rigStatuses) {
+          newState.farmSettings.rigStatuses = safeState.farmSettings.rigStatuses;
+        }
+      }
+      
+      if (safeState.questProgress) {
+        newState.questProgress = { ...state.questProgress, ...safeState.questProgress };
+      }
+
       return {
-        ...state,
-        ...safeState,
+        ...newState,
         user: state.user,
         isLoading: (action.state as any).isLoading ?? state.isLoading,
       };

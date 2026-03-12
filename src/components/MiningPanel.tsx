@@ -7,7 +7,7 @@ import React, { useState } from 'react';
 import {
   Zap, ChevronRight, HelpCircle, Info, Gift,
   FileText, ZapOff, Flame, Bell, Star, TrendingUp, Crown,
-  Gauge, Timer, AlertTriangle, Snowflake
+  Gauge, Timer, AlertTriangle, Snowflake, ShoppingCart
 } from 'lucide-react';
 import { LineChart, Line, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { motion, AnimatePresence } from 'motion/react';
@@ -241,491 +241,202 @@ export default function MiningPanel({
   };
 
   return (
-    <div className="space-y-4 pt-4 pb-12">
-
-      {/* ── Mining Events ─────────────────────────────────────── */}
-      <MiningEventsBar events={activeEvents} />
-
-      {/* ── Happy Hour Banner ─────────────────────────────────── */}
-      <AnimatePresence>
-        {state.happyHourActive && activeEvents.length === 0 && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}>
-            <div className="relative overflow-hidden rounded-2xl"
-              style={{ background: 'rgba(255,150,0,0.06)', border: '1px solid rgba(255,150,0,0.25)' }}>
-              <div className="flex items-center justify-between px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <div className="relative">
-                    <div className="absolute inset-0 bg-orange-500 blur-lg opacity-40 animate-pulse rounded-full" />
-                    <Flame size={18} className="text-orange-400 relative z-10" />
+    <div className="space-y-6 pt-4 pb-12">
+      {/* Top Banner Area (Full Width) */}
+      <div className="space-y-4">
+        <MiningEventsBar events={activeEvents} />
+        <AnimatePresence>
+          {state.happyHourActive && activeEvents.length === 0 && (
+            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}>
+              <div className="relative overflow-hidden rounded-2xl"
+                style={{ background: 'rgba(255,150,0,0.06)', border: '1px solid rgba(255,150,0,0.25)' }}>
+                <div className="flex items-center justify-between px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                      <div className="absolute inset-0 bg-orange-500 blur-lg opacity-40 animate-pulse rounded-full" />
+                      <Flame size={18} className="text-orange-400 relative z-10" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black text-orange-100 uppercase tracking-widest">Mutlu Saatler</h4>
+                      <p className="text-[10px] text-orange-500/80 font-mono">×1.2 KAZANÇ AKTIF</p>
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="text-xs font-black text-orange-100 uppercase tracking-widest">Mutlu Saatler</h4>
-                    <p className="text-[10px] text-orange-500/80 font-mono">×1.2 KAZANÇ AKTIF</p>
-                  </div>
+                  <div className="text-sm font-black text-orange-400 font-mono">{happyHourCountdown}</div>
                 </div>
-                <div className="text-sm font-black text-orange-400 font-mono">{happyHourCountdown}</div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Main Grid Content */}
+      <div className={cn("grid gap-6", "lg:grid-cols-12 lg:items-start")}>
+        
+        {/* Left Column: Visuals & Core Status (4 cols) */}
+        <div className="lg:col-span-4 space-y-6">
+          <div className="glass-card p-8 flex flex-col items-center justify-center relative overflow-hidden group">
+            <div className="absolute inset-0 bg-emerald-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+            <BTC3D />
+            <div className="mt-8 text-center">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 mb-3">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Sistem Aktif</span>
+              </div>
+              <h3 className="text-3xl font-black italic tracking-tighter text-white">
+                {effectiveHashRate.toFixed(1)} <span className="text-emerald-500 text-lg">GH/S</span>
+              </h3>
+            </div>
+          </div>
+
+          <LiveEarningsCard />
+          <SocialFeed />
+        </div>
+
+        {/* Right Column: Controls & Charts (8 cols) */}
+        <div className="lg:col-span-8 space-y-6">
+          
+          {/* Top Row: Quick Stats & Battery */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-6">
+              <BatteryWidget
+                level={energyPercentage}
+                staticDisplay={true}
+                showPercent={true}
+                className="premium-glass p-6 rounded-3xl"
+              />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="glass-card p-4 flex flex-col gap-2">
+                  <TrendingUp size={16} className="text-emerald-400" />
+                  <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Donanım Sağlığı</span>
+                  <span className="text-sm font-black text-white">
+                    {state.ownedContracts.length > 0
+                      ? `%${(state.ownedContracts.reduce((acc, c) => acc + c.condition, 0) / state.ownedContracts.length).toFixed(1)}`
+                      : 'N/A'}
+                  </span>
+                </div>
+                <div className="glass-card p-4 flex flex-col gap-2">
+                  <Zap size={16} className="text-yellow-500" />
+                  <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Enerji Gideri</span>
+                  <span className="text-sm font-black text-white">
+                    {Math.floor(state.farmSettings.baseElectricityCost * (1 - (state.farmSettings.powerSupplyLevel - 1) * 0.1))} TP/dk
+                  </span>
+                </div>
               </div>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
-      <div className="flex justify-center py-4">
-        <BTC3D />
-      </div>
-
-      {/* ── Push notification prompt ───────────────────────────── */}
-      <AnimatePresence>
-        {!pushEnabled && (
-          <motion.button initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-            onClick={() => requestPushPermission()}
-            className="w-full flex items-center gap-4 p-4 rounded-2xl hover:bg-white/5 transition-all group"
-            style={{ background: 'rgba(59,130,246,0.05)', border: '1px solid rgba(59,130,246,0.2)', borderLeft: '3px solid rgb(59,130,246)' }}>
-            <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400"><Bell size={16} /></div>
-            <div className="flex-1 text-left">
-              <p className="text-xs font-bold text-blue-100 uppercase tracking-wider">Bildirimler</p>
-              <p className="text-[10px] text-blue-400/60">Enerji dolduğunda, etkinlik başladığında haber al</p>
-            </div>
-            <ChevronRight size={16} className="text-blue-500/50 group-hover:translate-x-1 transition-transform" />
-          </motion.button>
-        )}
-      </AnimatePresence>
-
-      {/* ── Operational Overview ─────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-3">
-        {/* Average Equipment Condition */}
-        <div className="glass-card p-3 flex items-center gap-3 relative overflow-hidden group">
-          <div className="absolute inset-0 bg-emerald-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-          <div className={`p-2 rounded-lg ${state.ownedContracts.length === 0 ? 'bg-zinc-800 text-zinc-500' :
-            (state.ownedContracts.reduce((acc, c) => acc + c.condition, 0) / (state.ownedContracts.length || 1)) > 80 ? 'bg-emerald-500/10 text-emerald-400' :
-              (state.ownedContracts.reduce((acc, c) => acc + c.condition, 0) / (state.ownedContracts.length || 1)) > 40 ? 'bg-yellow-500/10 text-yellow-400' :
-                'bg-red-500/10 text-red-400'
-            }`}>
-            <TrendingUp size={16} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Durum</p>
-            <p className="text-xs font-black truncate">
-              {state.ownedContracts.length > 0
-                ? `%${(state.ownedContracts.reduce((acc, c) => acc + c.condition, 0) / state.ownedContracts.length).toFixed(1)} Sağlık`
-                : 'Cihaz Yok'}
-            </p>
-          </div>
-        </div>
-
-        {/* Electricity Cost */}
-        <div className="glass-card p-3 flex items-center gap-3 relative overflow-hidden group">
-          <div className="absolute inset-0 bg-yellow-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-          <div className="p-2 rounded-lg bg-yellow-500/10 text-yellow-500">
-            <Zap size={16} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Gider</p>
-            <p className="text-xs font-black truncate">
-              {Math.floor(state.farmSettings.baseElectricityCost * (1 - (state.farmSettings.powerSupplyLevel - 1) * 0.1))} TP/dk
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Live Earnings ──────────────────────────────────────── */}
-      <LiveEarningsCard />
-
-      {/* ── Prestige Panel ────────────────────────────────────── */}
-      <PrestigePanel onOpenPrestige={onOpenPrestige} />
-
-      {/* ── Progression ───────────────────────────────────────── */}
-      <ProgressionPanel />
-
-      {/* ── Mining Status ─────────────────────────────────────── */}
-      <div className="text-center space-y-2 py-1">
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full"
-          style={{ background: `${a1}0A`, border: `1px solid ${a1}30` }}>
-          <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: a1, boxShadow: `0 0 8px ${a1}` }} />
-          <span className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: a1 }}>
-            Madencilik Aktif
-          </span>
-          {state.prestigeLevel > 0 && (
-            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full"
-              style={{ background: `${a1}15`, border: `1px solid ${a1}25` }}>
-              <Star size={8} style={{ color: a1 }} fill="currentColor" />
-              <span className="text-[8px] font-black" style={{ color: a1 }}>×{state.prestigeMultiplier.toFixed(2)}</span>
-            </div>
-          )}
-          {isVipActive && (
-            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full"
-              style={{ background: 'rgba(255,215,0,0.15)', border: '1px solid rgba(255,215,0,0.3)' }}>
-              <Crown size={8} style={{ color: '#FFD700' }} fill="currentColor" />
-              <span className="text-[8px] font-black" style={{ color: '#FFD700' }}>
-                {state.vip.tier === 'gold' ? 'GOLD' : 'SILVER'}
-              </span>
-            </div>
-          )}
-        </div>
-
-        <div>
-          <h2 className="text-2xl font-black tracking-tighter" style={{ color: theme.vars['--ct-text'] }}>
-            <span style={{ color: a1 }}>.</span>MINING
-          </h2>
-          <p className="text-[10px] font-mono uppercase tracking-widest" style={{ color: theme.vars['--ct-muted'] }}>
-            {effectiveHashRate.toFixed(1)} GH/S · {Math.floor(state.energyCells)}/{state.maxEnergyCells} CELL · {energyPercentage}% GÜÇ
-          </p>
-          {energyPercentage < 30 && (
-            <p className="text-[10px] font-black text-red-400 animate-pulse mt-1">
-              ⚠ Düşük enerji — hashrate %{Math.round(energyScale * 100)} kapasitede
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* ── Hashrate Chart ─────────────────────────────────────── */}
-      <div className="rounded-2xl p-1 relative overflow-hidden"
-        style={{ background: `${a1}05`, border: `1px solid ${a1}15` }}>
-        <div className="absolute top-0 left-0 right-0 h-px"
-          style={{ background: `linear-gradient(90deg, transparent, ${a1}50, transparent)` }} />
-        <div className="rounded-xl p-4 space-y-3" style={{ background: 'rgba(0,0,0,0.3)' }}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-1 h-3 rounded-full" style={{ background: a1 }} />
-              <h3 className="text-[10px] font-bold uppercase tracking-widest" style={{ color: theme.vars['--ct-muted'] }}>Hashrate Monitörü</h3>
-            </div>
-            <div className="px-2 py-1 rounded-lg font-mono font-black text-xs"
-              style={{ background: `${a1}12`, border: `1px solid ${a1}25`, color: a1 }}>
-              {effectiveHashRate.toFixed(1)} GH/s
+            <div className="premium-glass p-1 rounded-3xl overflow-hidden min-h-[240px]">
+              <div className="p-6 h-full flex flex-col">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-1 h-3 rounded-full bg-emerald-500" />
+                    <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Canlı Hashrate</h3>
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={chartData}>
+                      <Line type="monotone" dataKey="speed" stroke={a1} strokeWidth={3} dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
             </div>
           </div>
-          <div className="h-28 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData}>
-                <defs>
-                  <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={a1} stopOpacity={0.3} />
-                    <stop offset="95%" stopColor={a1} stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <Line type="monotone" dataKey="speed" stroke={a1} strokeWidth={2}
-                  dot={{ r: 2, fill: '#050505', stroke: a1, strokeWidth: 2 }}
-                  activeDot={{ r: 4, fill: a1, stroke: '#fff' }}
-                  isAnimationActive={false} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#09090b', border: `1px solid ${a1}30`, borderRadius: '8px', fontSize: '10px' }}
-                  itemStyle={{ color: a1, fontFamily: 'monospace' }}
-                  formatter={(v: number) => [`${v.toFixed(1)} GH/s`, 'Hız']}
-                  labelStyle={{ display: 'none' }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-          {/* Energy → Hashrate indicator */}
-          <div className="flex items-center gap-3 pt-1" style={{ borderTop: `1px solid ${a1}10` }}>
-            <div className="text-[9px] uppercase tracking-wider" style={{ color: theme.vars['--ct-muted'] }}>Enerji Etkisi</div>
-            <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.05)' }}>
-              <motion.div className="h-full rounded-full"
-                animate={{ width: `${energyScale * 100}%` }}
-                style={{ background: `linear-gradient(90deg,${energyColor},${energyColor}AA)` }} />
-            </div>
-            <div className="text-[9px] font-black tabular-nums" style={{ color: energyColor }}>
-              {Math.round(energyScale * 100)}%
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* ── Energy Cells ───────────────────────────────────────── */}
-      <div className="rounded-2xl p-5 space-y-4 relative overflow-hidden"
-        style={{ background: `${energyColor}05`, border: `1px solid ${energyColor}20` }}>
-        <div className="absolute -right-8 -top-8 w-28 h-28 rounded-full opacity-10"
-          style={{ background: energyColor, filter: 'blur(24px)' }} />
-
-        <div className="flex items-center justify-between relative z-10">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <Zap size={14} fill="currentColor" style={{ color: energyColor }} />
-              <span className="text-xs font-black uppercase tracking-widest" style={{ color: theme.vars['--ct-text'] }}>Güç Ünitesi</span>
-            </div>
-            <p className="text-[10px] font-mono" style={{ color: theme.vars['--ct-muted'] }}>
-              {Math.floor(state.energyCells)}/{state.maxEnergyCells} · Hashrate {Math.round(energyScale * 100)}%
-            </p>
+          {/* Middle Row: Interaction Panels */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {state.overclockConfig?.enabled && (
+              <OverclockCard
+                isActive={isOverclockActive}
+                isCooldown={isOverclockCooldown}
+                multiplier={overclockMultiplier}
+                secondsLeft={overclockSecondsLeft}
+                cooldownSecondsLeft={cooldownSecondsLeft}
+                cfg={state.overclockConfig}
+                tycoonPoints={state.tycoonPoints}
+                onActivate={() => {
+                  const result = activateOverclock();
+                  if (result.success) {
+                    notify({ type: 'mining', title: '⚡ Overclock Aktif!', message: result.message });
+                  } else {
+                    notify({ type: 'warning', title: 'Overclock', message: result.message });
+                  }
+                }}
+                accentColor={a1}
+                theme={theme}
+              />
+            )}
+            <ProgressionPanel />
           </div>
-          <div className="flex flex-col items-end gap-1.5">
-            <span className="text-2xl font-black tabular-nums" style={{ color: theme.vars['--ct-text'] }}>
-              {energyPercentage}<span className="text-sm" style={{ color: energyColor }}>%</span>
-            </span>
-            <button onClick={(e) => { e.stopPropagation(); handleWatchAd(); }}
-              className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-[9px] font-black transition-all"
-              style={{ background: `${a1}12`, border: `1px solid ${a1}25`, color: a1 }}>
-              <span>+2 HÜCRE</span>
-              <div className="px-1 py-0.5 rounded text-[7px] font-black" style={{ background: a1, color: '#000' }}>AD</div>
+
+          {/* Bottom Row: Rewards & Caps */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <PrestigePanel onOpenPrestige={onOpenPrestige} />
+            <div className="premium-glass p-6 rounded-3xl space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <TrendingUp size={16} className={dailyCapReached ? "text-red-400" : "text-emerald-500"} />
+                  <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Günlük Limit</h3>
+                </div>
+                <span className="text-xs font-black italic text-white">{dailyEarnedBtc.toFixed(8)} BTC</span>
+              </div>
+              <div className="h-2 w-full bg-black/40 rounded-full overflow-hidden">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${dailyEarnedPct}%` }}
+                  className="h-full"
+                  style={{ background: dailyCapReached ? '#EF4444' : a1 }}
+                />
+              </div>
+              <p className="text-[10px] text-zinc-500 font-bold text-center uppercase tracking-widest">
+                {dailyCapReached ? 'Günlük kazanç limitine ulaşıldı' : `Kapasite: %${dailyEarnedPct.toFixed(1)}`}
+              </p>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <button onClick={() => onNavigate('vip')} className="premium-glass p-4 rounded-2xl flex flex-col items-center gap-2 hover:bg-white/5 transition-all">
+              <Crown size={20} className="text-yellow-500" />
+              <span className="text-[10px] font-black uppercase tracking-widest">VIP</span>
+            </button>
+            <button onClick={() => onNavigate('battlepass')} className="premium-glass p-4 rounded-2xl flex flex-col items-center gap-2 hover:bg-white/5 transition-all">
+              <Star size={20} className="text-emerald-500" />
+              <span className="text-[10px] font-black uppercase tracking-widest">PASS</span>
+            </button>
+            <button onClick={() => onNavigate('marketplace')} className="premium-glass p-4 rounded-2xl flex flex-col items-center gap-2 hover:bg-white/5 transition-all">
+              <ShoppingCart size={20} className="text-blue-500" />
+              <span className="text-[10px] font-black uppercase tracking-widest">PAZAR</span>
+            </button>
+            <button onClick={handleWatchAd} className="premium-glass p-4 rounded-2xl flex flex-col items-center gap-2 hover:bg-white/5 transition-all">
+              <Gift size={20} className="text-orange-500" />
+              <span className="text-[10px] font-black uppercase tracking-widest">BONUS</span>
             </button>
           </div>
-        </div>
 
-        {/* ── Gerçek Pil Görseli (BatteryWidget) + Hücre Grid ── */}
-        <div className="flex items-center gap-4 relative z-10">
-
-          {/* Animasyonlu pil — admin panelinden kontrol edilir */}
-          <div className="flex-shrink-0">
-            <BatteryWidget
-              level={energyPercentage}
-              staticDisplay={true}
-              showPercent={false}
-              className=""
-            />
-          </div>
-
-          {/* Hücre grid — her hücre bir pil gibi */}
-          <div className="flex-1 space-y-2">
-            <div className="grid grid-cols-6 gap-2">
-              {Array.from({ length: state.maxEnergyCells }).map((_, i) => {
-                const isActive = i < Math.floor(state.energyCells);
-                const isFading = i === Math.floor(state.energyCells) && state.energyCells % 1 > 0;
-                return (
-                  <div key={i} className="h-6 rounded-md relative overflow-hidden transition-all duration-300"
-                    style={{
-                      background: isActive ? `linear-gradient(180deg, ${energyColor}33, ${energyColor}11)` : 'rgba(0,0,0,0.4)',
-                      border: `1px solid ${isActive ? energyColor + '60' : 'rgba(255,255,255,0.08)'}`,
-                      boxShadow: isActive ? `0 0 8px ${energyColor}20` : 'none',
-                    }}>
-                    <AnimatePresence>
-                      {isActive && (
-                        <motion.div 
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          className="absolute inset-0 flex items-center justify-center"
-                        >
-                           <div className="w-[60%] h-[2px] rounded-full opacity-30" style={{ background: energyColor }} />
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                    {isActive && (
-                      <div className="absolute bottom-0 left-0 right-0 h-1"
-                        style={{ background: energyColor, boxShadow: `0 0 10px ${energyColor}` }} />
-                    )}
-                  </div>
-                );
-              })}
+          <motion.button 
+            whileTap={{ scale: 0.98 }}
+            onClick={() => {
+              dispatch({ type: 'AD_BOOST_MINING', hoursEquivalent: 1 });
+              notify({ type: 'mining', title: '⚡ Madencilik Hızlandı!', message: '1 saatlik kazanç anında eklendi.' });
+            }}
+            className="w-full py-6 rounded-3xl relative overflow-hidden font-black text-lg uppercase tracking-[0.2em] text-white shadow-2xl"
+            style={{ background: `linear-gradient(135deg,${a1},${a2})` }}>
+            <div className="absolute inset-0 bg-white/10 opacity-0 hover:opacity-100 transition-opacity" />
+            <div className="flex items-center justify-center gap-3 relative z-10">
+              <Zap size={24} fill="currentColor" className="animate-pulse" />
+              <span>Hızlandırılmış Madencilik</span>
             </div>
-
-            {/* Hashrate bar */}
-            <div className="relative h-2 rounded-full overflow-hidden" style={{ background: 'rgba(0,0,0,0.38)', border: '1px solid rgba(255,255,255,0.05)' }}>
-              <motion.div
-                className="absolute inset-y-0 left-0 rounded-full"
-                animate={{ width: `${energyScale * 100}%` }}
-                style={{ background: `linear-gradient(90deg,${energyColor},${energyColor}AA)` }} />
-            </div>
-            <div className="flex justify-between items-center px-0.5">
-              <p className="text-[9px] font-bold tracking-tight" style={{ color: theme.vars['--ct-muted'] }}>
-                HASH MOTORU VERİMLİLİĞİ
-              </p>
-              <div className="text-[9px] font-black tabular-nums" style={{ color: energyColor }}>
-                {Math.round(energyScale * 100)}%
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Energy → Hashrate explanation */}
-        <div className="flex items-center gap-2 p-2.5 rounded-xl relative z-10"
-          style={{ background: 'rgba(0,0,0,0.3)', border: `1px solid ${energyColor}15` }}>
-          <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${energyColor}10` }}>
-            <TrendingUp size={12} style={{ color: energyColor }} />
-          </div>
-          <p className="text-[10px] leading-tight" style={{ color: theme.vars['--ct-muted'] }}>
-            Piller doldukça verimlilik artar. Her pil <span className="text-white font-bold">1 SAAT</span> madencilik sağlar. 
-            Güncel: <span style={{ color: energyColor, fontWeight: 900 }}>%{Math.round(energyScale * 100)} KAPASİTE</span>
-          </p>
+          </motion.button>
         </div>
       </div>
 
-      <SocialFeed />
-
-      {/* ── Overclock ──────────────────────────────────────────── */}
-      {state.overclockConfig?.enabled && (
-        <OverclockCard
-          isActive={isOverclockActive}
-          isCooldown={isOverclockCooldown}
-          multiplier={overclockMultiplier}
-          secondsLeft={overclockSecondsLeft}
-          cooldownSecondsLeft={cooldownSecondsLeft}
-          cfg={state.overclockConfig}
-          tycoonPoints={state.tycoonPoints}
-          onActivate={() => {
-            const result = activateOverclock();
-            if (result.success) {
-              notify({ type: 'mining', title: '⚡ Overclock Aktif!', message: result.message });
-            } else {
-              notify({ type: 'warning', title: 'Overclock', message: result.message });
-            }
-          }}
-          accentColor={a1}
-          theme={theme}
-        />
-      )}
-
-      {/* ── Daily Cap Progress ─────────────────────────────────── */}
-      <div className="rounded-2xl p-4 space-y-3"
-        style={{ 
-          background: dailyCapReached ? 'rgba(239,68,68,0.04)' : `${a1}04`, 
-          border: `1px solid ${dailyCapReached ? 'rgba(239,68,68,0.2)' : a1 + '15'}` 
-        }}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <TrendingUp size={14} className={dailyCapReached ? "text-red-400" : ""} style={{ color: dailyCapReached ? undefined : a1 }} />
-            <h3 className="text-[10px] font-black uppercase tracking-widest" style={{ color: theme.vars['--ct-muted'] }}>Günlük Kazanç Limiti</h3>
-          </div>
-          <span className="text-[10px] font-mono font-black" style={{ color: dailyCapReached ? '#EF4444' : a1 }}>
-            {dailyCapReached ? 'LİMİT DOLDU' : `%${dailyEarnedPct.toFixed(1)}`}
-          </span>
-        </div>
-        <div className="h-2 w-full rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.05)' }}>
-          <motion.div
-            initial={{ width: 0 }}
-            animate={{ width: `${dailyEarnedPct}%` }}
-            className="h-full rounded-full"
-            style={{ background: dailyCapReached ? 'linear-gradient(90deg, #EF4444, #B91C1C)' : `linear-gradient(90deg, ${a1}, ${a2})` }} />
-        </div>
-        <div className="flex justify-between items-center text-[9px] font-mono uppercase tracking-widest" style={{ color: theme.vars['--ct-muted'] }}>
-          <span>{dailyEarnedBtc.toFixed(8)} BTC</span>
-          <span>Hedef: $1.00</span>
-        </div>
-        {dailyCapReached && !isVipCapExempt && (
-           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} 
-             className="pt-2 mt-2 border-t border-red-400/10 flex items-center justify-between gap-2">
-             <p className="text-[9px] font-bold text-red-400">Günlük kazanç limitine ulaştın!</p>
-             <button onClick={() => onNavigate('vip')} className="text-[9px] font-black bg-red-400 text-black px-2 py-0.5 rounded uppercase">VIP OL</button>
-           </motion.div>
-        )}
-      </div>
-
-      {/* ── Estimated Earnings ─────────────────────────────────── */}
-      <div className="rounded-2xl overflow-hidden"
-        style={{ background: `${a1}04`, border: `1px solid ${a1}12` }}>
-        <div className="px-4 py-3 flex items-center justify-between"
-          style={{ background: 'rgba(0,0,0,0.2)', borderBottom: `1px solid ${a1}10` }}>
-          <h3 className="text-[10px] font-black uppercase tracking-widest" style={{ color: theme.vars['--ct-muted'] }}>Tahmini Getiri</h3>
-          <span className="text-[9px] font-bold font-mono px-2 py-0.5 rounded"
-            style={{ background: `${a1}12`, border: `1px solid ${a1}20`, color: a1 }}>
-            1 BTC = ${state.usdRate.toLocaleString()}
-          </span>
-        </div>
-        {[
-          { label: 'SAATLİK', secs: 3600 },
-          { label: 'GÜNLÜK', secs: 86400 },
-          { label: 'AYLIK', secs: 2592000 },
-        ].map(({ label, secs }, i, arr) => {
-          const btc = currentBtcPerSecond * secs;
-          return (
-            <div key={label} className="flex items-center justify-between px-4 py-3 hover:bg-white/[0.02] transition-colors"
-              style={{ borderBottom: i < arr.length - 1 ? `1px solid ${a1}08` : 'none' }}>
-              <span className="text-[10px] font-black tracking-wider" style={{ color: theme.vars['--ct-muted'] }}>{label}</span>
-              <div className="text-right">
-                <div className="flex items-baseline gap-2 justify-end">
-                  <span className="text-xs font-mono font-black" style={{ color: theme.vars['--ct-text'] }}>{btc.toFixed(8)}</span>
-                  <span className="text-[9px] font-black" style={{ color: a1 }}>BTC</span>
-                </div>
-                <span className="text-[9px] font-mono" style={{ color: theme.vars['--ct-muted'] }}>{btcToUsd(btc)}</span>
-              </div>
-            </div>
-          );
-        })}
-        {/* Prestige multiplier note */}
-        {state.prestigeMultiplier > 1 && (
-          <div className="px-4 py-2 text-center" style={{ borderTop: `1px solid ${a1}10`, background: `${a1}05` }}>
-            <span className="text-[9px]" style={{ color: theme.vars['--ct-muted'] }}>
-              Prestige ×{state.prestigeMultiplier.toFixed(2)} çarpanı dahildir
-              <Star size={8} className="inline ml-1" style={{ color: a1 }} fill="currentColor" />
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* ── Halving Progress ───────────────────────────────────── */}
-      <div className="rounded-2xl p-4 space-y-3"
-        style={{ background: 'rgba(255,150,0,0.04)', border: '1px solid rgba(255,150,0,0.15)' }}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <ZapOff size={14} className="text-orange-500" />
-            <h3 className="text-[10px] font-black uppercase tracking-widest" style={{ color: theme.vars['--ct-muted'] }}>Halving Geri Sayımı</h3>
-          </div>
-          <span className="text-[10px] text-orange-500 font-mono font-black">#{state.nextHalvingBlock.toLocaleString()}</span>
-        </div>
-        <div className="h-2.5 w-full rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.05)' }}>
-          <motion.div
-            initial={{ width: 0 }}
-            animate={{ width: `${Math.max(0, Math.min(100, ((state.currentBlock - (state.nextHalvingBlock - 210000)) / 210000) * 100))}%` }}
-            className="h-full rounded-full"
-            style={{ background: 'linear-gradient(90deg, #FF6A00, #FFD000)' }} />
-        </div>
-        <div className="flex justify-between text-[9px] font-mono uppercase tracking-widest" style={{ color: theme.vars['--ct-muted'] }}>
-          <span>Blok: {state.currentBlock.toLocaleString()}</span>
-          <span>Kalan: {(state.nextHalvingBlock - state.currentBlock).toLocaleString()}</span>
-        </div>
-      </div>
-
-      {/* ── Action Buttons ─────────────────────────────────────── */}
-      <div className="space-y-3">
-        {/* New Features Quick Access */}
-        <div className="grid grid-cols-3 gap-2">
-          <button onClick={() => onNavigate('vip')}
-            className="group py-3 rounded-2xl relative overflow-hidden transition-all active:scale-95 flex flex-col items-center gap-1.5"
-            style={{ background: 'rgba(255,215,0,0.08)', border: '1px solid rgba(255,215,0,0.2)' }}>
-            <Crown size={18} style={{ color: '#FFD700' }} className="group-hover:scale-110 transition-transform" />
-            <span className="text-[9px] font-black uppercase tracking-wider" style={{ color: theme.vars['--ct-text'] }}>VIP</span>
-          </button>
-          <button onClick={() => onNavigate('battlepass')}
-            className="group py-3 rounded-2xl relative overflow-hidden transition-all active:scale-95 flex flex-col items-center gap-1.5"
-            style={{ background: `${a1}08`, border: `1px solid ${a1}20` }}>
-            <Star size={18} style={{ color: a1 }} className="group-hover:scale-110 transition-transform" />
-            <span className="text-[9px] font-black uppercase tracking-wider" style={{ color: theme.vars['--ct-text'] }}>Pass</span>
-          </button>
-          <button onClick={() => onNavigate('marketplace')}
-            className="group py-3 rounded-2xl relative overflow-hidden transition-all active:scale-95 flex flex-col items-center gap-1.5"
-            style={{ background: `${a2}08`, border: `1px solid ${a2}20` }}>
-            <FileText size={18} style={{ color: a2 }} className="group-hover:scale-110 transition-transform" />
-            <span className="text-[9px] font-black uppercase tracking-wider" style={{ color: theme.vars['--ct-text'] }}>Pazar</span>
-          </button>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <button onClick={handleWatchAd}
-            className="group py-4 rounded-2xl relative overflow-hidden transition-all active:scale-95"
-            style={{ background: `${a3}08`, border: `1px solid ${a3}20` }}>
-            <div className="flex flex-col items-center gap-1.5">
-              <Gift size={18} style={{ color: a3 }} className="group-hover:scale-110 transition-transform" />
-              <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: theme.vars['--ct-text'] }}>Günlük Bonus</span>
-            </div>
-          </button>
-          <button onClick={onOpenContracts}
-            className="group py-4 rounded-2xl relative overflow-hidden transition-all active:scale-95"
-            style={{ background: `${a2}08`, border: `1px solid ${a2}20` }}>
-            <div className="flex flex-col items-center gap-1.5">
-              <FileText size={18} style={{ color: a2 }} className="group-hover:scale-110 transition-transform" />
-              <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: theme.vars['--ct-text'] }}>Market</span>
-            </div>
-          </button>
-        </div>
-
-        <motion.button 
-          whileTap={{ scale: 0.98 }}
-          onClick={() => {
-            dispatch({ type: 'AD_BOOST_MINING', hoursEquivalent: 1 });
-            notify({ type: 'mining', title: '⚡ Madencilik Hızlandı!', message: '1 saatlik kazanç anında eklendi.' });
-          }}
-          className="w-full py-4 rounded-2xl relative overflow-hidden font-black text-sm uppercase tracking-widest text-white"
-          style={{ background: `linear-gradient(135deg,${a1},${a2})`, boxShadow: `0 6px 20px ${a1}35` }}>
-          <div className="flex items-center justify-center gap-2">
-            <Zap size={16} fill="currentColor" className="animate-pulse" />
-            <span>Hızlandırılmış Madencilik</span>
-          </div>
-        </motion.button>
-      </div>
-
-      <div className="flex items-center justify-center gap-6 pb-4 opacity-40 hover:opacity-80 transition-opacity">
-        <button className="flex items-center gap-1 text-[10px] hover:text-white transition-colors" style={{ color: theme.vars['--ct-muted'] }}>
-          <HelpCircle size={11} /><span>YARDIM</span>
+      <div className="flex items-center justify-center gap-8 opacity-30 pt-8">
+        <button className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:opacity-100 transition-opacity">
+          <HelpCircle size={14} /><span>Yardım Merkezi</span>
         </button>
-        <button className="flex items-center gap-1 text-[10px] hover:text-white transition-colors" style={{ color: theme.vars['--ct-muted'] }}>
-          <Info size={11} /><span>NEDİR?</span>
+        <button className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:opacity-100 transition-opacity">
+          <Info size={14} /><span>Sistem Rehberi</span>
         </button>
       </div>
     </div>
