@@ -559,7 +559,10 @@ export function calcBtcPerSecond(
   researchedNodes: string[] = [],
   vipMult: number = 1.0,
   globalMult: number = 1.0,
-  overclockMult: number = 1.0    // ← YENİ: sadece bu satır eklendi
+  overclockMult: number = 1.0,
+  usdRate: number = 91200,
+  miningDifficulty: number = 50,
+  hashRateTiers?: any
 ): number {
   if (baseHashRate < 0) return 0;
   let eventMult = isFever ? 10.0 : 1.0;
@@ -573,13 +576,22 @@ export function calcBtcPerSecond(
   });
 
   const totalHash = baseHashRate + hashBoost;
-  const base = totalHash * 1e-9 * 0.5;
+  
+  // Admin panelinden gelen gelir dengesi (USD/Saat -> BTC/Saniye)
+  const usdPerHourPerGh = hashRateTiers?.gh || 0.05;
+  const btcPerSecPerGh = (usdPerHourPerGh / 3600) / (usdRate || 91200);
+  
+  const baseEarnings = totalHash * btcPerSecPerGh;
+  
+  // Zorluk Çarpanı (Admin'den 1-100 arası, 50 baz kabul edildi)
+  const difficultyMult = 50 / (miningDifficulty || 50);
+
   let researchMult = 1.0;
   if (researchedNodes?.includes('mining-1')) researchMult += 0.1;
   if (researchedNodes?.includes('mining-2')) researchMult += 0.5;
 
-  const finalMult = eventMult * prestigeMultiplier * energyScale * researchMult * (vipMult || 1.0) * (globalMult || 1.0) * overclockMult;
-  return base * finalMult;
+  const finalMult = eventMult * prestigeMultiplier * energyScale * researchMult * (vipMult || 1.0) * (globalMult || 1.0) * overclockMult * difficultyMult;
+  return baseEarnings * finalMult;
 }
 
 function xpForLevel(level: number): number {
@@ -641,7 +653,20 @@ function gameReducer(state: GameState, action: Action): GameState {
           ? (state.overclockConfig?.penalty ?? 0.8)
           : 1.0;
 
-      const btcPerSecond = calcBtcPerSecond(totalHashRateWithFarm, activeEvents, state.prestigeMultiplier, energyScale, state.isFeverMode, state.researchedNodes, vipBtcBonus, state.globalMultiplier, overclockMult);
+      const btcPerSecond = calcBtcPerSecond(
+        totalHashRateWithFarm, 
+        activeEvents, 
+        state.prestigeMultiplier, 
+        energyScale, 
+        state.isFeverMode, 
+        state.researchedNodes, 
+        vipBtcBonus, 
+        state.globalMultiplier, 
+        overclockMult,
+        state.usdRate,
+        state.globalSettings?.miningDifficulty,
+        state.globalSettings?.hashRateTiers
+      );
       
       let earnedBtc = btcPerSecond * elapsed;
       
@@ -784,7 +809,20 @@ function gameReducer(state: GameState, action: Action): GameState {
     // Reklam izle → X saatlik madencilik kazancını anında ver
     case 'AD_BOOST_MINING': {
       const energyScaleAd = energyToHashScale(state.energyCells, state.maxEnergyCells);
-      const btcPerSec = calcBtcPerSecond(state.totalHashRate, state.activeMiningEvents, state.prestigeMultiplier, energyScaleAd, state.isFeverMode, state.researchedNodes);
+      const btcPerSec = calcBtcPerSecond(
+        state.totalHashRate, 
+        state.activeMiningEvents, 
+        state.prestigeMultiplier, 
+        energyScaleAd, 
+        state.isFeverMode, 
+        state.researchedNodes,
+        1.0,
+        state.globalMultiplier,
+        1.0,
+        state.usdRate,
+        state.globalSettings?.miningDifficulty,
+        state.globalSettings?.hashRateTiers
+      );
       const boostSeconds = action.hoursEquivalent * 3600;
       const earned = btcPerSec * boostSeconds;
       return {
@@ -796,7 +834,20 @@ function gameReducer(state: GameState, action: Action): GameState {
     case 'CALC_OFFLINE_EARNINGS': {
       // Very simple offline calc for now
       const energyScale = energyToHashScale(state.energyCells, state.maxEnergyCells);
-      const btcPerSec = calcBtcPerSecond(state.totalHashRate, state.activeMiningEvents, state.prestigeMultiplier, energyScale);
+      const btcPerSec = calcBtcPerSecond(
+        state.totalHashRate, 
+        state.activeMiningEvents, 
+        state.prestigeMultiplier, 
+        energyScale,
+        false,
+        state.researchedNodes,
+        1.0,
+        state.globalMultiplier,
+        1.0,
+        state.usdRate,
+        state.globalSettings?.miningDifficulty,
+        state.globalSettings?.hashRateTiers
+      );
       const earned = btcPerSec * action.secondsAway * 0.5; // 50% efficiency while offline
       return {
         ...state,
@@ -1572,7 +1623,20 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       ? (state.overclockConfig?.penalty ?? 0.8)
       : 1.0;
 
-  const currentBtcPerSecond = calcBtcPerSecond(state.totalHashRate, state.activeMiningEvents, state.prestigeMultiplier, energyScale, state.isFeverMode, state.researchedNodes, 1.0, state.globalMultiplier, overclockMultiplier);
+  const currentBtcPerSecond = calcBtcPerSecond(
+    state.totalHashRate, 
+    state.activeMiningEvents, 
+    state.prestigeMultiplier, 
+    energyScale, 
+    state.isFeverMode, 
+    state.researchedNodes, 
+    1.0, 
+    state.globalMultiplier, 
+    overclockMultiplier,
+    state.usdRate,
+    state.globalSettings?.miningDifficulty,
+    state.globalSettings?.hashRateTiers
+  );
   const earnedTodayBtc = currentBtcPerSecond * 86400;
   
   const todayStr = new Date().toISOString().split('T')[0];
