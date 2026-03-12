@@ -141,11 +141,36 @@ export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: st
               </div>
             </div>
 
-            {/* 2-col preview grid */}
-            <div className="grid grid-cols-2 gap-3">
-              {allThemes.map(t => (
-                <ThemeCard key={t.id} theme={t} isActive={theme.id === t.id} onSelect={() => handleSelectTheme(t.id)} />
-              ))}
+            {/* Premium themes section */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 px-1">
+                <div className="w-1 h-3 rounded-full" style={{ background: `linear-gradient(180deg, ${a1}, ${a2})` }} />
+                <h3 className="text-[10px] font-black uppercase tracking-widest" style={{ color: a1 }}>
+                  Premium Temalar
+                </h3>
+                <div className="flex-1 h-px" style={{ background: `${a1}20` }} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {allThemes.filter(t => ['obsidian','amber-noir','violet-core'].includes(t.id)).map(t => (
+                  <ThemeCard key={t.id} theme={t} isActive={theme.id === t.id} onSelect={() => handleSelectTheme(t.id)} />
+                ))}
+              </div>
+            </div>
+
+            {/* Classic themes section */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 px-1">
+                <div className="w-1 h-3 rounded-full" style={{ background: 'rgba(255,255,255,0.2)' }} />
+                <h3 className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'var(--ct-muted, #71717a)' }}>
+                  Klasik Temalar
+                </h3>
+                <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.06)' }} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {allThemes.filter(t => !['obsidian','amber-noir','violet-core'].includes(t.id)).map(t => (
+                  <ThemeCard key={t.id} theme={t} isActive={theme.id === t.id} onSelect={() => handleSelectTheme(t.id)} />
+                ))}
+              </div>
             </div>
 
             {/* Success toast */}
@@ -173,41 +198,89 @@ export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: st
             </AnimatePresence>
 
             {/* Detailed list */}
-            <div className="rounded-3xl overflow-hidden"
-              style={{ background: 'var(--ct-card-bg, rgba(10,10,10,0.8))', border: '1px solid rgba(255,255,255,0.05)' }}>
-              {allThemes.map((t, i) => (
-                <button key={t.id} onClick={() => handleSelectTheme(t.id)}
-                  className="w-full flex items-start gap-4 p-4 text-left hover:bg-white/5 transition-colors"
-                  style={{
-                    borderBottom: i < allThemes.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
-                    background: theme.id === t.id ? `${t.vars['--ct-a1']}07` : 'transparent',
-                  }}>
-                  <span className="text-xl mt-0.5">{t.emoji}</span>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-bold"
-                        style={{ color: theme.id === t.id ? t.vars['--ct-a1'] : 'var(--ct-text, #fff)' }}>
-                        {t.name}
-                      </span>
-                      {theme.id === t.id && (
-                        <span className="text-[8px] px-1.5 py-0.5 rounded-full font-black uppercase tracking-widest"
-                          style={{ background: `${t.vars['--ct-a1']}18`, color: t.vars['--ct-a1'] }}>
-                          AKTİF
+            <div className="space-y-3">
+              {/* Premium group */}
+              <div className="rounded-3xl overflow-hidden"
+                style={{ background: 'var(--ct-card-bg, rgba(10,10,10,0.8))', border: `1px solid ${a1}18` }}>
+                <div className="px-4 py-2.5 flex items-center gap-2"
+                  style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: `${a1}06` }}>
+                  <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: a1 }}>⭐ Premium</span>
+                </div>
+                {allThemes.filter(t => ['obsidian','amber-noir','violet-core'].includes(t.id)).map((t, i, arr) => (
+                  <button key={t.id} onClick={() => handleSelectTheme(t.id)}
+                    className="w-full flex items-start gap-4 p-4 text-left hover:bg-white/5 transition-colors"
+                    style={{
+                      borderBottom: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                      background: theme.id === t.id ? `${t.vars['--ct-a1']}07` : 'transparent',
+                    }}>
+                    <span className="text-xl mt-0.5">{t.emoji}</span>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-bold"
+                          style={{ color: theme.id === t.id ? t.vars['--ct-a1'] : 'var(--ct-text, #fff)' }}>
+                          {t.name}
                         </span>
-                      )}
+                        {theme.id === t.id && (
+                          <span className="text-[8px] px-1.5 py-0.5 rounded-full font-black uppercase tracking-widest"
+                            style={{ background: `${t.vars['--ct-a1']}18`, color: t.vars['--ct-a1'] }}>
+                            AKTİF
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[10px] leading-relaxed" style={{ color: 'var(--ct-muted, #888)' }}>{t.description}</p>
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {t.keywords.map(k => (
+                          <span key={k} className="text-[8px] px-2 py-0.5 rounded-full"
+                            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', color: 'var(--ct-muted, #888)' }}>
+                            {k}
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                    <p className="text-[10px] leading-relaxed" style={{ color: 'var(--ct-muted, #888)' }}>{t.description}</p>
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {t.keywords.map(k => (
-                        <span key={k} className="text-[8px] px-2 py-0.5 rounded-full"
-                          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', color: 'var(--ct-muted, #888)' }}>
-                          {k}
+                  </button>
+                ))}
+              </div>
+              {/* Classic group */}
+              <div className="rounded-3xl overflow-hidden"
+                style={{ background: 'var(--ct-card-bg, rgba(10,10,10,0.8))', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <div className="px-4 py-2.5 flex items-center gap-2"
+                  style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.02)' }}>
+                  <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: 'var(--ct-muted, #71717a)' }}>Klasik</span>
+                </div>
+                {allThemes.filter(t => !['obsidian','amber-noir','violet-core'].includes(t.id)).map((t, i, arr) => (
+                  <button key={t.id} onClick={() => handleSelectTheme(t.id)}
+                    className="w-full flex items-start gap-4 p-4 text-left hover:bg-white/5 transition-colors"
+                    style={{
+                      borderBottom: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                      background: theme.id === t.id ? `${t.vars['--ct-a1']}07` : 'transparent',
+                    }}>
+                    <span className="text-xl mt-0.5">{t.emoji}</span>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-bold"
+                          style={{ color: theme.id === t.id ? t.vars['--ct-a1'] : 'var(--ct-text, #fff)' }}>
+                          {t.name}
                         </span>
-                      ))}
+                        {theme.id === t.id && (
+                          <span className="text-[8px] px-1.5 py-0.5 rounded-full font-black uppercase tracking-widest"
+                            style={{ background: `${t.vars['--ct-a1']}18`, color: t.vars['--ct-a1'] }}>
+                            AKTİF
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[10px] leading-relaxed" style={{ color: 'var(--ct-muted, #888)' }}>{t.description}</p>
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {t.keywords.map(k => (
+                          <span key={k} className="text-[8px] px-2 py-0.5 rounded-full"
+                            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', color: 'var(--ct-muted, #888)' }}>
+                            {k}
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                </button>
-              ))}
+                  </button>
+                ))}
+              </div>
             </div>
           </motion.div>
 

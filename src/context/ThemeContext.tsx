@@ -12,10 +12,78 @@ export interface ThemeConfig {
 }
 
 export const THEMES: ThemeConfig[] = [
+  // ── NEW PREMIUM THEMES ──────────────────────────────────────────────
+  {
+    id: 'obsidian',
+    name: 'OBSIDIAN VAULT',
+    tag: 'Ana Tema · Premium',
+    emoji: '🖤',
+    description: 'Şık teal-cyan çift aksan. Minimal ızgara doku, genişletilmiş içerik alanı.',
+    keywords: ['Teal-Cyan', 'Obsidyen', 'Bento grid', 'Premium'],
+    vars: {
+      '--ct-bg':       '#050709',
+      '--ct-surface':  '#0a0e12',
+      '--ct-card-bg':  'rgba(8,13,18,0.85)',
+      '--ct-a1':       '#14b8a6',
+      '--ct-a2':       '#0891b2',
+      '--ct-a3':       '#5eead4',
+      '--ct-text':     '#f1f5f9',
+      '--ct-muted':    '#4a6a70',
+      '--ct-border':   'rgba(20,184,166,0.12)',
+      '--ct-glow':     '0 0 20px rgba(20,184,166,0.3)',
+      '--ct-active-bg':'rgba(20,184,166,0.1)',
+      '--ct-active-border': 'rgba(20,184,166,0.22)',
+    },
+  },
+  {
+    id: 'amber-noir',
+    name: 'AMBER NOIR',
+    tag: 'Finans · Editöryal',
+    emoji: '🟡',
+    description: 'Altın-amber aksan, zengin koyu zemin. Sofistike finans estetiği.',
+    keywords: ['Amber-altın', 'Noir', 'Finans', 'Editorial'],
+    vars: {
+      '--ct-bg':       '#080600',
+      '--ct-surface':  '#110d00',
+      '--ct-card-bg':  'rgba(18,13,0,0.88)',
+      '--ct-a1':       '#f59e0b',
+      '--ct-a2':       '#fbbf24',
+      '--ct-a3':       '#fcd34d',
+      '--ct-text':     '#fef3c7',
+      '--ct-muted':    '#78600a',
+      '--ct-border':   'rgba(245,158,11,0.15)',
+      '--ct-glow':     '0 0 20px rgba(245,158,11,0.3)',
+      '--ct-active-bg':'rgba(245,158,11,0.08)',
+      '--ct-active-border': 'rgba(245,158,11,0.25)',
+    },
+  },
+  {
+    id: 'violet-core',
+    name: 'VIOLET CORE',
+    tag: 'Bento · Gradient',
+    emoji: '💜',
+    description: 'Mor-indigo çift gradyan. Bento grid kartlar, yoğun profil tasarımı.',
+    keywords: ['Violet-indigo', 'Gradient text', 'Bento', 'Sparklines'],
+    vars: {
+      '--ct-bg':       '#06040f',
+      '--ct-surface':  '#0d0820',
+      '--ct-card-bg':  'rgba(15,10,35,0.85)',
+      '--ct-a1':       '#7c3aed',
+      '--ct-a2':       '#4f46e5',
+      '--ct-a3':       '#a78bfa',
+      '--ct-text':     '#ede9fe',
+      '--ct-muted':    '#4c3a7a',
+      '--ct-border':   'rgba(124,58,237,0.15)',
+      '--ct-glow':     '0 0 20px rgba(124,58,237,0.3)',
+      '--ct-active-bg':'rgba(124,58,237,0.1)',
+      '--ct-active-border': 'rgba(124,58,237,0.25)',
+    },
+  },
+  // ── ORIGINAL THEMES ─────────────────────────────────────────────────
   {
     id: 'emerald',
     name: 'EMERALD CORE',
-    tag: 'Varsayılan',
+    tag: 'Klasik',
     emoji: '💚',
     description: 'Orijinal yeşil neon tema. Parlak emerald aksan, koyu siyah zemin.',
     keywords: ['Emerald yeşil', 'Dark mode', 'Neon glow'],
@@ -143,7 +211,7 @@ function applyTheme(t: ThemeConfig) {
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [themeId, setThemeId] = useState<string>(() => {
-    try { return localStorage.getItem(STORAGE_KEY) || 'emerald'; }
+    try { return localStorage.getItem(STORAGE_KEY) || 'obsidian'; }
     catch { return 'emerald'; }
   });
 

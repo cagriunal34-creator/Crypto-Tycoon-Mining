@@ -650,7 +650,7 @@ function gameReducer(state: GameState, action: Action): GameState {
       const newEnergy = state.isInfiniteEnergy ? state.energyCells : Math.max(0, state.energyCells - (elapsed * drainPerSec));
       
       const energyScale = energyToHashScale(newEnergy, state.maxEnergyCells);
-      const activeEvents = state.activeMiningEvents.filter(ev => ev.endsAt > now);
+      const activeEvents = (state.activeMiningEvents || []).filter(ev => ev.endsAt > now);
 
       const today = new Date().toISOString().split('T')[0];
       let currentDailyEarnings = state.lastEarningsResetDate === today ? state.dailyEarningsBtc : 0;
@@ -706,7 +706,7 @@ function gameReducer(state: GameState, action: Action): GameState {
     }
     case 'TICK_EVENTS': {
       const now = Date.now();
-      const activeEvents = state.activeMiningEvents.filter(ev => ev.endsAt > now);
+      const activeEvents = (state.activeMiningEvents || []).filter(ev => ev.endsAt > now);
       if (now - state.lastEventCheckAt > 300000 && Math.random() < 0.3) {
         return { ...state, activeMiningEvents: [...activeEvents, generateEvent(Math.random() * 3600000 + 1800000)], lastEventCheckAt: now };
       }
@@ -1480,8 +1480,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
               .eq('user_id', firebaseUser.uid)
               .in('type', ['deposit', 'transfer_out']);
             if (txs) {
-              const totalDeposit = txs.filter(t => t.type === 'deposit' && t.amount > 0).reduce((s, t) => s + t.amount, 0);
-              const totalWithdrawn = txs.filter(t => t.type === 'transfer_out').reduce((s, t) => s + Math.abs(t.amount), 0);
+              const totalDeposit = txs.filter(t => t.type === 'deposit' && (t.amount || 0) > 0).reduce((s, t) => s + (t.amount || 0), 0);
+              const totalWithdrawn = txs.filter(t => t.type === 'transfer_out').reduce((s, t) => s + Math.abs(t.amount || 0), 0);
               dispatch({ type: 'SET_DEPOSIT_STATS', totalDeposit, totalWithdrawn });
             }
           } catch (_) {}

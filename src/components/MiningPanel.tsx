@@ -333,7 +333,7 @@ export default function MiningPanel({
                   </div>
                 </div>
                 <div className="flex-1">
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                     <LineChart data={chartData}>
                       <Line type="monotone" dataKey="speed" stroke={a1} strokeWidth={3} dot={false} />
                     </LineChart>

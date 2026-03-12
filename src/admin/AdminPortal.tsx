@@ -667,16 +667,15 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                     supabase.from('game_events').select('*').order('created_at', { ascending: false }),
                     supabase.from('promo_codes').select('*').order('created_at', { ascending: false }),
                 ]);
-                if (ticketRes.status === 'fulfilled' && ticketRes.value.data) setTickets(ticketRes.value.data);
-                if (subRes.status === 'fulfilled' && subRes.value.data) setSubscribers(subRes.value.data);
-                if (settingsRes.status === 'fulfilled' && settingsRes.value.data) {
+                if (ticketRes.status === 'fulfilled' && ticketRes.value?.data) setTickets(ticketRes.value.data);
+                if (subRes.status === 'fulfilled' && subRes.value?.data) setSubscribers(subRes.value.data);
+                if (settingsRes.status === 'fulfilled' && settingsRes.value?.data) {
                     const s = settingsRes.value.data;
                     if (s?.ipBlacklist) setIpBlacklist(s.ipBlacklist);
-                    // twoFaRequired is now part of state.globalSettings
                 }
-                if (miningRes.status === 'fulfilled' && miningRes.value.data) setMiningItems(miningRes.value.data);
-                if (eventsRes.status === 'fulfilled' && eventsRes.value.data) setGameEvents(eventsRes.value.data);
-                if (promoRes.status === 'fulfilled' && promoRes.value.data) setPromoCodes(promoRes.value.data);
+                if (miningRes.status === 'fulfilled' && miningRes.value?.data) setMiningItems(miningRes.value.data);
+                if (eventsRes.status === 'fulfilled' && eventsRes.value?.data) setGameEvents(eventsRes.value.data);
+                if (promoRes.status === 'fulfilled' && promoRes.value?.data) setPromoCodes(promoRes.value.data);
                 
                 // --- Helper Handlers ---
                 const handlePurgeCache = () => {
@@ -1618,7 +1617,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                         </div>
                                     </div>
                                     <div className="h-52">
-                                        <ResponsiveContainer width="100%" height="100%">
+                                        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                                             <AreaChart data={kpiData}>
                                                 <defs>
                                                     <linearGradient id="gradReturn" x1="0" y1="0" x2="0" y2="1">
@@ -1653,7 +1652,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                         </div>
                                     </div>
                                     <div className="h-52">
-                                        <ResponsiveContainer width="100%" height="100%">
+                                        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                                             <AreaChart data={kpiData}>
                                                 <defs>
                                                     <linearGradient id="gradTx" x1="0" y1="0" x2="0" y2="1">
@@ -4668,7 +4667,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                              <div className="p-10 bg-white/5 border border-white/5 rounded-[2.5rem] shadow-xl backdrop-blur-md">
                                  <h3 className="text-white font-black text-sm uppercase italic tracking-widest flex items-center gap-3 mb-10"><Database className="text-indigo-400" size={20} /> Sunucu Metrikleri (Canlı)</h3>
                                  <div className="h-[400px]">
-                                     <ResponsiveContainer width="100%" height="100%">
+                                     <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                                          <AreaChart data={liveNetworkData}>
                                              <defs>
                                                  <linearGradient id="colorLoad" x1="0" y1="0" x2="0" y2="1">
