@@ -5448,6 +5448,7 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
                                     </button>
                             </div>
                         </div>
+                        {/* Vercel Build Trigger: Ensured clean JSX structure for settings tab */}
                             <div className="p-7 bg-white border border-zinc-200 rounded-[2rem] shadow-sm space-y-4">
                                 <h3 className="text-zinc-800 font-black text-xs uppercase tracking-widest flex items-center gap-2">
                                     <Bell size={14} className="text-blue-500"/> Sistem Duyurusu
