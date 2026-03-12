@@ -1821,9 +1821,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     await supabase.from(TABLES.PROFILES).update({ userGuildId: guild.id }).eq('id', state.user.uid);
     await supabase.from(TABLES.GUILDS).update({
-      members: guild.members + 1,
-      totalHash: guild.totalHash + state.totalHashRate
+      members: (guild.members || 0) + 1,
+      totalHash: (guild.totalHash || 0) + state.totalHashRate
     }).eq('id', guild.id);
+
+    // Sync local state immediately to avoid race conditions in UI
+    dispatch({ type: 'SET_GAME_STATE', state: { userGuildId: guild.id } as any });
   };
 
   const leaveGuildInFirestore = async (guildId: string) => {

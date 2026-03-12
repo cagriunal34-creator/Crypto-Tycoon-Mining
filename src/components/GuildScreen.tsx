@@ -100,6 +100,21 @@ export default function GuildScreen() {
     }
   }, [state.userGuildId, state.user?.uid, state.guilds]);
 
+  const [joiningId, setJoiningId] = useState<string | null>(null);
+
+  const handleJoin = async (guild: Guild) => {
+    if (state.userGuildId || joiningId) return;
+    setJoiningId(guild.id);
+    try {
+      await joinGuildInFirestore(guild);
+      notify({ type: 'success', title: 'Loncaya Katıldın!', message: `${guild.name} ailesine hoş geldin.` });
+    } catch (e: any) {
+      notify({ type: 'warning', title: 'Hata', message: e.message });
+    } finally {
+      setJoiningId(null);
+    }
+  };
+
   if (!userGuild) {
     return (
       <div className="space-y-6 pt-4 pb-20">
@@ -142,18 +157,19 @@ export default function GuildScreen() {
               state.guilds.map(guild => (
                 <motion.div 
                   key={guild.id}
-                  whileHover={{ scale: 1.01 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={async () => {
-                    try {
-                      await joinGuildInFirestore(guild);
-                      notify({ type: 'success', title: 'Loncaya Katıldın!', message: `${guild.name} ailesine hoş geldin.` });
-                    } catch (e: any) {
-                      notify({ type: 'warning', title: 'Hata', message: e.message });
-                    }
-                  }}
-                  className="p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center gap-4 cursor-pointer hover:bg-white/[0.05] transition-all"
+                  whileHover={{ scale: joiningId === guild.id ? 1 : 1.01 }}
+                  whileTap={{ scale: joiningId === guild.id ? 1 : 0.98 }}
+                  onClick={() => handleJoin(guild)}
+                  className={cn(
+                    "p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center gap-4 cursor-pointer hover:bg-white/[0.05] transition-all relative overflow-hidden",
+                    joiningId === guild.id && "opacity-75 pointer-events-none"
+                  )}
                 >
+                  {joiningId === guild.id && (
+                    <div className="absolute inset-0 bg-emerald-500/10 flex items-center justify-center">
+                      <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  )}
                   <div className="text-2xl w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center border border-white/5">
                     {guild.badge}
                   </div>
