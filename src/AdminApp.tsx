@@ -4,15 +4,14 @@ import { NotificationProvider } from './context/NotificationContext';
 import { ThemeProvider } from './context/ThemeContext';
 import AdminPanel from './admin/AdminPortal';
 import AmbientBackground from './components/AmbientBackground';
-import { supabase, TABLES } from './lib/supabase';
 import { RefreshCw, ShieldAlert, LogIn, LogOut } from 'lucide-react';
 import { signInWithGoogle, firebaseSignOut } from './lib/firebase';
 
 function AdminAuthGuard({ children }: { children: React.ReactNode }) {
     const { state } = useGame();
     const currentUser = state.user;
-    const hasBypass = localStorage.getItem('admin_bypass') === 'true';
-    const isAdmin = state.isAdmin || hasBypass;
+    // SEC-001 FIX: Only allow access via Supabase DB isAdmin flag — no localStorage bypass
+    const isAdmin = state.isAdmin === true;
     const isLoading = state.isLoading;
 
     if (isLoading) {
@@ -44,7 +43,6 @@ function AdminAuthGuard({ children }: { children: React.ReactNode }) {
                         </div>
                         <button
                             onClick={() => {
-                                localStorage.removeItem('admin_bypass');
                                 firebaseSignOut();
                             }}
                             className="p-2 hover:bg-red-500/10 text-zinc-500 hover:text-red-500 rounded-lg transition-colors ml-auto"
@@ -78,25 +76,11 @@ function AdminAuthGuard({ children }: { children: React.ReactNode }) {
                     </button>
 
                     {currentUser && !isAdmin && (
-                        <div className="p-6 rounded-2xl bg-emerald-500/5 border border-emerald-500/10 text-emerald-500 text-[10px] uppercase font-black tracking-widest leading-relaxed max-w-xs">
-                            Admin yetkiniz yoksa Supabase dashboard üzerinden <br /> "isAdmin" kolonunu TRUE yapın. <br />
-                            <span className="opacity-50 italic mt-2 block">ID: {currentUser.uid}</span>
-                            <button
-                                onClick={async () => {
-                                    try {
-                                        const cleanId = currentUser.uid.trim();
-                                        await supabase.from(TABLES.PROFILES).update({ isAdmin: true }).eq('id', cleanId);
-                                    } catch (e) {
-                                        console.error("Soft fail on DB update:", e);
-                                    }
-                                    localStorage.setItem('admin_bypass', 'true');
-                                    alert("Yetki Tanımlandı! Panel Açılıyor...");
-                                    setTimeout(() => window.location.reload(), 500);
-                                }}
-                                className="mt-6 w-full py-3 bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 font-black text-[9px] uppercase tracking-[0.2em] rounded-xl hover:bg-emerald-500 hover:text-white transition-all active:scale-95"
-                            >
-                                ŞİMDİ YETKİLENDİR (DEV MODE)
-                            </button>
+                        <div className="p-4 rounded-2xl bg-white/5 border border-white/10 text-zinc-500 text-[10px] uppercase font-black tracking-widest leading-relaxed max-w-xs text-center">
+                            Admin yetkiniz yoksa Supabase dashboard üzerinden <br />
+                            <span className="text-emerald-500">&quot;isAdmin&quot;</span> kolonunu TRUE yapın.
+                            <br />
+                            <span className="opacity-50 italic mt-2 block font-mono normal-case">ID: {currentUser.uid}</span>
                         </div>
                     )}
                 </div>

@@ -781,16 +781,19 @@ function gameReducer(state: GameState, action: Action): GameState {
         claimedQuestIds: [...state.questProgress.claimedQuestIds, action.questId]
       }
     };
-    case 'VIP_ACTIVATE': return {
-      ...state,
-      tycoonPoints: state.tycoonPoints - action.cost,
-      vip: {
+    case 'VIP_ACTIVATE': {
+      const newVip = {
         isActive: true,
         tier: action.tier,
         expiresAt: Date.now() + action.days * 86400000,
         perks: VIP_PERKS[action.tier] || []
-      }
-    };
+      };
+      return {
+        ...state,
+        tycoonPoints: state.tycoonPoints - action.cost,
+        vip: newVip
+      };
+    }
     case 'UPDATE_FARM': return {
       ...state,
       farmSettings: { ...state.farmSettings, ...action.settings }
@@ -935,6 +938,36 @@ function gameReducer(state: GameState, action: Action): GameState {
           ...state.questProgress,
           adsWatched: (state.questProgress.adsWatched || 0) + 1
         }
+      };
+    }
+    case 'CLICK_MINING': {
+      // Manual tap/click mining — gives a small instant BTC reward based on current hashrate
+      const energyScaleClick = energyToHashScale(state.energyCells, state.maxEnergyCells);
+      const btcPerSecClick = calcBtcPerSecond(
+        state.totalHashRate,
+        state.activeMiningEvents,
+        state.prestigeMultiplier,
+        energyScaleClick,
+        state.isFeverMode,
+        state.researchedNodes,
+        1.0,
+        state.globalMultiplier,
+        1.0,
+        state.usdRate,
+        state.globalSettings?.miningDifficulty,
+        state.globalSettings?.hashRateTiers
+      );
+      const clickReward = btcPerSecClick * 2; // 2 seconds worth of mining per click
+      const now = Date.now();
+      const newCombo = now - state.lastClickTime < 2000 ? state.comboCount + 1 : 1;
+      const feverTriggered = newCombo >= 10 && !state.isFeverMode;
+      return {
+        ...state,
+        btcBalance: state.btcBalance + clickReward,
+        comboCount: newCombo,
+        lastClickTime: now,
+        isFeverMode: feverTriggered ? true : state.isFeverMode,
+        feverEndsAt: feverTriggered ? now + 10000 : state.feverEndsAt,
       };
     }
     case 'CLAIM_STREAK_REWARD': {
@@ -1732,6 +1765,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           farmSettings: state.farmSettings,
           researchedNodes: state.researchedNodes,
           battlePass: state.battlePass,
+          vip: state.vip,
           redeemedReferralCode: state.redeemedReferralCode,
           claimedGuildRewards: state.claimedGuildRewards,
           updated_at: new Date().toISOString()
@@ -1852,6 +1886,15 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const dailyCapBtc = 1.0 / (state.usdRate || 91200);
   const dailyCapReached = !isVipCapExempt && currentDailyEarned >= dailyCapBtc;
   const dailyEarnedPct = Math.min(100, (currentDailyEarned / dailyCapBtc) * 100);
+
+  // ── BUG-004 FIX: MINING_TICK — canlı madencilik döngüsü ──────────────────
+  useEffect(() => {
+    if (!state.user?.uid || state.isLoading) return;
+    const id = setInterval(() => {
+      dispatch({ type: 'MINING_TICK' });
+    }, 5000);
+    return () => clearInterval(id);
+  }, [state.user?.uid, state.isLoading]);
 
   // Overclock tick — süre bittiyse kapat, Supabase'e kaydet
   useEffect(() => {

@@ -9,6 +9,8 @@ import { useTheme } from '../context/ThemeContext';
 import { useGame } from '../context/GameContext';
 import { useNotify } from '../context/NotificationContext';
 import ThemeCard from './ThemeCard';
+import { firebaseSignOut } from '../lib/firebase';
+import { supabase, TABLES } from '../lib/supabase';
 
 type Tab = 'account' | 'themes';
 
@@ -26,6 +28,51 @@ export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: st
     phone: state.phone
   });
   const [isUploading, setIsUploading] = useState(false);
+
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+
+  const handleLogout = async () => {
+    try {
+      await firebaseSignOut();
+    } catch (err) {
+      console.error('Logout error:', err);
+      notify({ type: 'warning', title: 'Hata', message: 'Çıkış yapılırken hata oluştu.' });
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!state.user?.uid) return;
+    setIsDeletingAccount(true);
+    try {
+      await supabase.from(TABLES.PROFILES).delete().eq('id', state.user.uid);
+      await firebaseSignOut();
+      notify({ type: 'success', title: 'Hesap Silindi', message: 'Hesabınız başarıyla silindi.' });
+    } catch (err) {
+      console.error('Delete account error:', err);
+      notify({ type: 'warning', title: 'Hata', message: 'Hesap silinirken bir hata oluştu.' });
+    } finally {
+      setIsDeletingAccount(false);
+      setShowDeleteConfirm(false);
+    }
+  };
+
+  const handleSupportLink = (label: string) => {
+    const urls: Record<string, string> = {
+      'Bize Destek Olun': 'mailto:support@cryptotycoon.app',
+      'Bize Ulaşın': 'mailto:support@cryptotycoon.app',
+      'Şartlar ve Koşullar': '/terms',
+      'Gizlilik Politikası': '/privacy',
+    };
+    const url = urls[label];
+    if (url) {
+      if (url.startsWith('mailto:')) {
+        window.location.href = url;
+      } else {
+        window.open(url, '_blank');
+      }
+    }
+  };
 
   const a1 = theme.vars['--ct-a1'];
   const a2 = theme.vars['--ct-a2'];
@@ -209,6 +256,18 @@ export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: st
                   onChange={async (e) => {
                     const file = e.target.files?.[0];
                     if (file) {
+                      // BUG-012 FIX: Validate file size (max 5MB) and MIME type
+                      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+                      if (!allowedTypes.includes(file.type)) {
+                        notify({ type: 'warning', title: 'Geçersiz Format', message: 'Yalnızca JPG, PNG veya WebP formatı desteklenmektedir.' });
+                        e.target.value = '';
+                        return;
+                      }
+                      if (file.size > 5 * 1024 * 1024) {
+                        notify({ type: 'warning', title: 'Dosya Çok Büyük', message: 'Profil resmi 5MB\'dan küçük olmalıdır.' });
+                        e.target.value = '';
+                        return;
+                      }
                       try {
                         setIsUploading(true);
                         const url = await uploadAvatar(file);
@@ -275,6 +334,11 @@ export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: st
                     </button>
                     <button 
                       onClick={async () => {
+                        // BUG-017 FIX: Validate username max length
+                        if (editForm.username && editForm.username.length > 30) {
+                          notify({ type: 'warning', title: 'Kullanıcı Adı Çok Uzun', message: 'Kullanıcı adı en fazla 30 karakter olabilir.' });
+                          return;
+                        }
                         try {
                           await updateUserProfile(editForm);
                           setIsEditing(false);
@@ -416,6 +480,7 @@ export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: st
                   { Icon: Shield,        label: 'Gizlilik Politikası', color: a1 },
                 ].map(({ Icon, label, color }, i, arr) => (
                   <button key={label} className="w-full px-5 py-4 flex items-center justify-between hover:bg-white/5 transition-colors"
+                    onClick={() => handleSupportLink(label)}
                     style={{ borderBottom: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
                     <div className="flex items-center gap-4">
                       <div className="p-2 rounded-xl" style={{ background: `${color}14`, color }}><Icon size={18} /></div>
@@ -430,16 +495,55 @@ export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: st
             {/* Danger zone */}
             <div className="rounded-3xl overflow-hidden"
               style={{ background: 'var(--ct-card-bg, rgba(10,10,10,0.8))', border: '1px solid rgba(255,255,255,0.05)' }}>
-              {[{ Icon: LogOut, label: 'Oturumu Kapat' }, { Icon: Trash2, label: 'Hesabı Sil' }].map(({ Icon, label }, i) => (
-                <button key={label} className="w-full px-5 py-4 flex items-center gap-4 hover:bg-red-500/5 transition-colors group"
-                  style={{ borderBottom: i === 0 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
-                  <div className="p-2 rounded-xl bg-red-500/10 text-red-500 group-hover:bg-red-500 group-hover:text-white transition-all">
-                    <Icon size={18} />
-                  </div>
-                  <span className="text-sm font-bold text-red-500">{label}</span>
-                </button>
-              ))}
+              <button
+                key="Oturumu Kapat"
+                className="w-full px-5 py-4 flex items-center gap-4 hover:bg-red-500/5 transition-colors group"
+                style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
+                onClick={handleLogout}
+              >
+                <div className="p-2 rounded-xl bg-red-500/10 text-red-500 group-hover:bg-red-500 group-hover:text-white transition-all">
+                  <LogOut size={18} />
+                </div>
+                <span className="text-sm font-bold text-red-500">Oturumu Kapat</span>
+              </button>
+              <button
+                key="Hesabı Sil"
+                className="w-full px-5 py-4 flex items-center gap-4 hover:bg-red-500/5 transition-colors group"
+                onClick={() => setShowDeleteConfirm(true)}
+              >
+                <div className="p-2 rounded-xl bg-red-500/10 text-red-500 group-hover:bg-red-500 group-hover:text-white transition-all">
+                  <Trash2 size={18} />
+                </div>
+                <span className="text-sm font-bold text-red-500">Hesabı Sil</span>
+              </button>
             </div>
+
+            {/* Delete Confirm Dialog */}
+            {showDeleteConfirm && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6">
+                <div className="rounded-3xl p-6 space-y-4 max-w-sm w-full"
+                  style={{ background: 'var(--ct-card-bg, #111)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <h3 className="text-base font-black text-red-500 uppercase tracking-tight">Hesabı Sil</h3>
+                  <p className="text-sm text-zinc-400">Bu işlem geri alınamaz. Tüm verileriniz, BTC bakiyeniz ve ilerlemeleriniz kalıcı olarak silinecektir.</p>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setShowDeleteConfirm(false)}
+                      className="flex-1 py-3 rounded-2xl text-xs font-bold bg-white/5 border border-white/10 hover:bg-white/10 transition-all"
+                      style={{ color: 'var(--ct-text, #fff)' }}
+                    >
+                      İptal
+                    </button>
+                    <button
+                      onClick={handleDeleteAccount}
+                      disabled={isDeletingAccount}
+                      className="flex-1 py-3 rounded-2xl text-xs font-bold bg-red-500 text-white hover:bg-red-600 transition-all disabled:opacity-50"
+                    >
+                      {isDeletingAccount ? 'Siliniyor...' : 'Evet, Sil'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="text-center py-3">
               <p className="text-[8px] font-bold uppercase tracking-[0.2em]" style={{ color: 'var(--ct-muted, #555)' }}>

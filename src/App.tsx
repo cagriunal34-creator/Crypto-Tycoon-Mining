@@ -488,9 +488,73 @@ export default function App() {
     <ThemeProvider>
       <GameProvider>
         <NotificationProvider>
-          <AppInner />
+          <AppErrorBoundary>
+            <OfflineDetector />
+            <AppInner />
+          </AppErrorBoundary>
         </NotificationProvider>
       </GameProvider>
     </ThemeProvider>
+  );
+}
+
+// ─── BUG-016 FIX: Root-level ErrorBoundary ────────────────────────────────────
+class AppErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error('[ErrorBoundary] Render error:', error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#080808', color: '#fff', padding: '2rem', textAlign: 'center' }}>
+          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>⚠️</div>
+          <h1 style={{ fontWeight: 900, fontSize: '1.25rem', letterSpacing: '-0.02em', marginBottom: '0.5rem' }}>Beklenmeyen Bir Hata Oluştu</h1>
+          <p style={{ color: '#71717a', fontSize: '0.75rem', marginBottom: '1.5rem', maxWidth: 320 }}>{this.state.error?.message || 'Bilinmeyen hata'}</p>
+          <button
+            onClick={() => window.location.reload()}
+            style={{ padding: '0.75rem 2rem', background: '#10b981', color: '#000', borderRadius: '1rem', fontWeight: 900, fontSize: '0.75rem', letterSpacing: '0.1em', border: 'none', cursor: 'pointer', textTransform: 'uppercase' }}
+          >
+            Sayfayı Yenile
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// ─── BUG-015 FIX: Offline/Online detection banner ────────────────────────────
+function OfflineDetector() {
+  const [isOffline, setIsOffline] = React.useState(!navigator.onLine);
+  React.useEffect(() => {
+    const handleOffline = () => setIsOffline(true);
+    const handleOnline = () => setIsOffline(false);
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('online', handleOnline);
+    return () => {
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online', handleOnline);
+    };
+  }, []);
+  if (!isOffline) return null;
+  return (
+    <div style={{
+      position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999,
+      background: '#ef4444', color: '#fff', textAlign: 'center',
+      padding: '0.5rem 1rem', fontSize: '0.7rem', fontWeight: 900,
+      letterSpacing: '0.1em', textTransform: 'uppercase'
+    }}>
+      ⚠️ İnternet bağlantısı yok — Bazı özellikler çalışmayabilir
+    </div>
   );
 }

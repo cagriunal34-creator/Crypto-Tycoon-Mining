@@ -24,15 +24,19 @@ export default function LuckyWheel() {
   const [result, setResult] = useState<any | null>(null);
   const [showResult, setShowResult] = useState(false);
 
-  const rewards = state.wheelRewards || [];
+  // BUG-010 FIX: Fallback rewards when DB table is empty
+  const FALLBACK_REWARDS = [
+    { id: 'f1', label: '100 TP', type: 'tp', value: 100, probability: '0.30', color: '#10b981' },
+    { id: 'f2', label: '250 TP', type: 'tp', value: 250, probability: '0.25', color: '#6366f1' },
+    { id: 'f3', label: '500 TP', type: 'tp', value: 500, probability: '0.20', color: '#8b5cf6' },
+    { id: 'f4', label: '0.000001 BTC', type: 'btc', value: 0.000001, probability: '0.15', color: '#f59e0b' },
+    { id: 'f5', label: '2x Hız (1 Saat)', type: 'speed', value: '1 Saat', probability: '0.07', color: '#3b82f6' },
+    { id: 'f6', label: '0.00001 BTC', type: 'btc', value: 0.00001, probability: '0.03', color: '#ef4444' },
+  ];
+  const rewards = (state.wheelRewards && state.wheelRewards.length > 0) ? state.wheelRewards : FALLBACK_REWARDS;
 
   const spinWheel = () => {
     if (isSpinning) return;
-    
-    if (rewards.length === 0) {
-      notify({ type: 'error', title: 'Hata', message: 'Çark ödülleri yüklenemedi. Lütfen daha sonra tekrar deneyin.' });
-      return;
-    }
 
     const cooldown = 60000; // 60s
     const lastSpin = state.lastWheelSpin || 0;

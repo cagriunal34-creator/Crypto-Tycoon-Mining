@@ -765,12 +765,13 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
         }
 
         try {
+            const { id, created_at, updated_at, ...payload } = wheelRewardForm as any;
             if (editingWheelReward) {
-                const { error } = await supabase.from(TABLES.LUCKY_WHEEL_REWARDS).update(wheelRewardForm).eq('id', editingWheelReward.id);
+                const { error } = await supabase.from(TABLES.LUCKY_WHEEL_REWARDS).update(payload).eq('id', editingWheelReward.id);
                 if (error) throw error;
                 notify({ type: 'success', title: 'Başarılı', message: 'Ödül güncellendi.' });
             } else {
-                const { error } = await supabase.from(TABLES.LUCKY_WHEEL_REWARDS).insert(wheelRewardForm);
+                const { error } = await supabase.from(TABLES.LUCKY_WHEEL_REWARDS).insert(payload);
                 if (error) throw error;
                 notify({ type: 'success', title: 'Başarılı', message: 'Yeni ödül eklendi.' });
             }

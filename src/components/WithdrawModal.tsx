@@ -29,6 +29,32 @@ export default function WithdrawModal({ isOpen, onClose, onSuccess, balance }: W
   const total = Math.max(0, parseFloat(amount || '0') - fee);
   const MIN_AMOUNT = 0.001;
 
+  // BUG-006 FIX: QR scanner using BarcodeDetector API with camera fallback
+  const handleQrScan = async () => {
+    try {
+      if ('BarcodeDetector' in window) {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        const track = stream.getVideoTracks()[0];
+        const imageCapture = new (window as any).ImageCapture(track);
+        const detector = new (window as any).BarcodeDetector({ formats: ['qr_code'] });
+        const bitmap = await imageCapture.grabFrame();
+        const barcodes = await detector.detect(bitmap);
+        stream.getTracks().forEach(t => t.stop());
+        if (barcodes.length > 0) {
+          setAddress(barcodes[0].rawValue);
+          setErrors(prev => ({ ...prev, address: undefined }));
+        } else {
+          alert('QR kod bulunamadı. Lütfen manuel olarak yapıştırın.');
+        }
+      } else {
+        alert('Tarayıcınız QR tarayıcıyı desteklemiyor. Adresi manuel olarak yapıştırın.');
+      }
+    } catch (err) {
+      console.error('QR scan error:', err);
+      alert('Kamera erişimi reddedildi veya bir hata oluştu. Adresi manuel yapıştırın.');
+    }
+  };
+
   // BTC adres regex: Legacy (1...), P2SH (3...) veya Bech32 (bc1...)
   const BTC_ADDRESS_REGEX = /^(1[a-km-zA-HJ-NP-Z1-9]{25,34}|3[a-km-zA-HJ-NP-Z1-9]{25,34}|bc1[a-z0-9]{6,87})$/;
 
@@ -85,7 +111,7 @@ export default function WithdrawModal({ isOpen, onClose, onSuccess, balance }: W
       if (updateErr) throw updateErr;
 
       // 3. Create Withdrawal Request
-      await supabase.from(TABLES.WITHDRAWALS).insert({
+      const { error: withdrawErr } = await supabase.from(TABLES.WITHDRAWALS).insert({
         user_id: state.user.uid,
         username: state.username,
         amount: numAmount,
@@ -94,6 +120,15 @@ export default function WithdrawModal({ isOpen, onClose, onSuccess, balance }: W
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       });
+
+      // BUG-007 FIX: Rollback balance if withdrawal record creation fails
+      if (withdrawErr) {
+        console.error('Withdrawal insert failed, rolling back balance:', withdrawErr);
+        await supabase.from(TABLES.PROFILES)
+          .update({ btcBalance: dbBalance })
+          .eq('id', state.user!.uid);
+        throw new Error('Çekim kaydı oluşturulamadı, bakiyeniz iade edildi.');
+      }
 
       // 4. Add to User Transactions
       await supabase.from(TABLES.TRANSACTIONS).insert({
@@ -201,7 +236,7 @@ export default function WithdrawModal({ isOpen, onClose, onSuccess, balance }: W
                     )}
                   />
                 </div>
-                <button className="p-4 rounded-2xl bg-white/5 border border-white/10 text-zinc-400">
+                <button className="p-4 rounded-2xl bg-white/5 border border-white/10 text-zinc-400 hover:text-emerald-400 hover:border-emerald-500/30 transition-colors" onClick={handleQrScan} title="QR Kodu Tarat">
                   <QrCode size={20} />
                 </button>
               </div>
