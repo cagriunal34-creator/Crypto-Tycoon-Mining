@@ -59,10 +59,11 @@ import WebLayout from './components/WebLayout';
 import { usePushNotifications } from './hooks/usePushNotifications';
 import NotificationPermissionBanner from './components/NotificationPermissionBanner';
 import LowEnergyAdBanner from './components/LowEnergyAdBanner';
+import OnboardingTour from './components/OnboardingTour';
 
 // ── Push Notification Manager ─────────────────────────────────────────────────
 // Ayrı bileşen: GameContext state'ine erişir, hook'u çalıştırır, banner'ı gösterir
-function PushNotificationManager({ hackerActive, btcPerSecond }: { hackerActive: boolean; btcPerSecond: number }) {
+function PushNotificationManager() {
   const { state } = useGame();
   
   // Oyun snapshot'ını hook formatına dönüştür
@@ -78,16 +79,14 @@ function PushNotificationManager({ hackerActive, btcPerSecond }: { hackerActive:
       .map((c: any) => ({ name: c.name || 'Kontrat', expiresAt: c.expiresAt }));
 
     // Guild bilgisi
-    const myGuild = (state.guilds || []).find((g: any) => 
-      g.members?.some((m: any) => m.id === state.user?.uid)
-    );
+    const myGuild = (state.guilds || []).find((g: any) => g.id === state.userGuildId);
 
     return {
       btcBalance: state.btcBalance || 0,
-      btcPerSecond: btcPerSecond, 
+      btcPerSecond: 0, // calcBtcPerSecond App içinde hesaplanıyor, basit yaklaşım
       energyLevel: energyPct,
       level: state.level || 1,
-      hackerActive: hackerActive, 
+      hackerActive: false, // HackerAttack bileşeni yönetiyor
       contracts,
       guildBattleActive: false,
       guildName: myGuild?.name || '',
@@ -98,8 +97,6 @@ function PushNotificationManager({ hackerActive, btcPerSecond }: { hackerActive:
     state?.energyCells,
     state?.maxEnergyCells,
     state?.level,
-    hackerActive,
-    btcPerSecond
   ]);
 
   const { requestPermission } = usePushNotifications(gameSnapshot);
@@ -108,18 +105,11 @@ function PushNotificationManager({ hackerActive, btcPerSecond }: { hackerActive:
 }
 
 function AppInner() {
-  const { state, dispatch, effectiveHashRate } = useGame();
+  const { state, dispatch } = useGame();
   const { notify } = useNotify();
   const { theme } = useTheme();
 
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
-  const [activeScreen, setActiveScreen] = useState<Screen>('panel');
-  const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
-  const [isWatchingAd, setIsWatchingAd] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [isPrestigeOpen, setIsPrestigeOpen] = useState(false);
-  const [successModal, setSuccessModal] = useState<{ isOpen: boolean; type: 'withdraw' | 'package' }>({ isOpen: false, type: 'withdraw' });
-  const [showHackerAttack, setShowHackerAttack] = useState(false);
 
   useEffect(() => {
     const handleResize = () => setIsDesktop(window.innerWidth >= 1024);
@@ -132,6 +122,13 @@ function AppInner() {
   const a1 = theme.vars['--ct-a1'];
   const a2 = theme.vars['--ct-a2'];
 
+  const [activeScreen, setActiveScreen] = useState<Screen>('panel');
+  const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
+  const [isWatchingAd, setIsWatchingAd] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [isPrestigeOpen, setIsPrestigeOpen] = useState(false);
+  const [successModal, setSuccessModal] = useState<{ isOpen: boolean; type: 'withdraw' | 'package' }>({ isOpen: false, type: 'withdraw' });
+  const [showHackerAttack, setShowHackerAttack] = useState(false);
 
   // Trigger Hacker Attack randomly
   useEffect(() => {
@@ -215,7 +212,7 @@ function AppInner() {
       case 'vip': return <VIPScreen />;
       case 'infrastructure': return <InfrastructureScreen />;
       case 'research': return <ResearchTree />;
-      case 'guild': return <GuildScreen userId={state.user?.uid ?? null} />;
+      case 'guild': return <GuildScreen />;
       default: return <MiningPanel onOpenContracts={() => setActiveScreen('contracts')} onWatchAd={handleWatchAd} onOpenPrestige={() => setIsPrestigeOpen(true)} onNavigate={(screen) => setActiveScreen(screen as Screen)} />;
     }
   };
@@ -311,9 +308,6 @@ function AppInner() {
     );
   }
 
-  // Calculate current BTC/s for notifications
-  const btcPerSecond = effectiveHashRate * 1e-9 * 0.5 * (state.happyHourActive ? 1.2 : 1);
-
   if (!state.user) {
     return <LoginScreen />;
   }
@@ -341,8 +335,6 @@ function AppInner() {
             onWatchAd={handleWatchAd}
           />
         )}
-        <PushNotificationManager hackerActive={showHackerAttack} btcPerSecond={btcPerSecond} />
-        <LowEnergyAdBanner onWatchAd={handleWatchAd} />
         <PrestigeModal isOpen={isPrestigeOpen} onClose={() => setIsPrestigeOpen(false)} />
       </WebLayout>
     );
@@ -452,8 +444,9 @@ function AppInner() {
       <FeverOverlay />
       <LoginStreak />
       <OfflineEarningsHandler />
-      <PushNotificationManager hackerActive={showHackerAttack} btcPerSecond={btcPerSecond} />
+      <PushNotificationManager />
       <LowEnergyAdBanner onWatchAd={handleWatchAd} />
+      <OnboardingTour />
 
       {/* ── Header ─────────────────────────────────────────────── */}
       <header className="flex items-center justify-between px-5 py-3 sticky top-0 z-50 backdrop-blur-xl relative"
@@ -534,6 +527,7 @@ function AppInner() {
             const isActive = activeScreen === item.id;
             return (
               <button key={item.id} onClick={() => setActiveScreen(item.id as Screen)}
+                data-tour={`nav-${item.id}`}
                 className="flex flex-col items-center gap-0.5 px-3 py-2 rounded-2xl transition-all duration-200"
                 style={{ color: isActive ? a1 : 'var(--ct-muted)' }}>
                 <div className="p-1.5 rounded-xl transition-all duration-200"

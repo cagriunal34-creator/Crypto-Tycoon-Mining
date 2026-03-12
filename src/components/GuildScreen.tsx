@@ -32,6 +32,8 @@ export default function GuildScreen({ userId }: { userId: string | null }) {
   const [showGoalDetails, setShowGoalDetails] = useState<string | null>(null);
   const [membersList, setMembersList] = useState<any[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
+  const [joiningGuildId, setJoiningGuildId] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
 
   // Form State
   const [name, setName] = useState('');
@@ -42,12 +44,16 @@ export default function GuildScreen({ userId }: { userId: string | null }) {
 
   const handleCreate = async () => {
     if (name.length < 3) return notify({ type: 'warning', title: 'Hata', message: 'Lonca adı en az 3 karakter olmalıdır.' });
+    if (isCreating) return;
     try {
+      setIsCreating(true);
       await createGuildInFirestore(name, desc, badge, 1000);
       notify({ type: 'success', title: 'Başarılı', message: 'Lonca başarıyla kuruldu!' });
       setShowCreateModal(false);
     } catch (e: any) {
       notify({ type: 'warning', title: 'Hata', message: e.message });
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -155,13 +161,17 @@ export default function GuildScreen({ userId }: { userId: string | null }) {
                   whileHover={{ scale: 1.01 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={async () => {
-                    try {
-                      await joinGuildInFirestore(guild);
-                      notify({ type: 'success', title: 'Loncaya Katıldın!', message: `${guild.name} ailesine hoş geldin.` });
-                    } catch (e: any) {
-                      notify({ type: 'warning', title: 'Hata', message: e.message });
-                    }
-                  }}
+                     if (joiningGuildId) return;
+                     try {
+                       setJoiningGuildId(guild.id);
+                       await joinGuildInFirestore(guild);
+                       notify({ type: 'success', title: 'Loncaya Katıldın!', message: `${guild.name} ailesine hoş geldin.` });
+                     } catch (e: any) {
+                       notify({ type: 'warning', title: 'Hata', message: e.message });
+                     } finally {
+                       setJoiningGuildId(null);
+                     }
+                   }}
                   className="p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center gap-4 cursor-pointer hover:bg-white/[0.05] transition-all"
                 >
                   <div className="text-2xl w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center border border-white/5">
@@ -173,10 +183,12 @@ export default function GuildScreen({ userId }: { userId: string | null }) {
                       {guild.members} Üye · {(guild.totalHash / 1000).toFixed(1)} TH/s
                     </p>
                   </div>
-                  <div className="text-right">
-                    <span className="text-[10px] font-black text-emerald-500 px-2 py-1 rounded-lg bg-emerald-500/10">Lv.{guild.level}</span>
-                    <p className="text-[8px] text-zinc-600 mt-1 uppercase font-bold tracking-widest">Katıl</p>
-                  </div>
+                   <div className="text-right">
+                     <span className="text-[10px] font-black text-emerald-500 px-2 py-1 rounded-lg bg-emerald-500/10">Lv.{guild.level}</span>
+                     <p className="text-[8px] text-zinc-600 mt-1 uppercase font-bold tracking-widest">
+                       {joiningGuildId === guild.id ? 'Katılınıyor...' : 'Katıl'}
+                     </p>
+                   </div>
                 </motion.div>
               ))
             )}
@@ -214,9 +226,10 @@ export default function GuildScreen({ userId }: { userId: string | null }) {
                   <div className="pt-4">
                     <button 
                       onClick={handleCreate}
-                      className="w-full py-4 bg-emerald-500 text-black font-black text-xs uppercase tracking-widest rounded-2xl hover:brightness-110 active:scale-95 transition-all shadow-lg"
+                      disabled={isCreating}
+                      className="w-full py-4 bg-emerald-500 text-black font-black text-xs uppercase tracking-widest rounded-2xl hover:brightness-110 active:scale-95 transition-all shadow-lg disabled:opacity-50"
                     >
-                      Lonca Kur (1,000 TP)
+                      {isCreating ? 'Kuruluyor...' : 'Lonca Kur (1,000 TP)'}
                     </button>
                   </div>
                 </div>
@@ -635,8 +648,7 @@ function GuildBattleTab({ userGuild, allGuilds, userHashRate, userGuildId, userI
   const a1 = theme.vars['--ct-a1'];
 
   // ── Lonca sahibi mi? ─────────────────────────────────────────────────────────
-  const isOwner = userId != null &&
-    ((userGuild as any).owner_id === userId || (userGuild as any).ownerId === userId);
+  const isOwner = userId != null && (userGuild as any).owner_id === userId;
 
   const [battle, setBattle] = React.useState<BattleState>(() => {
     try {

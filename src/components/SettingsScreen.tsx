@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import {
   User, Globe, Mail, Shield, FileText, LogOut, Trash2,
-  ChevronRight, Heart, MessageSquare, Palette, Check, Crown, Star, Smartphone
+  ChevronRight, Heart, MessageSquare, Palette, Check, Crown, Star, Smartphone, Map
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ThemeConfig } from '../context/themes';
+import { resetOnboarding } from './OnboardingTour';
 import { cn } from '../lib/utils';
 import { useTheme } from '../context/ThemeContext';
 import { useGame } from '../context/GameContext';
@@ -523,6 +523,20 @@ export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: st
                     <span className="text-xs" style={{ color: 'var(--ct-muted, #888)' }}>Türkçe</span>
                     <ChevronRight size={16} style={{ color: 'var(--ct-muted, #888)' }} />
                   </div>
+                </button>
+                {/* Turu Tekrar Göster */}
+                <button
+                  onClick={() => { resetOnboarding(); notify({ type: 'info', title: '🎯 Tur Sıfırlandı', message: 'Sayfayı yenilediğinde onboarding turu tekrar başlayacak.' }); }}
+                  className="w-full px-5 py-4 flex items-center justify-between hover:bg-white/5 transition-colors"
+                  style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <div className="flex items-center gap-4">
+                    <div className="p-2 rounded-xl" style={{ background: `${a1}18`, color: a1 }}><Map size={18} /></div>
+                    <div className="text-left">
+                      <span className="text-sm font-medium block" style={{ color: 'var(--ct-text, #fff)' }}>Onboarding Turunu Tekrar Gör</span>
+                      <span className="text-[10px]" style={{ color: 'var(--ct-muted, #888)' }}>Yeni başlangıç rehberini yeniden başlat</span>
+                    </div>
+                  </div>
+                  <ChevronRight size={16} style={{ color: 'var(--ct-muted, #888)' }} />
                 </button>
                 <div className="w-full px-5 py-4 flex items-center justify-between">
                   <div className="flex items-center gap-4">

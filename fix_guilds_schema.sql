@@ -1,0 +1,14 @@
+-- 🛡️ GUILD SCHEMA FIX SCRIPT
+-- Lonca kurma hatasını ('owner_id' bulunamadı) düzeltmek için bu sorguyu Supabase SQL Editor'de çalıştırın.
+
+ALTER TABLE guilds ADD COLUMN IF NOT EXISTS owner_id TEXT;
+ALTER TABLE guilds ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE guilds ADD COLUMN IF NOT EXISTS badge TEXT;
+ALTER TABLE guilds ADD COLUMN IF NOT EXISTS members INTEGER DEFAULT 1;
+ALTER TABLE guilds ADD COLUMN IF NOT EXISTS "totalHash" DOUBLE PRECISION DEFAULT 0;
+ALTER TABLE guilds ADD COLUMN IF NOT EXISTS level INTEGER DEFAULT 1;
+ALTER TABLE guilds ADD COLUMN IF NOT EXISTS xp DOUBLE PRECISION DEFAULT 0;
+ALTER TABLE guilds ADD COLUMN IF NOT EXISTS "xpToNextLevel" DOUBLE PRECISION DEFAULT 1000;
+
+-- Şema önbelleğini yenile (PostgREST için)
+NOTIFY pgrst, 'reload schema';

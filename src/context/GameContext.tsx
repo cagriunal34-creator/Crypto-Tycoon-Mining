@@ -2042,7 +2042,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       name,
       description: desc,
       badge,
-      ownerId: state.user.uid,
+      owner_id: state.user.uid,
       members: 1,
       totalHash: state.totalHashRate,
       level: 1,
