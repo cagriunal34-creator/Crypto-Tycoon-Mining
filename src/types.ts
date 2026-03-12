@@ -74,7 +74,7 @@ export interface Guild {
   xpToNextLevel: number;
 }
 
-export type MiningEventType = 'flash_pool' | 'hash_storm' | 'energy_surge' | 'block_halving';
+export type MiningEventType = 'flash_pool' | 'hash_storm' | 'energy_surge' | 'block_halving' | 'WHEEL_BOOST';
 
 export interface MiningEvent {
   id: string;

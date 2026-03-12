@@ -705,7 +705,12 @@ export default function MiningPanel({
           </button>
         </div>
 
-        <motion.button whileTap={{ scale: 0.98 }}
+        <motion.button 
+          whileTap={{ scale: 0.98 }}
+          onClick={() => {
+            dispatch({ type: 'AD_BOOST_MINING', hoursEquivalent: 1 });
+            notify({ type: 'mining', title: '⚡ Madencilik Hızlandı!', message: '1 saatlik kazanç anında eklendi.' });
+          }}
           className="w-full py-4 rounded-2xl relative overflow-hidden font-black text-sm uppercase tracking-widest text-white"
           style={{ background: `linear-gradient(135deg,${a1},${a2})`, boxShadow: `0 6px 20px ${a1}35` }}>
           <div className="flex items-center justify-center gap-2">
