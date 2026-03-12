@@ -145,7 +145,3 @@ export default function OfflineEarningsModal({
     </AnimatePresence>
   );
 }
-   )}
-    </AnimatePresence>
-  );
-}

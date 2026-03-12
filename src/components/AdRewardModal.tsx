@@ -110,7 +110,9 @@ export default function AdRewardModal({ isOpen, onClose }: Props) {
     }
   };
 
-  const a1 = '#10b981';
+  const { theme } = useTheme();
+  const a1 = theme.vars['--ct-a1'];
+  const a2 = theme.vars['--ct-a2'];
 
   return (
     <AnimatePresence>

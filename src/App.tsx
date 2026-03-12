@@ -311,6 +311,10 @@ function AppInner() {
     );
   }
 
+  // Calculate current BTC/s for notifications
+  const { effectiveHashRate } = useGame();
+  const btcPerSecond = effectiveHashRate * 1e-9 * 0.5 * (state.happyHourActive ? 1.2 : 1);
+
   if (!state.user) {
     return <LoginScreen />;
   }
