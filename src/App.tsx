@@ -108,11 +108,18 @@ function PushNotificationManager({ hackerActive, btcPerSecond }: { hackerActive:
 }
 
 function AppInner() {
-  const { state, dispatch } = useGame();
+  const { state, dispatch, effectiveHashRate } = useGame();
   const { notify } = useNotify();
   const { theme } = useTheme();
 
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
+  const [activeScreen, setActiveScreen] = useState<Screen>('panel');
+  const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
+  const [isWatchingAd, setIsWatchingAd] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [isPrestigeOpen, setIsPrestigeOpen] = useState(false);
+  const [successModal, setSuccessModal] = useState<{ isOpen: boolean; type: 'withdraw' | 'package' }>({ isOpen: false, type: 'withdraw' });
+  const [showHackerAttack, setShowHackerAttack] = useState(false);
 
   useEffect(() => {
     const handleResize = () => setIsDesktop(window.innerWidth >= 1024);
@@ -125,13 +132,6 @@ function AppInner() {
   const a1 = theme.vars['--ct-a1'];
   const a2 = theme.vars['--ct-a2'];
 
-  const [activeScreen, setActiveScreen] = useState<Screen>('panel');
-  const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
-  const [isWatchingAd, setIsWatchingAd] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [isPrestigeOpen, setIsPrestigeOpen] = useState(false);
-  const [successModal, setSuccessModal] = useState<{ isOpen: boolean; type: 'withdraw' | 'package' }>({ isOpen: false, type: 'withdraw' });
-  const [showHackerAttack, setShowHackerAttack] = useState(false);
 
   // Trigger Hacker Attack randomly
   useEffect(() => {
@@ -312,7 +312,6 @@ function AppInner() {
   }
 
   // Calculate current BTC/s for notifications
-  const { effectiveHashRate } = useGame();
   const btcPerSecond = effectiveHashRate * 1e-9 * 0.5 * (state.happyHourActive ? 1.2 : 1);
 
   if (!state.user) {

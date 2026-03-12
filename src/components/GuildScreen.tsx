@@ -7,7 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Shield, Users, Zap, Trophy, Crown, 
   ChevronRight, Info, Gift, Plus, Search,
-  X, CheckCircle2, TrendingUp, Star
+  X, CheckCircle2, TrendingUp, Star, Swords, Clock, Flame, Target
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -15,8 +15,9 @@ import { useGame, Guild } from '../context/GameContext';
 import { GUILD_GOALS } from '../constants/gameData';
 import { useNotify } from '../context/NotificationContext';
 import { supabase, TABLES } from '../lib/supabase';
+import { useTheme } from '../context/ThemeContext';
 
-type GuildTab = 'overview' | 'members' | 'goals';
+type GuildTab = 'overview' | 'members' | 'goals' | 'battle';
 
 export default function GuildScreen() {
   const { 
@@ -270,13 +271,18 @@ export default function GuildScreen() {
           { id: 'overview', label: 'Genel Bakış', icon: Info },
           { id: 'members', label: 'Üyeler', icon: Users },
           { id: 'goals', label: 'Hedefler', icon: Trophy },
+          { id: 'battle', label: 'Savaş', icon: Swords },
         ].map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as GuildTab)}
             className={cn(
               "flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all",
-              activeTab === tab.id ? "bg-white/10 text-white shadow-lg" : "text-zinc-500 hover:text-zinc-400"
+              activeTab === tab.id
+                ? tab.id === 'battle'
+                  ? "bg-red-500/15 text-red-400 shadow-lg border border-red-500/20"
+                  : "bg-white/10 text-white shadow-lg"
+                : "text-zinc-500 hover:text-zinc-400"
             )}
           >
             <tab.icon size={14} />
@@ -523,8 +529,486 @@ export default function GuildScreen() {
               </div>
             </div>
           )}
+
+          {/* ══════════ SAVAŞ SEKMESİ ══════════ */}
+          {activeTab === 'battle' && (
+            <GuildBattleTab
+              userGuild={userGuild}
+              allGuilds={state.guilds}
+              userHashRate={state.totalHashRate}
+              userGuildId={state.userGuildId}
+              userId={state.user?.uid ?? null}
+              notify={notify}
+            />
+          )}
         </motion.div>
       </AnimatePresence>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GuildBattleTab — Haftalık Lonca Savaşı
+// ══════════════════════════════════════════════════════════════════════════════
+
+const BATTLE_STORAGE_KEY = 'guild_battle_state_v1';
+const SUPABASE_SYNC_INTERVAL_MS = 10_000; // 10 saniye
+
+interface BattleState {
+  phase: 'idle' | 'active' | 'finished';
+  startedAt: number;
+  endsAt: number;
+  challengedGuildId: string | null;
+  myGuildScore: number;
+  enemyGuildScore: number;
+  lastContributed: number;
+  contributions: { time: number; hash: number }[];
+  supabaseId: string | null; // Supabase'deki kayıt ID'si
+  lastSyncedAt: number;       // Son başarılı sync zamanı
+}
+
+const DEFAULT_BATTLE: BattleState = {
+  phase: 'idle',
+  startedAt: 0,
+  endsAt: 0,
+  challengedGuildId: null,
+  myGuildScore: 0,
+  enemyGuildScore: 0,
+  lastContributed: 0,
+  contributions: [],
+  supabaseId: null,
+  lastSyncedAt: 0,
+};
+
+const BATTLE_DURATION_MS = 48 * 60 * 60 * 1000;
+const CONTRIBUTE_COOLDOWN_MS = 60 * 1000;
+
+// ── Supabase sync yardımcısı ──────────────────────────────────────────────────
+async function syncBattleToSupabase(
+  b: BattleState,
+  myGuildId: string,
+  userId: string,
+): Promise<string | null> {
+  try {
+    const payload = {
+      my_guild_id:       myGuildId,
+      enemy_guild_id:    b.challengedGuildId,
+      my_guild_score:    b.myGuildScore,
+      enemy_guild_score: b.enemyGuildScore,
+      phase:             b.phase,
+      started_at:        new Date(b.startedAt).toISOString(),
+      ends_at:           new Date(b.endsAt).toISOString(),
+      started_by:        userId,
+      contributions:     b.contributions,
+      updated_at:        new Date().toISOString(),
+    };
+
+    if (b.supabaseId) {
+      // Güncelle
+      await supabase.from('guild_battles').update(payload).eq('id', b.supabaseId);
+      return b.supabaseId;
+    } else {
+      // Yeni kayıt
+      const { data, error } = await supabase
+        .from('guild_battles')
+        .insert({ ...payload, created_at: new Date().toISOString() })
+        .select('id')
+        .single();
+      if (error) throw error;
+      return data?.id ?? null;
+    }
+  } catch (err) {
+    console.warn('[GuildBattle] Supabase sync hatası:', err);
+    return b.supabaseId;
+  }
+}
+
+function GuildBattleTab({ userGuild, allGuilds, userHashRate, userGuildId, userId, notify }: {
+  userGuild: Guild;
+  allGuilds: Guild[];
+  userHashRate: number;
+  userGuildId: string | null;
+  userId: string | null;
+  notify: any;
+}) {
+  const { theme } = useTheme();
+  const a1 = theme.vars['--ct-a1'];
+
+  // ── Lonca sahibi mi? ─────────────────────────────────────────────────────────
+  const isOwner = userId != null &&
+    ((userGuild as any).owner_id === userId || (userGuild as any).ownerId === userId);
+
+  const [battle, setBattle] = React.useState<BattleState>(() => {
+    try {
+      const saved = localStorage.getItem(BATTLE_STORAGE_KEY);
+      if (saved) return { ...DEFAULT_BATTLE, ...JSON.parse(saved) };
+    } catch {}
+    return DEFAULT_BATTLE;
+  });
+
+  // Önce localStorage'a yaz, ardından Supabase'e sync koy
+  const saveBattle = React.useCallback((b: BattleState) => {
+    setBattle(b);
+    try { localStorage.setItem(BATTLE_STORAGE_KEY, JSON.stringify(b)); } catch {}
+  }, []);
+
+  // ── 10 saniyelik Supabase sync ───────────────────────────────────────────────
+  const syncTimerRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const triggerSync = React.useCallback((current: BattleState) => {
+    if (!userGuildId || !userId || current.phase === 'idle') return;
+    syncBattleToSupabase(current, userGuildId, userId).then(id => {
+      if (id && id !== current.supabaseId) {
+        const updated = { ...current, supabaseId: id, lastSyncedAt: Date.now() };
+        setBattle(updated);
+        try { localStorage.setItem(BATTLE_STORAGE_KEY, JSON.stringify(updated)); } catch {}
+      } else if (id) {
+        const updated = { ...current, lastSyncedAt: Date.now() };
+        setBattle(updated);
+        try { localStorage.setItem(BATTLE_STORAGE_KEY, JSON.stringify(updated)); } catch {}
+      }
+    });
+  }, [userGuildId, userId]);
+
+  React.useEffect(() => {
+    if (battle.phase === 'idle') {
+      if (syncTimerRef.current) { clearInterval(syncTimerRef.current); syncTimerRef.current = null; }
+      return;
+    }
+    // Hemen bir kez sync et
+    triggerSync(battle);
+    // Sonra her 10 sn'de bir
+    syncTimerRef.current = setInterval(() => {
+      setBattle(prev => { triggerSync(prev); return prev; });
+    }, SUPABASE_SYNC_INTERVAL_MS);
+    return () => { if (syncTimerRef.current) clearInterval(syncTimerRef.current); };
+  }, [battle.phase]);
+
+  // ── Savaş bitişi kontrolü ────────────────────────────────────────────────────
+  React.useEffect(() => {
+    if (battle.phase === 'active' && Date.now() > battle.endsAt) {
+      const finished = { ...battle, phase: 'finished' as const };
+      saveBattle(finished);
+      triggerSync(finished);
+    }
+  }, [battle]);
+
+  // ── Countdown ────────────────────────────────────────────────────────────────
+  const [timeLeft, setTimeLeft] = React.useState('');
+  const [syncStatus, setSyncStatus] = React.useState<'synced' | 'pending' | 'error'>('pending');
+
+  React.useEffect(() => {
+    if (battle.phase !== 'active') return;
+    const interval = setInterval(() => {
+      const remaining = battle.endsAt - Date.now();
+      if (remaining <= 0) {
+        const finished = { ...battle, phase: 'finished' as const };
+        saveBattle(finished);
+        triggerSync(finished);
+        clearInterval(interval);
+        return;
+      }
+      const h = Math.floor(remaining / 3600000);
+      const m = Math.floor((remaining % 3600000) / 60000);
+      const s = Math.floor((remaining % 60000) / 1000);
+      setTimeLeft(`${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`);
+      // Sync durumu güncelle
+      const secsSinceSync = (Date.now() - battle.lastSyncedAt) / 1000;
+      setSyncStatus(secsSinceSync < 15 ? 'synced' : secsSinceSync < 30 ? 'pending' : 'error');
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [battle.phase, battle.endsAt, battle.lastSyncedAt]);
+
+  const enemyGuild = allGuilds.find(g => g.id === battle.challengedGuildId);
+  const canContribute = battle.phase === 'active' &&
+    Date.now() - battle.lastContributed > CONTRIBUTE_COOLDOWN_MS;
+
+  // ── Savaş başlat (sadece lonca sahibi) ──────────────────────────────────────
+  const handleChallenge = (guild: Guild) => {
+    if (!isOwner) return;
+    const now = Date.now();
+    const newBattle: BattleState = {
+      ...DEFAULT_BATTLE,
+      phase: 'active',
+      startedAt: now,
+      endsAt: now + BATTLE_DURATION_MS,
+      challengedGuildId: guild.id,
+      myGuildScore: userGuild.totalHash,
+      enemyGuildScore: guild.totalHash * 0.9,
+    };
+    saveBattle(newBattle);
+    // İlk sync hemen
+    triggerSync(newBattle);
+    notify({ type: 'success', title: '⚔️ Savaş Başladı!', message: `${guild.name} loncasına meydan okudun! 48 saat içinde en fazla hash üret.` });
+  };
+
+  const handleContribute = () => {
+    if (!canContribute) return;
+    const contribution = userHashRate;
+    const enemyProgress = battle.enemyGuildScore * (1 + Math.random() * 0.05);
+    const updated: BattleState = {
+      ...battle,
+      myGuildScore: battle.myGuildScore + contribution,
+      enemyGuildScore: enemyProgress,
+      lastContributed: Date.now(),
+      contributions: [...battle.contributions, { time: Date.now(), hash: contribution }].slice(-20),
+    };
+    saveBattle(updated);
+    notify({ type: 'mining', title: '⚡ Katkı Sağlandı!', message: `+${contribution.toFixed(0)} GH/s loncana eklendi!` });
+  };
+
+  const handleReset = () => {
+    const finished = { ...battle, phase: 'finished' as const };
+    triggerSync(finished);
+    setTimeout(() => saveBattle(DEFAULT_BATTLE), 300);
+  };
+
+  const myPct = battle.myGuildScore + battle.enemyGuildScore > 0
+    ? Math.round((battle.myGuildScore / (battle.myGuildScore + battle.enemyGuildScore)) * 100)
+    : 50;
+
+  const challengeable = allGuilds.filter(g => g.id !== userGuildId).slice(0, 5);
+
+  // ── IDLE ────────────────────────────────────────────────────────────────────
+  if (battle.phase === 'idle') return (
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="relative p-5 rounded-[1.5rem] overflow-hidden"
+        style={{ background: 'linear-gradient(135deg, rgba(239,68,68,0.08), rgba(251,146,60,0.05))', border: '1px solid rgba(239,68,68,0.15)' }}>
+        <div className="absolute top-0 right-0 opacity-5"><Swords size={100} /></div>
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.2)' }}>
+            <Swords size={20} className="text-red-400" />
+          </div>
+          <div>
+            <div className="text-sm font-black text-white">Lonca Savaşı</div>
+            <div className="text-[10px] text-zinc-500">48 saatlik hash üretim yarışması</div>
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-2 text-center">
+          {[
+            { icon: '⚔️', label: '48 Saat', sub: 'süre' },
+            { icon: '🏆', label: 'VIP 1 Ay', sub: 'kazanana' },
+            { icon: '⚡', label: 'Hash Gücü', sub: 'belirler' },
+          ].map(item => (
+            <div key={item.label} className="p-2 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)' }}>
+              <div className="text-base mb-1">{item.icon}</div>
+              <div className="text-[10px] font-black text-white">{item.label}</div>
+              <div className="text-[9px] text-zinc-600">{item.sub}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Sadece lonca sahibi görebilir / başlatabilir */}
+      {!isOwner ? (
+        <div className="flex items-center gap-3 p-4 rounded-2xl"
+          style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.08)' }}>
+          <Shield size={16} className="text-zinc-600 shrink-0" />
+          <p className="text-[11px] text-zinc-500 leading-relaxed">
+            Savaş başlatmak için <span className="text-white font-bold">lonca sahibi</span> olman gerekiyor.
+            Lonca kurucusu meydan okuma yapabilir.
+          </p>
+        </div>
+      ) : (
+        <div>
+          <div className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+            <Target size={12} /> Meydan Okuyabileceğin Loncalar
+          </div>
+          {challengeable.length === 0 ? (
+            <div className="p-6 rounded-2xl text-center" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
+              <div className="text-zinc-600 text-sm">Şu an başka lonca yok.</div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {challengeable.map((guild, i) => {
+                const isStronger = guild.totalHash > userGuild.totalHash;
+                return (
+                  <motion.div key={guild.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.06 }}>
+                    <div className="flex items-center gap-3 p-3.5 rounded-2xl"
+                      style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                      <span className="text-2xl">{guild.badge}</span>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-black text-white">{guild.name}</span>
+                          <span className="text-[8px] px-1.5 py-0.5 rounded-full font-bold"
+                            style={{ background: isStronger ? 'rgba(239,68,68,0.12)' : 'rgba(52,211,153,0.12)', color: isStronger ? '#f87171' : '#34d399' }}>
+                            {isStronger ? '▲ Güçlü' : '▼ Zayıf'}
+                          </span>
+                        </div>
+                        <div className="text-[9px] text-zinc-600">{guild.members} üye · {(guild.totalHash / 1000).toFixed(1)} TH/s</div>
+                      </div>
+                      <motion.button whileTap={{ scale: 0.93 }} onClick={() => handleChallenge(guild)}
+                        className="px-3 py-1.5 rounded-xl text-[10px] font-black flex items-center gap-1.5"
+                        style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171' }}>
+                        <Swords size={11} /> Savaş
+                      </motion.button>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
+  // ── ACTIVE ──────────────────────────────────────────────────────────────────
+  if (battle.phase === 'active') return (
+    <div className="space-y-4">
+      {/* Countdown + Sync status */}
+      <div className="flex items-center justify-between p-4 rounded-2xl"
+        style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)' }}>
+        <div className="flex items-center gap-2">
+          <motion.div animate={{ scale: [1, 1.15, 1] }} transition={{ duration: 1.5, repeat: Infinity }}>
+            <Flame size={18} className="text-red-400" />
+          </motion.div>
+          <span className="text-xs font-black text-red-400 uppercase tracking-widest">Savaş Devam Ediyor</span>
+        </div>
+        <div className="flex items-center gap-3">
+          {/* Sync göstergesi */}
+          <div className="flex items-center gap-1.5">
+            <div className="w-1.5 h-1.5 rounded-full"
+              style={{ background: syncStatus === 'synced' ? '#34d399' : syncStatus === 'pending' ? '#fbbf24' : '#f87171',
+                       boxShadow: `0 0 4px ${syncStatus === 'synced' ? '#34d399' : syncStatus === 'pending' ? '#fbbf24' : '#f87171'}` }} />
+            <span className="text-[8px] font-bold uppercase tracking-widest"
+              style={{ color: syncStatus === 'synced' ? '#34d399' : syncStatus === 'pending' ? '#fbbf24' : '#f87171' }}>
+              {syncStatus === 'synced' ? 'Sync' : syncStatus === 'pending' ? 'Sync...' : 'Offline'}
+            </span>
+          </div>
+          <div className="flex items-center gap-1 text-xs font-black" style={{ fontFamily: 'monospace', color: '#f87171' }}>
+            <Clock size={13} />{timeLeft}
+          </div>
+        </div>
+      </div>
+
+      {/* VS Kartı */}
+      <div className="p-5 rounded-[1.5rem]" style={{ background: 'rgba(8,8,12,0.9)', border: '1px solid rgba(239,68,68,0.12)' }}>
+        <div className="flex items-center justify-between mb-4">
+          <div className="text-center flex-1">
+            <div className="text-3xl mb-1">{userGuild.badge}</div>
+            <div className="text-[11px] font-black text-white truncate max-w-[90px]">{userGuild.name}</div>
+            <div className="text-[9px] text-zinc-500">Sen</div>
+          </div>
+          <div className="flex flex-col items-center gap-1">
+            <div className="text-lg font-black text-red-400">VS</div>
+            <Swords size={16} className="text-red-500" />
+          </div>
+          <div className="text-center flex-1">
+            <div className="text-3xl mb-1">{enemyGuild?.badge || '⚔️'}</div>
+            <div className="text-[11px] font-black text-white truncate max-w-[90px]">{enemyGuild?.name || 'Rakip'}</div>
+            <div className="text-[9px] text-zinc-500">Rakip</div>
+          </div>
+        </div>
+
+        {/* Progress Bar */}
+        <div className="mb-3">
+          <div className="flex justify-between text-[9px] font-black uppercase tracking-widest mb-1.5">
+            <span style={{ color: a1 }}>{myPct}%</span>
+            <span className="text-zinc-600">Hash Gücü</span>
+            <span className="text-red-400">{100 - myPct}%</span>
+          </div>
+          <div className="h-3 rounded-full overflow-hidden flex" style={{ background: 'rgba(255,255,255,0.05)' }}>
+            <motion.div animate={{ width: `${myPct}%` }} transition={{ type: 'spring', stiffness: 60 }}
+              className="h-full rounded-l-full"
+              style={{ background: `linear-gradient(90deg, ${a1}, ${theme.vars['--ct-a2']})`, boxShadow: `0 0 10px ${a1}60` }} />
+            <div className="flex-1 rounded-r-full" style={{ background: 'rgba(239,68,68,0.4)' }} />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="p-3 rounded-xl text-center" style={{ background: `${a1}08`, border: `1px solid ${a1}20` }}>
+            <div className="text-[9px] font-bold text-zinc-500 mb-1">Senin Puanın</div>
+            <div className="text-base font-black" style={{ color: a1 }}>{(battle.myGuildScore / 1000).toFixed(1)} TH</div>
+          </div>
+          <div className="p-3 rounded-xl text-center" style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)' }}>
+            <div className="text-[9px] font-bold text-zinc-500 mb-1">Rakip Puanı</div>
+            <div className="text-base font-black text-red-400">{(battle.enemyGuildScore / 1000).toFixed(1)} TH</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Katkı Butonu */}
+      <motion.button whileTap={{ scale: 0.97 }} onClick={handleContribute} disabled={!canContribute}
+        className="w-full py-5 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 transition-all"
+        style={canContribute
+          ? { background: `linear-gradient(135deg, ${a1}, ${theme.vars['--ct-a2']})`, color: '#000', boxShadow: `0 8px 24px ${a1}40` }
+          : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', color: '#52525b' }}>
+        <Zap size={18} fill={canContribute ? 'currentColor' : 'none'} />
+        {canContribute ? `+${userHashRate.toFixed(0)} GH/s Katkı Sağla` : `Katkı bekleniyor (1 dk cooldown)`}
+      </motion.button>
+
+      {/* Son Katkılar */}
+      {battle.contributions.length > 0 && (
+        <div>
+          <div className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mb-2">Son Katkılar</div>
+          <div className="space-y-1.5">
+            {[...battle.contributions].reverse().slice(0, 5).map((c, i) => (
+              <div key={i} className="flex items-center justify-between px-3 py-2 rounded-xl"
+                style={{ background: 'rgba(255,255,255,0.02)' }}>
+                <span className="text-[10px] text-zinc-500">
+                  {new Date(c.time).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                </span>
+                <span className="text-[10px] font-black" style={{ color: a1 }}>+{c.hash.toFixed(0)} GH/s</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  // ── FINISHED ────────────────────────────────────────────────────────────────
+  const won = battle.myGuildScore >= battle.enemyGuildScore;
+  return (
+    <div className="space-y-4">
+      <motion.div initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+        transition={{ type: 'spring', damping: 14 }}
+        className="p-8 rounded-[2rem] text-center"
+        style={{
+          background: won
+            ? `linear-gradient(135deg, ${a1}12, ${theme.vars['--ct-a2']}08)`
+            : 'linear-gradient(135deg, rgba(239,68,68,0.08), rgba(239,68,68,0.04))',
+          border: `1px solid ${won ? a1 : '#f87171'}25`,
+        }}>
+        <motion.div animate={{ rotate: won ? [0, -10, 10, -5, 5, 0] : [] }}
+          transition={{ duration: 0.6, delay: 0.3 }} className="text-6xl mb-4">
+          {won ? '🏆' : '💀'}
+        </motion.div>
+        <div className="text-2xl font-black mb-2" style={{ color: won ? a1 : '#f87171' }}>
+          {won ? 'Zafer!' : 'Yenilgi'}
+        </div>
+        <div className="text-sm text-zinc-400 mb-6">
+          {won ? `${userGuild.name} kazandı! Harika bir savaş.` : `${enemyGuild?.name || 'Rakip'} bu sefer üstün geldi.`}
+        </div>
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          <div className="p-3 rounded-xl" style={{ background: `${a1}08`, border: `1px solid ${a1}20` }}>
+            <div className="text-[9px] text-zinc-500 mb-1">Senin Puanın</div>
+            <div className="text-base font-black" style={{ color: a1 }}>{(battle.myGuildScore / 1000).toFixed(1)} TH</div>
+          </div>
+          <div className="p-3 rounded-xl" style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)' }}>
+            <div className="text-[9px] text-zinc-500 mb-1">Rakip Puanı</div>
+            <div className="text-base font-black text-red-400">{(battle.enemyGuildScore / 1000).toFixed(1)} TH</div>
+          </div>
+        </div>
+        {won && (
+          <div className="p-3 rounded-2xl mb-4" style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)' }}>
+            <div className="text-xs font-black text-amber-400">🎁 Kazanana Özel Ödül</div>
+            <div className="text-[10px] text-zinc-500 mt-1">VIP üyelik veya 500 TP için destek ile iletişime geç</div>
+          </div>
+        )}
+        {isOwner && (
+          <motion.button whileTap={{ scale: 0.97 }} onClick={handleReset}
+            className="w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest"
+            style={{ background: `linear-gradient(135deg, ${a1}, ${theme.vars['--ct-a2']})`, color: '#000' }}>
+            Yeni Savaş Başlat
+          </motion.button>
+        )}
+        {!isOwner && (
+          <div className="text-[10px] text-zinc-600">Yeni savaş için lonca sahibini bekle.</div>
+        )}
+      </motion.div>
     </div>
   );
 }
