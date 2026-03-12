@@ -796,12 +796,28 @@ function gameReducer(state: GameState, action: Action): GameState {
       }
     };
     case 'VIP_ACTIVATE': {
+      const currentTier = state.vip?.tier || 'none';
+      const tierHierarchy: Record<string, number> = { 'none': 0, 'silver': 1, 'gold': 2 };
+      
+      let newExpiresAt: number;
+      // Eğer yükseltme yapılıyorsa veya yeni üyelikse süre sıfırdan başlar
+      if (tierHierarchy[action.tier] > tierHierarchy[currentTier]) {
+        newExpiresAt = Date.now() + action.days * 86400000;
+      } else {
+        // Aynı tier ise (normalde UI'da kilitli ama güvenlik için) mevcut süreye ekle
+        const baseTime = (state.vip?.isActive && state.vip.expiresAt > Date.now()) 
+          ? state.vip.expiresAt 
+          : Date.now();
+        newExpiresAt = baseTime + action.days * 86400000;
+      }
+
       const newVip = {
         isActive: true,
         tier: action.tier,
-        expiresAt: Date.now() + action.days * 86400000,
+        expiresAt: newExpiresAt,
         perks: VIP_PERKS[action.tier] || []
       };
+      
       return {
         ...state,
         tycoonPoints: state.tycoonPoints - action.cost,

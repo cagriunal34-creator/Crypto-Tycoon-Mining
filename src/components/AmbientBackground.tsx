@@ -34,35 +34,63 @@ function useCanvas(draw: DrawFn) {
   return ref;
 }
 
-/* ── Emerald (Premium Mesh) ── */
-function EmeraldAmbient() {
-  const { state } = useGame();
+/* ── Dynamic (Generic) Ambient ── */
+function DynamicAmbient({ color1, color2, bg }: { color1: string, color2: string, bg: string }) {
   const draw = useCallback<DrawFn>((ctx, w, h, f) => {
-    ctx.fillStyle = state.isNight ? '#000511' : '#020202';
+    ctx.fillStyle = bg;
     ctx.fillRect(0, 0, w, h);
 
     const t = f * 0.003;
-    const layers = state.isNight
-      ? [{ x: 0.1, y: 0.2, c: '#4f46e5', r: w * 0.7, s: 1 }, { x: 0.8, y: 0.8, c: '#1e3a8a', r: w * 0.6, s: -0.8 }]
-      : [{ x: 0.2, y: 0.3, c: '#10b981', r: w * 0.6, s: 1 }, { x: 0.8, y: 0.7, c: '#059669', r: w * 0.5, s: -0.8 }];
+    const layers = [
+      { x: 0.2, y: 0.3, c: color1, r: w * 0.7, s: 1 },
+      { x: 0.8, y: 0.7, c: color2, r: w * 0.6, s: -0.8 }
+    ];
 
     layers.forEach((l, i) => {
       const x = (l.x + Math.sin(t * l.s + i) * 0.1) * w;
       const y = (l.y + Math.cos(t * l.s * 0.8 + i) * 0.1) * h;
       const g = ctx.createRadialGradient(x, y, 0, x, y, l.r);
-      g.addColorStop(0, l.c + '12'); g.addColorStop(1, 'transparent');
-      ctx.fillStyle = g; ctx.globalCompositeOperation = 'screen';
+      g.addColorStop(0, l.c + '08'); 
+      g.addColorStop(1, 'transparent');
+      ctx.fillStyle = g; 
+      ctx.globalCompositeOperation = 'screen';
       ctx.fillRect(0, 0, w, h);
     });
+  }, [color1, color2, bg]);
+  const ref = useCanvas(draw);
+  return <canvas ref={ref} style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: -50 }} />;
+}
 
-    if (state.isNight) {
-      ctx.globalCompositeOperation = 'source-over';
-      for (let i = 0; i < 30; i++) {
-        ctx.fillStyle = `rgba(255,255,255,${(Math.sin(t + i) * 0.2 + 0.3)})`;
-        ctx.fillRect(((Math.sin(i * 123) + 1) / 2) * w, ((Math.cos(i * 456) + 1) / 2) * h, 1, 1);
-      }
-    }
-  }, [state.isNight]);
+/* ── Amber Noir (Golden Dust) ── */
+function AmberNoirAmbient() {
+  const particles = useRef(Array.from({ length: 40 }, () => ({
+    x: Math.random(),
+    y: Math.random(),
+    size: Math.random() * 1.5 + 0.5,
+    speed: Math.random() * 0.15 + 0.05,
+    o: Math.random()
+  })));
+
+  const draw = useCallback<DrawFn>((ctx, w, h, f) => {
+    ctx.fillStyle = '#050400';
+    ctx.fillRect(0, 0, w, h);
+    
+    const t = f * 0.005;
+    const g = ctx.createRadialGradient(w * 0.5, h * 0.5, 0, w * 0.5, h * 0.5, w * 0.8);
+    g.addColorStop(0, 'rgba(245, 158, 11, 0.05)');
+    g.addColorStop(1, 'transparent');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+
+    particles.current.forEach(p => {
+      p.y -= p.speed * 0.01;
+      if (p.y < 0) { p.y = 1; p.x = Math.random(); }
+      const px = p.x * w;
+      const py = p.y * h;
+      const alpha = (Math.sin(t + p.o * 10) * 0.3 + 0.4) * 0.6;
+      ctx.beginPath(); ctx.arc(px, py, p.size, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(245, 158, 11, ${alpha})`; ctx.fill();
+    });
+  }, []);
   const ref = useCanvas(draw);
   return <canvas ref={ref} style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: -50 }} />;
 }
@@ -182,6 +210,13 @@ export default function AmbientBackground() {
     case 'deepsea': return <DeepSeaAmbient />;
     case 'lavaforge': return <LavaForgeAmbient />;
     case 'aurora': return <AuroraAmbient />;
-    default: return <EmeraldAmbient />;
+    case 'amber-noir': return <AmberNoirAmbient />;
+    default: return (
+      <DynamicAmbient 
+        color1={theme.vars['--ct-a1']} 
+        color2={theme.vars['--ct-a2']} 
+        bg={theme.vars['--ct-bg']} 
+      />
+    );
   }
 }

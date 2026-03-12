@@ -192,22 +192,39 @@ export default function VIPScreen() {
                     { days: 7,  cost: plan.cost7,  label: '7 Gün' },
                     { days: 30, cost: plan.cost30, label: '30 Gün' },
                   ].map(opt => {
+                    const tierHierarchy: Record<string, number> = { 'silver': 1, 'gold': 2 };
+                    const currentTierRank = isVipActive ? (tierHierarchy[state.vip.tier as keyof typeof tierHierarchy] || 0) : 0;
+                    const planTierRank = tierHierarchy[plan.tier as keyof typeof tierHierarchy] || 0;
+                    
+                    const isHigherTier = planTierRank > currentTierRank;
+                    const isSameTier = plan.tier === state.vip?.tier && isVipActive;
+                    const canPurchase = !isVipActive || isHigherTier;
                     const canAfford = state.tycoonPoints >= opt.cost;
+                    
+                    const isDisabled = !canPurchase || !canAfford;
+
                     return (
                       <motion.button key={opt.days}
-                        whileTap={canAfford ? { scale: 0.96 } : {}}
-                        onClick={() => canAfford && setConfirmPlan({ tier: plan.tier, days: opt.days, cost: opt.cost })}
+                        whileTap={!isDisabled ? { scale: 0.96 } : {}}
+                        onClick={() => !isDisabled && setConfirmPlan({ tier: plan.tier, days: opt.days, cost: opt.cost })}
                         className="py-3 rounded-2xl text-center transition-all"
-                        style={canAfford
+                        style={!isDisabled
                           ? { background: `${c}12`, border: `1px solid ${c}30`, cursor: 'pointer' }
                           : { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', cursor: 'not-allowed', opacity: 0.5 }}>
-                        <div className="text-xs font-black" style={{ color: canAfford ? c : theme.vars['--ct-muted'] }}>
-                          {opt.cost.toLocaleString()} TP
+                        <div className="text-xs font-black" style={{ color: !isDisabled ? c : theme.vars['--ct-muted'] }}>
+                          {isSameTier ? 'AKTİF' : `${opt.cost.toLocaleString()} TP`}
                         </div>
-                        <div className="text-[9px]" style={{ color: theme.vars['--ct-muted'] }}>{opt.label}</div>
-                        {!canAfford && (
+                        <div className="text-[9px]" style={{ color: theme.vars['--ct-muted'] }}>
+                          {isSameTier ? 'Mevcut Paket' : opt.label}
+                        </div>
+                        {(!canAfford && canPurchase) && (
                           <div className="text-[8px] text-red-400 mt-0.5">
                             -{(opt.cost - state.tycoonPoints).toLocaleString()} TP
+                          </div>
+                        )}
+                        {isVipActive && !isHigherTier && !isSameTier && (
+                          <div className="text-[8px] text-zinc-500 mt-0.5">
+                            Düşük Seviye
                           </div>
                         )}
                       </motion.button>

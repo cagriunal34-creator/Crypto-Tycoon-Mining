@@ -7,6 +7,7 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { Zap, Flame, Trophy, Star, TrendingUp, ChevronRight } from 'lucide-react';
 import { useGame } from '../context/GameContext';
+import { useTheme } from '../context/ThemeContext';
 import { cn } from '../lib/utils';
 
 const LEVEL_PERKS: Record<number, string[]> = {
@@ -34,6 +35,10 @@ function StreakBadge({ streak }: { streak: number }) {
 
 export default function ProgressionPanel() {
   const { state } = useGame();
+  const { theme } = useTheme();
+  
+  const a1 = theme.vars['--ct-a1'];
+  
   const xpPercent = Math.round((state.xp / state.xpToNextLevel) * 100);
   const nextPerks = LEVEL_PERKS[state.level + 1] || ['Max seviyeye ulaştın!'];
 
@@ -43,9 +48,10 @@ export default function ProgressionPanel() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="relative">
-            <div className="absolute inset-0 bg-emerald-500/20 blur-md rounded-full"></div>
-            <div className="relative w-12 h-12 rounded-lg bg-[#0a0a0a] border border-emerald-500/30 flex items-center justify-center shadow-[0_0_15px_rgba(16,185,129,0.1)]">
-              <span className="text-xl font-black text-emerald-400 drop-shadow-[0_0_5px_rgba(16,185,129,0.5)]">{state.level}</span>
+            <div className="absolute inset-0 blur-md rounded-full" style={{ background: `${a1}30` }}></div>
+            <div className="relative w-12 h-12 rounded-lg bg-[#0a0a0a] border flex items-center justify-center shadow-lg"
+                 style={{ borderColor: `${a1}40`, boxShadow: `0 0 15px ${a1}20` }}>
+              <span className="text-xl font-black italic" style={{ color: a1, filter: `drop-shadow(0 0 5px ${a1}80)` }}>{state.level}</span>
             </div>
             <div className="absolute -bottom-1.5 -right-1.5 w-5 h-5 bg-[#0a0a0a] rounded-full flex items-center justify-center border border-yellow-500/50 shadow-[0_0_10px_rgba(234,179,8,0.2)]">
               <Star size={10} className="text-yellow-500" fill="currentColor" />
@@ -54,7 +60,8 @@ export default function ProgressionPanel() {
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-black text-white tracking-tight uppercase">SEVİYE {state.level}</h3>
-              <div className="px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-[8px] font-black text-emerald-400 uppercase tracking-widest">
+              <div className="px-1.5 py-0.5 rounded border text-[8px] font-black uppercase tracking-widest"
+                   style={{ background: `${a1}10`, borderColor: `${a1}20`, color: a1 }}>
                 {state.rankTitle}
               </div>
             </div>
@@ -73,7 +80,8 @@ export default function ProgressionPanel() {
             initial={{ width: 0 }}
             animate={{ width: `${xpPercent}%` }}
             transition={{ duration: 1, ease: 'easeOut' }}
-            className="h-full bg-emerald-500 relative"
+            className="h-full relative"
+            style={{ background: a1 }}
           >
             <div className="absolute right-0 top-1/2 -translate-y-1/2 w-2 h-2 bg-white rounded-full blur-[2px] shadow-[0_0_10px_#fff]"></div>
             <div className="absolute inset-0 bg-gradient-to-r from-transparent to-white/50"></div>

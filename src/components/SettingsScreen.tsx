@@ -4,6 +4,7 @@ import {
   ChevronRight, Heart, MessageSquare, Palette, Check, Crown, Star, Smartphone
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { ThemeConfig } from '../context/themes';
 import { cn } from '../lib/utils';
 import { useTheme } from '../context/ThemeContext';
 import { useGame } from '../context/GameContext';
@@ -151,7 +152,7 @@ export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: st
                 <div className="flex-1 h-px" style={{ background: `${a1}20` }} />
               </div>
               <div className="grid grid-cols-2 gap-3">
-                {allThemes.filter(t => ['obsidian','amber-noir','violet-core'].includes(t.id)).map(t => (
+                {allThemes.filter(t => ['obsidian','amber-noir','violet-core','arctic-dawn'].includes(t.id)).map(t => (
                   <ThemeCard key={t.id} theme={t} isActive={theme.id === t.id} onSelect={() => handleSelectTheme(t.id)} />
                 ))}
               </div>
@@ -167,7 +168,7 @@ export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: st
                 <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.06)' }} />
               </div>
               <div className="grid grid-cols-2 gap-3">
-                {allThemes.filter(t => !['obsidian','amber-noir','violet-core'].includes(t.id)).map(t => (
+                {allThemes.filter(t => !['obsidian','amber-noir','violet-core','arctic-dawn'].includes(t.id)).map(t => (
                   <ThemeCard key={t.id} theme={t} isActive={theme.id === t.id} onSelect={() => handleSelectTheme(t.id)} />
                 ))}
               </div>
@@ -206,7 +207,7 @@ export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: st
                   style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: `${a1}06` }}>
                   <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: a1 }}>⭐ Premium</span>
                 </div>
-                {allThemes.filter(t => ['obsidian','amber-noir','violet-core'].includes(t.id)).map((t, i, arr) => (
+                {allThemes.filter(t => ['obsidian','amber-noir','violet-core','arctic-dawn'].includes(t.id)).map((t, i, arr) => (
                   <button key={t.id} onClick={() => handleSelectTheme(t.id)}
                     className="w-full flex items-start gap-4 p-4 text-left hover:bg-white/5 transition-colors"
                     style={{
@@ -247,7 +248,7 @@ export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: st
                   style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.02)' }}>
                   <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: 'var(--ct-muted, #71717a)' }}>Klasik</span>
                 </div>
-                {allThemes.filter(t => !['obsidian','amber-noir','violet-core'].includes(t.id)).map((t, i, arr) => (
+                {allThemes.filter(t => !['obsidian','amber-noir','violet-core','arctic-dawn'].includes(t.id)).map((t, i, arr) => (
                   <button key={t.id} onClick={() => handleSelectTheme(t.id)}
                     className="w-full flex items-start gap-4 p-4 text-left hover:bg-white/5 transition-colors"
                     style={{

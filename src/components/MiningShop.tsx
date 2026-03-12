@@ -159,10 +159,7 @@ function MarketCard({ item, idx, onPurchase, usdRate }: { item: DynamicMiningIte
 export default function MiningShop({ onPurchaseSuccess, onWatchAd }: { onPurchaseSuccess: () => void; onWatchAd: () => void }) {
   const { state, dispatch, redeemPromoCode, adBoostMining } = useGame();
   const { notify } = useNotify();
-  const [activeTab, setActiveTab] = useState<'buy' | 'owned' | 'promo'>('buy');
-  const [promoCode, setPromoCode] = useState('');
-  const [promoLoading, setPromoLoading] = useState(false);
-  const [promoResult, setPromoResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [activeTab, setActiveTab] = useState<'buy' | 'owned'>('buy');
   const dynamicItems = state.dynamicMiningItems || [];
   const usdRate = state.usdRate || 91200;
 
@@ -212,20 +209,10 @@ export default function MiningShop({ onPurchaseSuccess, onWatchAd }: { onPurchas
     onWatchAd();
   };
 
-  const handleRedeemPromo = async () => {
-    if (!promoCode.trim()) return;
-    setPromoLoading(true); setPromoResult(null);
-    const result = await redeemPromoCode(promoCode.trim());
-    setPromoResult(result);
-    if (result.success) { notify({ type: 'success', title: '🎁 Promo!', message: result.message }); setPromoCode(''); }
-    else notify({ type: 'warning', title: 'Geçersiz Kod', message: result.message });
-    setPromoLoading(false);
-  };
 
   const tabs = [
     { id: 'buy' as const, label: 'Market', count: dynamicItems.length },
     { id: 'owned' as const, label: 'Filom', count: state.ownedContracts?.length || 0 },
-    { id: 'promo' as const, label: 'Promo', count: null },
   ];
 
   return (
@@ -354,47 +341,6 @@ export default function MiningShop({ onPurchaseSuccess, onWatchAd }: { onPurchas
         </div>
       )}
 
-      {/* Promo */}
-      {activeTab === 'promo' && (
-        <div className="space-y-5">
-          <div className="p-6 rounded-2xl bg-white/[0.03] border border-white/10 space-y-5">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center"><Tag size={18} className="text-emerald-400" /></div>
-              <div><p className="font-black text-white text-sm">Promo Kodu Kullan</p><p className="text-zinc-500 text-[10px]">BTC ve TP ödülleri kazan</p></div>
-            </div>
-            <div className="space-y-3">
-              <input type="text" value={promoCode}
-                onChange={e => { setPromoCode(e.target.value.toUpperCase()); setPromoResult(null); }}
-                onKeyDown={e => e.key === 'Enter' && handleRedeemPromo()}
-                placeholder="PROMO KODUNU GİR..."
-                className="w-full h-12 px-4 bg-white/5 border border-white/10 rounded-xl text-white font-black text-sm uppercase tracking-widest placeholder:text-zinc-700 focus:outline-none focus:border-emerald-500/50 transition-colors" />
-              <button onClick={handleRedeemPromo} disabled={!promoCode.trim() || promoLoading}
-                className="w-full h-12 rounded-xl bg-emerald-500 text-black font-black text-sm uppercase tracking-widest hover:bg-emerald-400 active:scale-95 transition-all disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20">
-                {promoLoading ? <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" /> : <Gift size={16} />}
-                {promoLoading ? 'Kontrol Ediliyor...' : 'Kodu Kullan'}
-              </button>
-            </div>
-            <AnimatePresence>
-              {promoResult && (
-                <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                  className={cn('flex items-center gap-3 p-4 rounded-xl border', promoResult.success ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-red-500/10 border-red-500/30')}>
-                  {promoResult.success ? <CheckCircle2 size={18} className="text-emerald-400 shrink-0" /> : <AlertTriangle size={18} className="text-red-400 shrink-0" />}
-                  <p className={cn('text-sm font-bold', promoResult.success ? 'text-emerald-300' : 'text-red-300')}>{promoResult.message}</p>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-          <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-2">
-            <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest mb-3">Nasıl Çalışır?</p>
-            {['Admin panelinden oluşturulan kodları gir', 'Her kodu sadece bir kez kullanabilirsin', 'Kodlar BTC ve/veya TP ödülü içerebilir', 'Süresi dolmuş kodlar geçersizdir'].map((tip, i) => (
-              <div key={i} className="flex items-start gap-2">
-                <span className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-400 text-[8px] font-black flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
-                <p className="text-zinc-500 text-[10px] font-bold">{tip}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

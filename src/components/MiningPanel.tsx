@@ -275,15 +275,16 @@ export default function MiningPanel({
         {/* Left Column: Visuals & Core Status (4 cols) */}
         <div className="lg:col-span-4 space-y-6">
           <div className="glass-card p-8 flex flex-col items-center justify-center relative overflow-hidden group">
-            <div className="absolute inset-0 bg-emerald-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: `${a1}05` }} />
             <BTC3D />
             <div className="mt-8 text-center">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 mb-3">
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Sistem Aktif</span>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border mb-3"
+                   style={{ background: `${a1}10`, borderColor: `${a1}20` }}>
+                <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: a1 }} />
+                <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: a1 }}>Sistem Aktif</span>
               </div>
               <h3 className="text-3xl font-black italic tracking-tighter text-white">
-                {effectiveHashRate.toFixed(1)} <span className="text-emerald-500 text-lg">GH/S</span>
+                {effectiveHashRate.toFixed(1)} <span className="text-lg" style={{ color: a1 }}>GH/S</span>
               </h3>
             </div>
           </div>
@@ -306,8 +307,8 @@ export default function MiningPanel({
               />
               <div className="grid grid-cols-2 gap-3">
                 <div className="glass-card p-4 flex flex-col gap-2">
-                  <TrendingUp size={16} className="text-emerald-400" />
-                  <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Donanım Sağlığı</span>
+                  <TrendingUp size={16} style={{ color: a1 }} />
+                  <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: 'var(--ct-muted)' }}>Donanım Sağlığı</span>
                   <span className="text-sm font-black text-white">
                     {state.ownedContracts.length > 0
                       ? `%${(state.ownedContracts.reduce((acc, c) => acc + c.condition, 0) / state.ownedContracts.length).toFixed(1)}`
@@ -316,7 +317,7 @@ export default function MiningPanel({
                 </div>
                 <div className="glass-card p-4 flex flex-col gap-2">
                   <Zap size={16} className="text-yellow-500" />
-                  <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Enerji Gideri</span>
+                  <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: 'var(--ct-muted)' }}>Enerji Gideri</span>
                   <span className="text-sm font-black text-white">
                     {Math.floor(state.farmSettings.baseElectricityCost * (1 - (state.farmSettings.powerSupplyLevel - 1) * 0.1))} TP/dk
                   </span>
@@ -328,8 +329,8 @@ export default function MiningPanel({
               <div className="p-6 h-full flex flex-col">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
-                    <div className="w-1 h-3 rounded-full bg-emerald-500" />
-                    <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Canlı Hashrate</h3>
+                    <div className="w-1 h-3 rounded-full" style={{ background: a1 }} />
+                    <h3 className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'var(--ct-muted)' }}>Canlı Hashrate</h3>
                   </div>
                 </div>
                 <div className="flex-1">
@@ -375,8 +376,8 @@ export default function MiningPanel({
             <div className="premium-glass p-6 rounded-3xl space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <TrendingUp size={16} className={dailyCapReached ? "text-red-400" : "text-emerald-500"} />
-                  <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Günlük Limit</h3>
+                  <TrendingUp size={16} style={{ color: dailyCapReached ? '#EF4444' : a1 }} />
+                  <h3 className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'var(--ct-muted)' }}>Günlük Limit</h3>
                 </div>
                 <span className="text-xs font-black italic text-white">{dailyEarnedBtc.toFixed(8)} BTC</span>
               </div>
@@ -388,56 +389,44 @@ export default function MiningPanel({
                   style={{ background: dailyCapReached ? '#EF4444' : a1 }}
                 />
               </div>
-              <p className="text-[10px] text-zinc-500 font-bold text-center uppercase tracking-widest">
+              <p className="text-[10px] font-bold text-center uppercase tracking-widest" style={{ color: 'var(--ct-muted)' }}>
                 {dailyCapReached ? 'Günlük kazanç limitine ulaşıldı' : `Kapasite: %${dailyEarnedPct.toFixed(1)}`}
               </p>
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <button onClick={() => onNavigate('vip')} className="premium-glass p-4 rounded-2xl flex flex-col items-center gap-2 hover:bg-white/5 transition-all">
-              <Crown size={20} className="text-yellow-500" />
-              <span className="text-[10px] font-black uppercase tracking-widest">VIP</span>
-            </button>
-            <button onClick={() => onNavigate('battlepass')} className="premium-glass p-4 rounded-2xl flex flex-col items-center gap-2 hover:bg-white/5 transition-all">
-              <Star size={20} className="text-emerald-500" />
-              <span className="text-[10px] font-black uppercase tracking-widest">PASS</span>
-            </button>
-            <button onClick={() => onNavigate('marketplace')} className="premium-glass p-4 rounded-2xl flex flex-col items-center gap-2 hover:bg-white/5 transition-all">
-              <ShoppingCart size={20} className="text-blue-500" />
-              <span className="text-[10px] font-black uppercase tracking-widest">PAZAR</span>
-            </button>
-            <button onClick={handleWatchAd} className="premium-glass p-4 rounded-2xl flex flex-col items-center gap-2 hover:bg-white/5 transition-all">
-              <Gift size={20} className="text-orange-500" />
-              <span className="text-[10px] font-black uppercase tracking-widest">BONUS</span>
-            </button>
-          </div>
-
-          <motion.button 
-            whileTap={{ scale: 0.98 }}
-            onClick={() => {
-              dispatch({ type: 'AD_BOOST_MINING', hoursEquivalent: 1 });
-              notify({ type: 'mining', title: '⚡ Madencilik Hızlandı!', message: '1 saatlik kazanç anında eklendi.' });
-            }}
-            className="w-full py-6 rounded-3xl relative overflow-hidden font-black text-lg uppercase tracking-[0.2em] text-white shadow-2xl"
-            style={{ background: `linear-gradient(135deg,${a1},${a2})` }}>
-            <div className="absolute inset-0 bg-white/10 opacity-0 hover:opacity-100 transition-opacity" />
-            <div className="flex items-center justify-center gap-3 relative z-10">
-              <Zap size={24} fill="currentColor" className="animate-pulse" />
-              <span>Hızlandırılmış Madencilik</span>
-            </div>
-          </motion.button>
         </div>
       </div>
 
-      <div className="flex items-center justify-center gap-8 opacity-30 pt-8">
+      <div className="flex items-center justify-center gap-8 opacity-30 pt-8 pb-4">
         <button className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:opacity-100 transition-opacity">
           <HelpCircle size={14} /><span>Yardım Merkezi</span>
         </button>
         <button className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:opacity-100 transition-opacity">
           <Info size={14} /><span>Sistem Rehberi</span>
         </button>
+      </div>
+
+      {/* Action Buttons - Absolute bottom for user request */}
+      <div className="flex justify-center w-full pt-4 pb-12">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 w-full max-w-lg px-4">
+          <button onClick={() => onNavigate('vip')} className="premium-glass p-4 rounded-2xl flex flex-col items-center gap-2 hover:bg-white/5 transition-all">
+            <Crown size={20} className="text-yellow-500" />
+            <span className="text-[10px] font-black uppercase tracking-widest">VIP</span>
+          </button>
+          <button onClick={() => onNavigate('battlepass')} className="premium-glass p-4 rounded-2xl flex flex-col items-center gap-2 hover:bg-white/5 transition-all">
+            <Star size={20} style={{ color: a1 }} />
+            <span className="text-[10px] font-black uppercase tracking-widest">PASS</span>
+          </button>
+          <button onClick={() => onNavigate('marketplace')} className="premium-glass p-4 rounded-2xl flex flex-col items-center gap-2 hover:bg-white/5 transition-all">
+            <ShoppingCart size={20} className="text-blue-500" />
+            <span className="text-[10px] font-black uppercase tracking-widest">PAZAR</span>
+          </button>
+          <button onClick={handleWatchAd} className="premium-glass p-4 rounded-2xl flex flex-col items-center gap-2 hover:bg-white/5 transition-all">
+            <Gift size={20} className="text-orange-500" />
+            <span className="text-[10px] font-black uppercase tracking-widest">BONUS</span>
+          </button>
+        </div>
       </div>
     </div>
   );

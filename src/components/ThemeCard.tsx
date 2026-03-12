@@ -1,7 +1,8 @@
 import React from 'react';
 import { Check } from 'lucide-react';
 import { motion } from 'motion/react';
-import { ThemeConfig } from '../context/ThemeContext';
+import { ThemeConfig } from '../context/themes';
+import { useTheme } from '../context/ThemeContext';
 
 interface Props {
   key?: React.Key;

@@ -69,25 +69,26 @@ const WebSidebar: React.FC<WebSidebarProps> = ({ activeScreen, onNavigate }) => 
         </div>
         <div>
           <h1 className="text-lg font-black tracking-tighter text-white uppercase italic leading-none">Crypto</h1>
-          <p className="text-[10px] font-black tracking-[0.2em] text-emerald-500 uppercase">Tycoon</p>
+          <p className="text-[10px] font-black tracking-[0.2em] uppercase" style={{ color: a1 }}>Tycoon</p>
         </div>
       </div>
 
       {/* Profile Summary */}
       <div className="p-6 border-b border-white/5 bg-white/5">
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500 font-black">
+          <div className="w-10 h-10 rounded-full flex items-center justify-center font-black"
+               style={{ background: `${a1}15`, border: `1px solid ${a1}30`, color: a1 }}>
             {state.username?.[0]?.toUpperCase() || 'U'}
           </div>
           <div className="overflow-hidden">
             <p className="text-sm font-bold truncate text-white">{state.username}</p>
-            <p className="text-[10px] font-black text-emerald-500 uppercase">Lv.{state.level} Madenci</p>
+            <p className="text-[10px] font-black uppercase" style={{ color: a1 }}>Lv.{state.level} Madenci</p>
           </div>
         </div>
         <div className="space-y-2">
           <div className="flex justify-between items-center text-[10px]">
-            <span className="text-zinc-500 font-bold uppercase tracking-widest">BTC Bakiyesi</span>
-            <span className="text-emerald-400 font-black">
+            <span className="font-bold uppercase tracking-widest" style={{ color: 'var(--ct-muted)' }}>BTC Bakiyesi</span>
+            <span className="font-black" style={{ color: a1 }}>
               <AnimatedNumber value={state.btcBalance} precision={8} />
             </span>
           </div>
@@ -95,7 +96,8 @@ const WebSidebar: React.FC<WebSidebarProps> = ({ activeScreen, onNavigate }) => 
             <motion.div 
               initial={{ width: 0 }}
               animate={{ width: `${(state.xp / state.xpToNextLevel) * 100}%` }}
-              className="h-full bg-emerald-500"
+              className="h-full"
+              style={{ background: a1 }}
             />
           </div>
         </div>
@@ -105,7 +107,7 @@ const WebSidebar: React.FC<WebSidebarProps> = ({ activeScreen, onNavigate }) => 
       <div className="flex-1 overflow-y-auto py-4 px-3 space-y-6 no-scrollbar">
         {navGroups.map((group, gIdx) => (
           <div key={gIdx} className="space-y-1">
-            <h3 className="px-4 text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em] mb-2">{group.label}</h3>
+            <h3 className="px-4 text-[9px] font-black uppercase tracking-[0.3em] mb-2" style={{ color: 'var(--ct-muted)' }}>{group.label}</h3>
             {group.items.map((item) => {
               const Icon = item.icon;
               const isActive = activeScreen === item.id;
@@ -115,16 +117,18 @@ const WebSidebar: React.FC<WebSidebarProps> = ({ activeScreen, onNavigate }) => 
                   onClick={() => onNavigate(item.id)}
                   className={cn(
                     "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-300 group relative",
-                    isActive ? "bg-emerald-500/10 text-emerald-400" : "text-zinc-500 hover:text-zinc-300 hover:bg-white/5"
+                    isActive ? "bg-white/5" : "hover:text-zinc-300 hover:bg-white/5"
                   )}
+                  style={{ color: isActive ? a1 : 'var(--ct-muted)' }}
                 >
                   {isActive && (
                     <motion.div 
                       layoutId="active-sidebar"
-                      className="absolute left-0 w-1 h-5 bg-emerald-500 rounded-r-full"
+                      className="absolute left-0 w-1 h-5 rounded-r-full"
+                      style={{ background: a1, boxShadow: `0 0 10px ${a1}` }}
                     />
                   )}
-                  <Icon size={18} className={cn("transition-transform group-hover:scale-110", isActive && "text-emerald-500")} />
+                  <Icon size={18} className="transition-transform group-hover:scale-110" style={{ color: isActive ? a1 : 'inherit' }} />
                   <span className="text-xs font-bold tracking-tight">{item.label}</span>
                 </button>
               );
@@ -139,15 +143,17 @@ const WebSidebar: React.FC<WebSidebarProps> = ({ activeScreen, onNavigate }) => 
           onClick={() => onNavigate('inbox')}
           className={cn(
             "w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all",
-            activeScreen === 'inbox' ? "bg-emerald-500/10 text-emerald-400" : "text-zinc-500 hover:text-zinc-300 hover:bg-white/5"
+            activeScreen === 'inbox' ? "bg-white/5" : "hover:text-zinc-300 hover:bg-white/5"
           )}
+          style={{ color: activeScreen === 'inbox' ? a1 : 'var(--ct-muted)' }}
         >
           <div className="flex items-center gap-3">
             <Bell size={18} />
             <span className="text-xs font-bold">Bildirimler</span>
           </div>
           {(state.inboxNotifications?.filter(n => !n.read).length || 0) > 0 && (
-            <span className="w-5 h-5 rounded-full bg-red-500 text-white text-[9px] font-black flex items-center justify-center border border-zinc-950">
+            <span className="w-5 h-5 rounded-full text-white text-[9px] font-black flex items-center justify-center border border-zinc-950"
+                  style={{ background: a1 }}>
               {state.inboxNotifications.filter(n => !n.read).length}
             </span>
           )}
@@ -156,8 +162,9 @@ const WebSidebar: React.FC<WebSidebarProps> = ({ activeScreen, onNavigate }) => 
           onClick={() => onNavigate('settings')}
           className={cn(
             "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all",
-            activeScreen === 'settings' ? "bg-emerald-500/10 text-emerald-400" : "text-zinc-500 hover:text-zinc-300 hover:bg-white/5"
+            activeScreen === 'settings' ? "bg-white/5" : "hover:text-zinc-300 hover:bg-white/5"
           )}
+          style={{ color: activeScreen === 'settings' ? a1 : 'var(--ct-muted)' }}
         >
           <Settings size={18} />
           <span className="text-xs font-bold">Ayarlar</span>

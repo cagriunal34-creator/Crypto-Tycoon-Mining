@@ -19,6 +19,7 @@
  */
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
+import { useTheme } from '../context/ThemeContext';
 
 interface Props {
     /** Mevcut pil seviyesi 0–100 */
@@ -102,11 +103,14 @@ export default function BatteryWidget({
         return () => clearInterval(id);
     }, [cfg, isCharging, staticDisplay, onLevelChange]);
 
+    const { theme } = useTheme();
+    const a1 = theme.vars['--ct-a1'];
+
     const pct       = Math.max(0, Math.min(100, lvl));
     const isLow     = pct < 25;
     const isCrit    = pct < 15;
-    const fill      = pct > 55 ? '#22c55e' : pct > 25 ? '#f59e0b' : '#ef4444';
-    const glow      = pct > 55 ? 'rgba(34,197,94,0.55)' : pct > 25 ? 'rgba(245,158,11,0.55)' : 'rgba(239,68,68,0.75)';
+    const fill      = pct > 55 ? a1 : pct > 25 ? '#f59e0b' : '#ef4444';
+    const glow      = pct > 55 ? `${a1}88` : pct > 25 ? 'rgba(245,158,11,0.55)' : 'rgba(239,68,68,0.75)';
     const statusLbl = pct > 55 ? 'Dolu' : pct > 25 ? 'Orta' : pct > 10 ? 'Düşük' : 'Kritik';
 
     /* ── COMPACT (yatay) ── */
