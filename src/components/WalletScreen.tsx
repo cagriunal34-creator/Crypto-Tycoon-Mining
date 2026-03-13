@@ -11,9 +11,11 @@ import {
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useGame } from '../context/GameContext';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function WalletScreen({ onOpenWithdraw }: { onOpenWithdraw: () => void }) {
   const { state, btcToUsd, formatBtc } = useGame();
+  const { t } = useLanguage();
   const [activeFilter, setActiveFilter] = React.useState<'all' | 'incoming' | 'outgoing' | 'mining'>('all');
   const [hideBalance, setHideBalance] = React.useState(false);
   const [isReceiveOpen, setIsReceiveOpen] = React.useState(false);
@@ -38,10 +40,10 @@ export default function WalletScreen({ onOpenWithdraw }: { onOpenWithdraw: () =>
 
   const formatDate = (ts: number) => {
     const diff = Date.now() - ts;
-    if (diff < 60000) return 'Az önce';
-    if (diff < 3600000) return `${Math.floor(diff / 60000)} dk önce`;
-    if (diff < 86400000) return `${Math.floor(diff / 3600000)} sa önce`;
-    return `${Math.floor(diff / 86400000)} gün önce`;
+    if (diff < 60000) return t('wallet.time.just_now');
+    if (diff < 3600000) return `${Math.floor(diff / 60000)} ${t('wallet.time.mins_ago')}`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)} ${t('wallet.time.hours_ago')}`;
+    return `${Math.floor(diff / 86400000)} ${t('wallet.time.days_ago')}`;
   };
 
   return (
@@ -51,7 +53,7 @@ export default function WalletScreen({ onOpenWithdraw }: { onOpenWithdraw: () =>
         <div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-500/20 to-emerald-700/20 rounded-3xl blur opacity-30" />
         <div className="relative bg-gradient-to-br from-[#0f1712] to-[#050505] border border-emerald-500/20 rounded-3xl p-6 space-y-5">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Toplam Bakiye</span>
+            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{t('wallet.total_balance')}</span>
             <button onClick={() => setHideBalance(v => !v)} className="p-1.5 rounded-lg hover:bg-white/5 transition-colors">
               {hideBalance ? <EyeOff size={16} className="text-zinc-500" /> : <Eye size={16} className="text-zinc-500" />}
             </button>
@@ -75,7 +77,7 @@ export default function WalletScreen({ onOpenWithdraw }: { onOpenWithdraw: () =>
           <div className="flex items-center gap-3">
             <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
               <TrendingUp size={12} className="text-emerald-500" />
-              <span className="text-[10px] text-emerald-500 font-bold">+4.2% Son 24s</span>
+              <span className="text-[10px] text-emerald-500 font-bold">+4.2% {t('wallet.stats.24h')}</span>
             </div>
             <span className="text-[9px] text-zinc-600 font-mono">${state.usdRate.toLocaleString()}/BTC</span>
           </div>
@@ -85,11 +87,11 @@ export default function WalletScreen({ onOpenWithdraw }: { onOpenWithdraw: () =>
       {/* Quick Actions */}
       <div className="grid grid-cols-3 gap-3">
         {[
-          { icon: ArrowUpRight, label: 'GÖNDER', color: 'bg-emerald-500 text-black', action: onOpenWithdraw },
-          { icon: ArrowDownLeft, label: 'AL', color: 'bg-zinc-900 text-emerald-500 border border-white/5', action: () => setIsReceiveOpen(true) },
-          { icon: RefreshCw, label: 'DEĞİŞTİR', color: 'bg-zinc-900 text-emerald-500 border border-white/5', action: () => {
+          { icon: ArrowUpRight, label: t('wallet.btn.send'), color: 'bg-emerald-500 text-black', action: onOpenWithdraw },
+          { icon: ArrowDownLeft, label: t('wallet.btn.receive'), color: 'bg-zinc-900 text-emerald-500 border border-white/5', action: () => setIsReceiveOpen(true) },
+          { icon: RefreshCw, label: t('wallet.btn.swap'), color: 'bg-zinc-900 text-emerald-500 border border-white/5', action: () => {
             // Swap özelliği - yakında eklenecek
-            alert('Yakında: BTC ↔ USDT dönüşümü');
+            alert(t('wallet.swap_soon'));
           } },
         ].map(action => (
           <button
@@ -113,8 +115,8 @@ export default function WalletScreen({ onOpenWithdraw }: { onOpenWithdraw: () =>
             <WalletIcon size={24} />
           </div>
           <div className="text-left">
-            <h4 className="text-sm font-bold">BTC ÇEK</h4>
-            <p className="text-[10px] text-zinc-500">Harici Cüzdana Transfer</p>
+            <h4 className="text-sm font-bold">{t('wallet.btn.withdraw_btc')}</h4>
+            <p className="text-[10px] text-zinc-500">{t('wallet.withdraw_hint')}</p>
           </div>
         </div>
         <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-emerald-500 group-hover:text-black transition-all">
@@ -125,17 +127,17 @@ export default function WalletScreen({ onOpenWithdraw }: { onOpenWithdraw: () =>
       {/* Transactions */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold tracking-tight">Son İşlemler</h3>
-          <span className="text-[9px] text-zinc-500">{(state.transactions || []).length} işlem</span>
+          <h3 className="text-sm font-bold tracking-tight">{t('wallet.last_transactions')}</h3>
+          <span className="text-[9px] text-zinc-500">{(state.transactions || []).length} {t('wallet.tx_count')}</span>
         </div>
 
         {/* Filter Tabs */}
         <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
           {([
-            { key: 'all', label: 'Tümü' },
-            { key: 'incoming', label: 'Gelen' },
-            { key: 'outgoing', label: 'Giden' },
-            { key: 'mining', label: 'Kazanç' },
+            { key: 'all', label: t('wallet.filter.all') },
+            { key: 'incoming', label: t('wallet.filter.incoming') },
+            { key: 'outgoing', label: t('wallet.filter.outgoing') },
+            { key: 'mining', label: t('wallet.filter.mining') },
           ] as const).map(tab => (
             <button
               key={tab.key}
@@ -152,7 +154,7 @@ export default function WalletScreen({ onOpenWithdraw }: { onOpenWithdraw: () =>
 
         <div className="space-y-2">
           {filteredTransactions.length === 0 ? (
-            <div className="text-center py-8 text-[10px] text-zinc-600 font-bold">Bu kategoride işlem yok.</div>
+            <div className="text-center py-8 text-[10px] text-zinc-600 font-bold">{t('wallet.empty_tx')}</div>
           ) : (
             filteredTransactions.slice(0, 15).map(tx => (
               <div key={tx.id} className="glass-card rounded-xl p-3 flex items-center justify-between">
@@ -195,8 +197,8 @@ export default function WalletScreen({ onOpenWithdraw }: { onOpenWithdraw: () =>
             </button>
             
             <div className="text-center space-y-2">
-              <h3 className="text-xl font-bold text-white">BTC Yatır</h3>
-              <p className="text-xs text-zinc-500">Bu adrese sadece Bitcoin (BTC) gönderin.</p>
+              <h3 className="text-xl font-bold text-white">{t('wallet.receive.title')}</h3>
+              <p className="text-xs text-zinc-500">{t('wallet.receive.hint')}</p>
             </div>
             
             {/* QR Code */}
@@ -209,7 +211,7 @@ export default function WalletScreen({ onOpenWithdraw }: { onOpenWithdraw: () =>
             </div>
 
             <div className="space-y-2">
-              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Cüzdan Adresi</label>
+              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{t('wallet.receive.address_label')}</label>
               <button 
                 onClick={handleCopy}
                 className="w-full flex items-center justify-between bg-black/50 border border-white/10 rounded-xl p-4 group hover:border-emerald-500/50 transition-all active:scale-[0.98]"
@@ -217,7 +219,7 @@ export default function WalletScreen({ onOpenWithdraw }: { onOpenWithdraw: () =>
                 <span className="text-xs font-mono text-zinc-300 truncate mr-2 select-all">{myAddress}</span>
                 {copied ? (
                   <div className="flex items-center gap-1 text-emerald-500">
-                    <span className="text-[10px] font-bold">Kopyalandı</span>
+                    <span className="text-[10px] font-bold">{t('wallet.receive.copied')}</span>
                     <CheckCircle size={18} />
                   </div>
                 ) : (

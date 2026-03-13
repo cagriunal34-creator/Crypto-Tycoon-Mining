@@ -1,4 +1,4 @@
-export type Screen = 'panel' | 'contracts' | 'wallet' | 'referral' | 'settings' | 'inbox' | 'quests' | 'farm' | 'wheel' | 'battlepass' | 'marketplace' | 'vip' | 'infrastructure' | 'shop' | 'research' | 'guild';
+export type Screen = 'panel' | 'contracts' | 'wallet' | 'referral' | 'settings' | 'inbox' | 'quests' | 'farm' | 'wheel' | 'battlepass' | 'marketplace' | 'vip' | 'infrastructure' | 'shop' | 'research' | 'guild' | 'stats' | 'tournament' | 'cosmetics' | 'factory' | 'altcoin';
 
 export type LightingColor = 'emerald' | 'blue' | 'purple' | 'orange' | 'red';
 export type RigTier = 'Basic' | 'Pro' | 'Ultra';
@@ -73,6 +73,18 @@ export interface Guild {
   level: number;
   xp: number;
   xpToNextLevel: number;
+}
+
+export interface GuildGoal {
+  id: string;
+  label: string;
+  description: string;
+  requirement: number;
+  type: 'hashrate' | 'members' | 'level';
+  reward: {
+    type: 'tp' | 'btc';
+    value: number;
+  };
 }
 
 export type MiningEventType = 'flash_pool' | 'hash_storm' | 'energy_surge' | 'block_halving' | 'WHEEL_BOOST' | 'wheel_speed';
@@ -180,3 +192,54 @@ export interface Withdrawal {
   createdAt: number;
   updatedAt: number;
 }
+
+// ── Kozmetik Sistem ───────────────────────────────────────────────────────────
+export type CosmeticCategory = 'frame' | 'effect' | 'badge' | 'background';
+export type CosmeticRarity   = 'common' | 'rare' | 'epic' | 'legendary';
+
+export interface CosmeticItem {
+  id: string;
+  name: string;
+  description: string;
+  category: CosmeticCategory;
+  rarity: CosmeticRarity;
+  emoji: string;
+  previewColor: string;
+  price: number; // TP cinsinden
+  btcPrice?: number; // BTC alternatif
+  isLimited?: boolean;
+  isNew?: boolean;
+}
+
+export interface CosmeticsState {
+  owned: string[];       // owned item ids
+  equipped: {
+    frame?: string;
+    effect?: string;
+    badge?: string;
+    background?: string;
+  };
+}
+
+// ── Fabrika Sistemi ───────────────────────────────────────────────────────────
+export type SlotState = 'idle' | 'producing' | 'ready';
+
+export interface FactorySlot {
+  id: number;
+  state: SlotState;
+  recipeId: string | null;
+  startedAt: number;
+  finishesAt: number;
+  locked: boolean;
+  unlockCost: number;
+}
+
+export interface FactoryData {
+  slots: FactorySlot[];
+  resources: Record<string, number>; // resourceId → amount
+  unlockedRecipes: string[];
+}
+
+// ── Altcoin Sistemi ───────────────────────────────────────────────────────────
+export type AltcoinBalances = Record<string, number>; // coinId → amount
+

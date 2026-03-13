@@ -5,6 +5,7 @@ import { useGame, OwnedContract } from '../context/GameContext';
 import { MarketListing } from '../types';
 import { useTheme } from '../context/ThemeContext';
 import { useNotify } from '../context/NotificationContext';
+import { useLanguage } from '../context/LanguageContext';
 
 const TIER_COLORS = {
   Bronze: '#CD7F32',
@@ -13,18 +14,19 @@ const TIER_COLORS = {
   Flash: '#FF4ECD',
 };
 
-function timeAgo(ts: number) {
+function timeAgo(ts: number, t: (key: string) => string) {
   const s = (Date.now() - ts) / 1000;
-  if (s < 60) return 'az önce';
-  if (s < 3600) return `${Math.floor(s / 60)}d önce`;
-  if (s < 86400) return `${Math.floor(s / 3600)}s önce`;
-  return `${Math.floor(s / 86400)}g önce`;
+  if (s < 60) return t('market.time.ago.just_now');
+  if (s < 3600) return `${Math.floor(s / 60)}${t('market.time.ago.mins')}`;
+  if (s < 86400) return `${Math.floor(s / 3600)}${t('market.time.ago.hours')}`;
+  return `${Math.floor(s / 86400)}${t('market.time.ago.days')}`;
 }
 
 const ListingCard: React.FC<{ listing: MarketListing; onBuy: () => void }> = ({ listing, onBuy }) => {
   const { state } = useGame();
   const { theme } = useTheme();
-  const tierColor = TIER_COLORS[listing.tier];
+  const { t } = useLanguage();
+  const tierColor = TIER_COLORS[listing.tier as keyof typeof TIER_COLORS];
   const canAfford = state.tycoonPoints >= listing.price;
   const a1 = theme.vars['--ct-a1'];
 
@@ -41,15 +43,15 @@ const ListingCard: React.FC<{ listing: MarketListing; onBuy: () => void }> = ({ 
           </div>
           <span className="text-sm font-black" style={{ color: theme.vars['--ct-text'] }}>{listing.contractName}</span>
         </div>
-        <span className="text-[9px]" style={{ color: theme.vars['--ct-muted'] }}>{timeAgo(listing.listedAt)}</span>
+        <span className="text-[9px]" style={{ color: theme.vars['--ct-muted'] }}>{timeAgo(listing.listedAt, t)}</span>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-2">
         {[
           { label: 'Hashrate', val: `${listing.hashRate.toLocaleString()} Gh/s` },
-          { label: 'Süre', val: `${listing.daysRemaining}g` },
-          { label: 'Satıcı', val: listing.sellerName },
+          { label: t('mining.duration'), val: `${listing.daysRemaining}${t('market.time.ago.days')}` },
+          { label: t('market.card.seller'), val: listing.sellerName },
         ].map(s => (
           <div key={s.label} className="text-center p-2 rounded-xl"
             style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.05)' }}>
@@ -68,7 +70,7 @@ const ListingCard: React.FC<{ listing: MarketListing; onBuy: () => void }> = ({ 
           </div>
           {!canAfford && (
             <div className="text-[9px] text-red-400 mt-0.5">
-              {(listing.price - state.tycoonPoints).toLocaleString()} TP eksik
+              {(listing.price - state.tycoonPoints).toLocaleString()} {t('market.card.missing_tp')}
             </div>
           )}
         </div>
@@ -79,7 +81,7 @@ const ListingCard: React.FC<{ listing: MarketListing; onBuy: () => void }> = ({ 
             ? { background: `linear-gradient(135deg,${tierColor},${tierColor}AA)`, color: '#000', boxShadow: `0 4px 12px ${tierColor}30` }
             : { background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.2)', cursor: 'not-allowed' }}>
           <ShoppingCart size={14} />
-          Satın Al
+          {t('market.card.buy_btn')}
         </motion.button>
       </div>
     </motion.div>
@@ -92,8 +94,9 @@ function SellModal({ contract, onClose, onList }: {
   onList: (price: number) => void;
 }) {
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const [price, setPrice] = useState(1000);
-  const tierColor = TIER_COLORS[contract.tier];
+  const tierColor = TIER_COLORS[contract.tier as keyof typeof TIER_COLORS];
   const a1 = theme.vars['--ct-a1'];
 
   const daysRemaining = Math.max(1, contract.durationDays - Math.floor((Date.now() - contract.purchasedAt) / 86400000));
@@ -111,7 +114,7 @@ function SellModal({ contract, onClose, onList }: {
         <div style={{ height: 3, background: `linear-gradient(90deg,${tierColor},${tierColor}AA,${tierColor})` }} />
         <div className="p-6 space-y-5">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-black" style={{ color: theme.vars['--ct-text'] }}>Marketplace'te Listele</h3>
+            <h3 className="text-lg font-black" style={{ color: theme.vars['--ct-text'] }}>{t('market.modal.list_title')}</h3>
             <button onClick={onClose} className="p-2 rounded-full hover:bg-white/5">
               <X size={16} style={{ color: theme.vars['--ct-muted'] }} />
             </button>
@@ -131,8 +134,8 @@ function SellModal({ contract, onClose, onList }: {
                 <div className="text-[8px]" style={{ color: theme.vars['--ct-muted'] }}>Hashrate</div>
               </div>
               <div className="text-center">
-                <div className="text-sm font-black" style={{ color: tierColor }}>{daysRemaining}g</div>
-                <div className="text-[8px]" style={{ color: theme.vars['--ct-muted'] }}>Kalan Süre</div>
+                <div className="text-sm font-black" style={{ color: tierColor }}>{daysRemaining}{t('market.time.ago.days')}</div>
+                <div className="text-[8px]" style={{ color: theme.vars['--ct-muted'] }}>{t('mining.duration')}</div>
               </div>
             </div>
           </div>
@@ -140,10 +143,10 @@ function SellModal({ contract, onClose, onList }: {
           {/* Price input */}
           <div className="space-y-2">
             <div className="flex justify-between">
-              <label className="text-xs font-black" style={{ color: theme.vars['--ct-text'] }}>Satış Fiyatı (TP)</label>
+              <label className="text-xs font-black" style={{ color: theme.vars['--ct-text'] }}>{t('market.modal.price_label')}</label>
               <button className="text-[9px] font-bold" style={{ color: a1 }}
                 onClick={() => setPrice(suggestedPrice)}>
-                Önerilen: {suggestedPrice.toLocaleString()} TP
+                {t('market.modal.suggested')}: {suggestedPrice.toLocaleString()} TP
               </button>
             </div>
             <input type="number" value={price} min={100} max={50000}
@@ -151,20 +154,20 @@ function SellModal({ contract, onClose, onList }: {
               className="w-full px-4 py-3 rounded-xl text-sm font-black outline-none"
               style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${a1}25`, color: theme.vars['--ct-text'] }} />
             <p className="text-[9px]" style={{ color: theme.vars['--ct-muted'] }}>
-              * Listeleme ücretsiz. VIP kullanıcılar 0 komisyon öder.
+              {t('market.modal.disclaimer')}
             </p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <button onClick={onClose} className="py-3 rounded-2xl text-sm font-bold"
               style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: theme.vars['--ct-muted'] }}>
-              Vazgeç
+              {t('market.btn.cancel_modal')}
             </button>
             <motion.button whileTap={{ scale: 0.97 }} onClick={() => onList(price)}
               className="py-3 rounded-2xl text-sm font-black flex items-center justify-center gap-2"
               style={{ background: `linear-gradient(135deg,${tierColor},${tierColor}AA)`, color: '#000' }}>
               <Tag size={16} />
-              Listele
+              {t('market.btn.list')}
             </motion.button>
           </div>
         </div>
@@ -180,6 +183,7 @@ export default function MarketplaceScreen() {
   } = useGame();
   const { theme } = useTheme();
   const { notify } = useNotify();
+  const { t } = useLanguage();
 
   const a1 = theme.vars['--ct-a1'];
   const a2 = theme.vars['--ct-a2'];
@@ -196,9 +200,9 @@ export default function MarketplaceScreen() {
       await buyContractFromMarket(listing);
       setJustBought(listing.id);
       setTimeout(() => setJustBought(null), 3000);
-      notify({ type: 'success', title: 'Kontrat Satın Alındı!', message: `${listing.contractName} cüzdanına eklendi.` });
+      notify({ type: 'success', title: t('market.notify.buy_success_title'), message: `${listing.contractName} ${t('market.notify.buy_success_msg')}` });
     } catch (e) {
-      notify({ type: 'warning', title: 'Hata', message: 'Satın alma işlemi başarısız oldu.' });
+      notify({ type: 'warning', title: t('market.notify.error_title'), message: t('market.notify.buy_error_msg') });
     }
   };
 
@@ -206,9 +210,9 @@ export default function MarketplaceScreen() {
     try {
       await listContractOnMarket(contract, price);
       setSellContract(null);
-      notify({ type: 'success', title: 'Listelendi!', message: `${contract.name} marketplace'e eklendi.` });
+      notify({ type: 'success', title: t('market.notify.list_success_title'), message: `${contract.name} ${t('market.notify.list_success_msg')}` });
     } catch (e) {
-      notify({ type: 'warning', title: 'Hata', message: 'Listeleme işlemi başarısız oldu.' });
+      notify({ type: 'warning', title: t('market.notify.error_title'), message: t('market.notify.list_error_msg') });
     }
   };
 
@@ -230,23 +234,23 @@ export default function MarketplaceScreen() {
           style={{ background: `linear-gradient(90deg, transparent, ${a2}80, transparent)` }} />
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h2 className="text-xl font-black" style={{ color: theme.vars['--ct-text'] }}>Kontrat Pazarı</h2>
+            <h2 className="text-xl font-black" style={{ color: theme.vars['--ct-text'] }}>{t('market.title')}</h2>
             <p className="text-xs mt-0.5" style={{ color: theme.vars['--ct-muted'] }}>
-              {state.marketListings.length} aktif listeleme
-              {isVipActive && <span style={{ color: a1 }}> · VIP: 0 komisyon</span>}
+              {state.marketListings.length} {t('market.active_listings')}
+              {isVipActive && <span style={{ color: a1 }}> · {t('market.vip_commission')}</span>}
             </p>
           </div>
           <div className="px-3 py-1 rounded-xl"
             style={{ background: `${a1}10`, border: `1px solid ${a1}20` }}>
             <div className="text-xs font-black" style={{ color: a1 }}>{state.tycoonPoints.toLocaleString()} TP</div>
-            <div className="text-[8px]" style={{ color: theme.vars['--ct-muted'] }}>Bakiye</div>
+            <div className="text-[8px]" style={{ color: theme.vars['--ct-muted'] }}>{t('market.balance_label')}</div>
           </div>
         </div>
 
         {/* Tab bar */}
         <div className="flex gap-2 p-1 rounded-xl" style={{ background: 'rgba(0,0,0,0.3)' }}>
-          {[{ id: 'buy', label: '🛒 Al', count: state.marketListings.length },
-          { id: 'sell', label: '🏷 Sat', count: state.ownedContracts.length }].map(t => (
+          {[{ id: 'buy', label: `🛒 ${t('market.tab.buy')}`, count: state.marketListings.length },
+          { id: 'sell', label: `🏷 ${t('market.tab.sell')}`, count: state.ownedContracts.length }].map(t => (
             <button key={t.id} onClick={() => setTab(t.id as 'buy' | 'sell')}
               className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-black transition-all"
               style={tab === t.id
@@ -268,7 +272,7 @@ export default function MarketplaceScreen() {
               style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${a1}15` }}>
               <Search size={14} style={{ color: theme.vars['--ct-muted'] }} />
               <input value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Kontrat ara…"
+                placeholder={t('market.search_placeholder')}
                 className="flex-1 bg-transparent text-sm outline-none"
                 style={{ color: theme.vars['--ct-text'] }} />
               {search && <button onClick={() => setSearch('')}><X size={12} style={{ color: theme.vars['--ct-muted'] }} /></button>}
@@ -280,7 +284,7 @@ export default function MarketplaceScreen() {
                   style={filter === f
                     ? { background: `${a1}18`, border: `1px solid ${a1}35`, color: a1 }
                     : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', color: theme.vars['--ct-muted'] }}>
-                  {f === 'all' ? 'Tümü' : f.charAt(0).toUpperCase() + f.slice(1)}
+                  {f === 'all' ? t('market.filter.all') : f.charAt(0).toUpperCase() + f.slice(1)}
                 </button>
               ))}
             </div>
@@ -294,14 +298,14 @@ export default function MarketplaceScreen() {
                   className="flex items-center gap-3 p-3 rounded-2xl"
                   style={{ background: `${a3}08`, border: `1px solid ${a3}25` }}>
                   <Check size={16} style={{ color: a3 }} />
-                  <span className="text-xs font-bold" style={{ color: theme.vars['--ct-text'] }}>Kontrat başarıyla satın alındı!</span>
+                  <span className="text-xs font-bold" style={{ color: theme.vars['--ct-text'] }}>{t('market.notify.buy_success_title')}</span>
                 </motion.div>
               )}
             </AnimatePresence>
             {filteredListings.length === 0 ? (
               <div className="text-center py-12">
                 <div className="text-3xl mb-2">🔍</div>
-                <div className="text-sm font-bold" style={{ color: theme.vars['--ct-muted'] }}>Sonuç bulunamadı</div>
+                <div className="text-sm font-bold" style={{ color: theme.vars['--ct-muted'] }}>{t('market.empty_results')}</div>
               </div>
             ) : (
               filteredListings.map(listing => (
@@ -313,7 +317,7 @@ export default function MarketplaceScreen() {
           {/* My listings */}
           {myListings.length > 0 && (
             <div className="space-y-2">
-              <h3 className="text-[10px] font-black uppercase tracking-widest px-1" style={{ color: theme.vars['--ct-muted'] }}>Benim Listelemelerim</h3>
+              <h3 className="text-[10px] font-black uppercase tracking-widest px-1" style={{ color: theme.vars['--ct-muted'] }}>{t('market.my_listings')}</h3>
               {myListings.map(l => (
                 <div key={l.id} className="flex items-center justify-between p-3 rounded-2xl"
                   style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
@@ -324,7 +328,7 @@ export default function MarketplaceScreen() {
                   <button onClick={() => cancelMarketListing(l.id)}
                     className="px-3 py-1 rounded-lg text-[9px] font-bold text-red-400"
                     style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
-                    İptal
+                    {t('market.btn.cancel')}
                   </button>
                 </div>
               ))}
@@ -337,8 +341,8 @@ export default function MarketplaceScreen() {
           {state.ownedContracts.length === 0 ? (
             <div className="text-center py-16 space-y-3">
               <div className="text-4xl">📦</div>
-              <div className="text-sm font-bold" style={{ color: theme.vars['--ct-muted'] }}>Listeleyecek kontratın yok</div>
-              <p className="text-xs" style={{ color: theme.vars['--ct-muted'] }}>Market ekranından kontrat satın al</p>
+              <div className="text-sm font-bold" style={{ color: theme.vars['--ct-muted'] }}>{t('market.sell.empty')}</div>
+              <p className="text-xs" style={{ color: theme.vars['--ct-muted'] }}>{t('market.sell.empty_hint')}</p>
             </div>
           ) : (
             state.ownedContracts.map(contract => {
@@ -355,7 +359,7 @@ export default function MarketplaceScreen() {
                       <span className="font-black text-sm" style={{ color: theme.vars['--ct-text'] }}>{contract.name}</span>
                     </div>
                     <div className="flex items-center gap-1 text-[9px]" style={{ color: theme.vars['--ct-muted'] }}>
-                      <Clock size={10} />{daysLeft}g kaldı
+                      <Clock size={10} />{daysLeft}{t('market.days_left')}
                     </div>
                   </div>
                   <div className="flex items-center justify-between">
@@ -368,7 +372,7 @@ export default function MarketplaceScreen() {
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black"
                       style={{ background: `linear-gradient(135deg,${tc},${tc}AA)`, color: '#000' }}>
                       <Tag size={12} />
-                      Listele
+                      {t('market.btn.list')}
                     </motion.button>
                   </div>
                 </motion.div>

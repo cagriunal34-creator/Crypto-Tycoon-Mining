@@ -10,7 +10,7 @@
  * yeni kayıt veya level=1 & btcBalance=0 kullanıcılarda açılır.
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowRight, X, Zap, ChevronRight } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 
@@ -89,7 +89,7 @@ export default function OnboardingTour({ forceShow = false }: { forceShow?: bool
   const [step, setStep] = useState(0);
   const [rect, setRect] = useState<Rect | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ top: number; left: number; transform: string }>({ top: 0, left: 0, transform: '' });
-  const rafRef = useRef<number>();
+  const rafRef = useRef<number | null>(null);
 
   // Göster/gizle kararı
   useEffect(() => {
@@ -99,6 +99,14 @@ export default function OnboardingTour({ forceShow = false }: { forceShow?: bool
       const t = setTimeout(() => setActive(true), 1500);
       return () => clearTimeout(t);
     }
+
+    const handleRestart = () => {
+      setStep(0);
+      setActive(true);
+    };
+
+    window.addEventListener('restart-onboarding', handleRestart);
+    return () => window.removeEventListener('restart-onboarding', handleRestart);
   }, [forceShow]);
 
   // Hedef elementi bul ve rect güncelle

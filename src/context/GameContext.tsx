@@ -10,7 +10,7 @@
  */
 
 import React, { createContext, useContext, useReducer, useEffect, useRef } from 'react';
-import { BP_REWARDS } from '../constants/gameData';
+import { BP_REWARDS, SEASON_2_REWARDS } from '../constants/gameData';
 import {
   LightingColor,
   RigTier,
@@ -26,7 +26,10 @@ import {
   BattlePassState,
   MarketListing,
   VIPState,
-  PrestigeRecord
+  PrestigeRecord,
+  FactoryData,
+  AltcoinBalances,
+  CosmeticsState
 } from '../types';
 import { supabase, TABLES } from '../lib/supabase';
 import { auth, onAuthStateChanged } from '../lib/firebase';
@@ -46,7 +49,10 @@ export type {
   BattlePassState,
   MarketListing,
   VIPState,
-  PrestigeRecord
+  PrestigeRecord,
+  FactoryData,
+  AltcoinBalances,
+  CosmeticsState
 };
 
 // ─── Admin-Driven Dynamic Types ───────────────────────────────────────────────
@@ -136,7 +142,6 @@ export interface GameState {
   referralCode: string;
   referralCount: number;
   redeemedReferralCode: string | null;
-  claimedMilestones: number[]; // Milestone threshold counts: [1, 3, 5, 10, 25]
 
   // User
   username: string;
@@ -162,6 +167,7 @@ export interface GameState {
   // ── Phase 2: Marketplace ───────────────────────────────────────────────────
   marketListings: MarketListing[];
   leaderboard: any[];
+  cosmetics: CosmeticsState;
 
   // ── Phase 2: VIP ───────────────────────────────────────────────────────────
   vip: VIPState;
@@ -291,6 +297,8 @@ export interface GameState {
     adRewardMultiplier: number;      // reklam izleyince limit ne kadar artar
   };
   wheelRewards: any[]; // Dinamik çark ödülleri
+  factoryData: FactoryData;
+  altcoinBalances: AltcoinBalances;
 }
 
 // ─── Initial State ────────────────────────────────────────────────────────────
@@ -370,6 +378,7 @@ export const INITIAL_STATE: GameState = {
   // Phase 2: Marketplace seed listings
   marketListings: [],
   leaderboard: [],
+  cosmetics: { owned: [], equipped: {} },
 
   // Phase 2: VIP
   vip: { isActive: false, tier: 'none' as const, expiresAt: 0, perks: [] },
@@ -395,14 +404,28 @@ export const INITIAL_STATE: GameState = {
   isNight: false,
   isInfiniteEnergy: false,
 
-  // Click & Combo
   comboCount: 0,
   lastClickTime: 0,
   isFeverMode: false,
   feverEndsAt: 0,
-
-  // Rewards & Retention
   lastWheelSpin: 0,
+  wheelRewards: [],
+
+  factoryData: {
+    slots: [
+      { id:0, state:'idle', recipeId:null, startedAt:0, finishesAt:0, locked:false, unlockCost:0 },
+      { id:1, state:'idle', recipeId:null, startedAt:0, finishesAt:0, locked:false, unlockCost:0 },
+      { id:2, state:'idle', recipeId:null, startedAt:0, finishesAt:0, locked:true,  unlockCost:3000 },
+      { id:3, state:'idle', recipeId:null, startedAt:0, finishesAt:0, locked:true,  unlockCost:6000 },
+      { id:4, state:'idle', recipeId:null, startedAt:0, finishesAt:0, locked:true,  unlockCost:12000 },
+      { id:5, state:'idle', recipeId:null, startedAt:0, finishesAt:0, locked:true,  unlockCost:25000 },
+    ],
+    resources: { silicon:15, copper:12, lithium:8, rare:3 },
+    unlockedRecipes: ['r_chip', 'r_wire'],
+  },
+  altcoinBalances: {
+    eth:0, sol:0, bnb:0, doge:0, ada:0, avax:0
+  },
   streak: {
     count: 0,
     lastClaim: 0,
@@ -448,7 +471,6 @@ export const INITIAL_STATE: GameState = {
   dynamicMiningItems: [],
   activeGameEvents: [],
   inboxNotifications: [],
-  wheelRewards: [],
   overclockActive: false,
   overclockEndsAt: 0,
   overclockCooldownUntil: 0,
@@ -476,7 +498,6 @@ export const INITIAL_STATE: GameState = {
     adRewardMultiplier: 1.0,
   },
   claimedGuildRewards: [],
-  claimedMilestones: [],
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -521,6 +542,10 @@ type Action =
   | { type: 'SET_USD_RATE'; rate: number }
   | { type: 'REMOVE_BTC'; amount: number; label: string; txId: string }
   | { type: 'ADD_TP'; amount: number }
+  | { type: 'COSMETIC_BUY'; id: string; cost: number }
+  | { type: 'COSMETIC_EQUIP'; id: string; category: string }
+  | { type: 'COSMETIC_UNEQUIP'; category: string }
+  | { type: 'ADD_ENERGY'; amount: number }
   | { type: 'REMOVE_ENERGY_CELLS'; amount: number }
   | { type: 'DISMISS_OFFLINE_EARNINGS' }
   | { type: 'SET_TRANSACTIONS'; transactions: Transaction[] }
@@ -556,10 +581,11 @@ type Action =
   | { type: 'RESET_ADS_FOR_WITHDRAW' }
   | { type: 'SET_DEPOSIT_STATS'; totalDeposit: number; totalWithdrawn: number }
   | { type: 'CLAIM_GUILD_REWARD'; goalId: string; rewardBtc: number }
-  | { type: 'CLAIM_MILESTONE'; milestone: number; tpReward: number }
   | { type: 'SET_WHEEL_REWARDS'; rewards: any[] }
   | { type: 'ACTIVATE_SURGE' }
-  | { type: 'ADD_BTC', amount: number };
+  | { type: 'ADD_BTC', amount: number }
+  | { type: 'FACTORY_UPDATE_DATA'; data: Partial<FactoryData> }
+  | { type: 'ALTCOIN_SET_BALANCES'; balances: AltcoinBalances };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -740,6 +766,31 @@ function gameReducer(state: GameState, action: Action): GameState {
       };
     }
     case 'ADD_TP': return { ...state, tycoonPoints: state.tycoonPoints + action.amount };
+    case 'COSMETIC_BUY':
+      if (state.cosmetics.owned.includes(action.id)) return state;
+      if (state.tycoonPoints < action.cost) return state;
+      return {
+        ...state,
+        tycoonPoints: state.tycoonPoints - action.cost,
+        cosmetics: { ...state.cosmetics, owned: [...state.cosmetics.owned, action.id] },
+      };
+    case 'COSMETIC_EQUIP':
+      return {
+        ...state,
+        cosmetics: {
+          ...state.cosmetics,
+          equipped: { ...state.cosmetics.equipped, [action.category]: action.id },
+        },
+      };
+    case 'COSMETIC_UNEQUIP':
+      return {
+        ...state,
+        cosmetics: {
+          ...state.cosmetics,
+          equipped: { ...state.cosmetics.equipped, [action.category]: undefined },
+        },
+      };
+    case 'ADD_ENERGY': return { ...state, energyCells: Math.min(state.maxEnergyCells, state.energyCells + action.amount) };
     case 'REMOVE_BTC': return { ...state, btcBalance: Math.max(0, state.btcBalance - action.amount) };
     case 'REMOVE_ENERGY_CELLS': return { ...state, energyCells: Math.max(0, state.energyCells - action.amount) };
     case 'DISMISS_OFFLINE_EARNINGS': return { ...state, offlineEarningsShown: true, pendingOfflineEarnings: 0 };
@@ -799,28 +850,12 @@ function gameReducer(state: GameState, action: Action): GameState {
       }
     };
     case 'VIP_ACTIVATE': {
-      const currentTier = state.vip?.tier || 'none';
-      const tierHierarchy: Record<string, number> = { 'none': 0, 'silver': 1, 'gold': 2 };
-      
-      let newExpiresAt: number;
-      // Eğer yükseltme yapılıyorsa veya yeni üyelikse süre sıfırdan başlar
-      if (tierHierarchy[action.tier] > tierHierarchy[currentTier]) {
-        newExpiresAt = Date.now() + action.days * 86400000;
-      } else {
-        // Aynı tier ise (normalde UI'da kilitli ama güvenlik için) mevcut süreye ekle
-        const baseTime = (state.vip?.isActive && state.vip.expiresAt > Date.now()) 
-          ? state.vip.expiresAt 
-          : Date.now();
-        newExpiresAt = baseTime + action.days * 86400000;
-      }
-
       const newVip = {
         isActive: true,
         tier: action.tier,
-        expiresAt: newExpiresAt,
+        expiresAt: Date.now() + action.days * 86400000,
         perks: VIP_PERKS[action.tier] || []
       };
-      
       return {
         ...state,
         tycoonPoints: state.tycoonPoints - action.cost,
@@ -1008,15 +1043,40 @@ function gameReducer(state: GameState, action: Action): GameState {
       const lastClaimDate = state.streak.lastClaim ? new Date(state.streak.lastClaim).toISOString().split('T')[0] : null;
       if (lastClaimDate === today) return state;
 
-      const currentDayIndex = state.streak.count % 7;
+      const currentDayIndex = state.streak.count % 28;
       const reward = [
-        { type: 'tp', value: 100 },
-        { type: 'tp', value: 250 },
-        { type: 'btc', value: 0.000001 },
-        { type: 'tp', value: 500 },
-        { type: 'energy', value: 5 },
-        { type: 'tp', value: 1000 },
-        { type: 'btc', value: 0.00001 },
+        // Hafta 1
+        { type: 'tp',     value: 200 },
+        { type: 'tp',     value: 400 },
+        { type: 'energy', value: 8 },
+        { type: 'tp',     value: 600 },
+        { type: 'btc',    value: 0.000003 },
+        { type: 'tp',     value: 1000 },
+        { type: 'btc',    value: 0.00002 }, // Süper
+        // Hafta 2
+        { type: 'tp',     value: 300 },
+        { type: 'energy', value: 12 },
+        { type: 'tp',     value: 750 },
+        { type: 'btc',    value: 0.000005 },
+        { type: 'tp',     value: 1200 },
+        { type: 'energy', value: 20 },
+        { type: 'btc',    value: 0.00005 }, // Süper
+        // Hafta 3
+        { type: 'tp',     value: 500 },
+        { type: 'btc',    value: 0.000008 },
+        { type: 'energy', value: 15 },
+        { type: 'tp',     value: 1500 },
+        { type: 'btc',    value: 0.00001 },
+        { type: 'tp',     value: 2000 },
+        { type: 'btc',    value: 0.0001 },  // Süper
+        // Hafta 4
+        { type: 'tp',     value: 800 },
+        { type: 'energy', value: 24 },
+        { type: 'btc',    value: 0.000015 },
+        { type: 'tp',     value: 2500 },
+        { type: 'btc',    value: 0.00002 },
+        { type: 'tp',     value: 3000 },
+        { type: 'btc',    value: 0.0003 },  // Süper
       ][currentDayIndex];
 
       let newState = {
@@ -1116,10 +1176,11 @@ function gameReducer(state: GameState, action: Action): GameState {
       totalLifetimeDeposit: action.totalDeposit,
       totalLifetimeWithdrawn: action.totalWithdrawn,
     };
-    case 'CLAIM_GUILD_REWARD':
-      return { ...state, claimedGuildRewards: [...state.claimedGuildRewards, action.goalId], btcBalance: state.btcBalance + action.rewardBtc };
-    case 'CLAIM_MILESTONE':
-      return { ...state, claimedMilestones: [...state.claimedMilestones, action.milestone], tycoonPoints: state.tycoonPoints + action.tpReward };
+    case 'CLAIM_GUILD_REWARD': return {
+      ...state,
+      btcBalance: state.btcBalance + action.rewardBtc,
+      claimedGuildRewards: [...state.claimedGuildRewards, action.goalId]
+    };
 
     // ── ACCEPT_CONTRACT ─────────────────────────────────────────
     case 'ACCEPT_CONTRACT':
@@ -1268,6 +1329,93 @@ function gameReducer(state: GameState, action: Action): GameState {
 
     case 'SET_WHEEL_REWARDS':
       return { ...state, wheelRewards: action.rewards };
+
+    case 'FACTORY_UPDATE_DATA':
+      return {
+        ...state,
+        factoryData: { ...state.factoryData, ...action.data }
+      };
+
+    case 'ALTCOIN_SET_BALANCES':
+      return {
+        ...state,
+        altcoinBalances: { ...state.altcoinBalances, ...action.balances }
+      };
+
+    case 'COSMETIC_BUY':
+      return {
+        ...state,
+        tycoonPoints: state.tycoonPoints - action.cost,
+        cosmetics: {
+          ...state.cosmetics,
+          owned: [...(state.cosmetics.owned || []), action.id]
+        }
+      };
+
+    case 'COSMETIC_EQUIP':
+      return {
+        ...state,
+        cosmetics: {
+          ...state.cosmetics,
+          equipped: {
+            ...(state.cosmetics.equipped || {}),
+            [action.category]: action.id
+          }
+        }
+      };
+
+    case 'COSMETIC_UNEQUIP': {
+      const newEquipped = { ...(state.cosmetics.equipped || {}) };
+      delete (newEquipped as any)[action.category];
+      return {
+        ...state,
+        cosmetics: {
+          ...state.cosmetics,
+          equipped: newEquipped
+        }
+      };
+    }
+
+    case 'BP_CLAIM_REWARD': {
+      const reward = SEASON_2_REWARDS.find(r => r.id === action.rewardId) || 
+                    BP_REWARDS.find(r => r.id === action.rewardId);
+      if (!reward) return state;
+
+      let newState = {
+        ...state,
+        battlePass: {
+          ...state.battlePass,
+          claimedRewardIds: [...(state.battlePass.claimedRewardIds || []), action.rewardId]
+        }
+      };
+
+      if (reward.type === 'tp') newState.tycoonPoints += (reward.value as number);
+      if (reward.type === 'btc') newState.btcBalance += (reward.value as number);
+      if (reward.type === 'energy') {
+        newState.energyCells = Math.min(state.maxEnergyCells, state.energyCells + (reward.value as number));
+      }
+      if (reward.type === 'vip_day') {
+        const now = Date.now();
+        const currentExp = state.vip?.expiresAt || now;
+        const newExp = Math.max(now, currentExp) + (reward.value as number) * 24 * 3600 * 1000;
+        newState.vip = {
+          ...state.vip,
+          isActive: true,
+          expiresAt: newExp,
+          tier: state.vip?.tier === 'none' ? 'silver' : state.vip?.tier,
+          perks: state.vip?.perks || []
+        };
+      }
+      return newState;
+    }
+
+    case 'BP_BUY_PREMIUM':
+      return {
+        ...state,
+        tycoonPoints: state.tycoonPoints - 3000,
+        battlePass: { ...state.battlePass, isPremium: true }
+      };
+
     default: return state;
   }
 }
@@ -1402,8 +1550,13 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .maybeSingle();
 
       if (profile && !error) {
-        const { id, user: _u, isLoading: _l, ...rest } = profile as any;
-        const gameData = { ...rest, userId: id };
+        const { id, user: _u, isLoading: _l, factory_data, altcoin_balances, ...rest } = profile as any;
+        const gameData = { 
+          ...rest, 
+          userId: id,
+          factoryData: factory_data ||rest.factoryData,
+          altcoinBalances: altcoin_balances || rest.altcoinBalances
+        };
         
         // Referral code yoksa üret ve güncelle
         if (!profile.referralCode) {
@@ -1448,6 +1601,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
               })
             },
             researchedNodes: [],
+            factory_data: INITIAL_STATE.factoryData,
+            altcoin_balances: INITIAL_STATE.altcoinBalances,
             battlePass: {
               level: 1,
               xp: 0,
@@ -1800,8 +1955,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           vip: state.vip,
           redeemedReferralCode: state.redeemedReferralCode,
           claimedGuildRewards: state.claimedGuildRewards,
-          claimedMilestones: state.claimedMilestones,
-          userGuildId: state.userGuildId,
+          factory_data: state.factoryData,
+          altcoin_balances: state.altcoinBalances,
+          cosmetics: state.cosmetics,
           updated_at: new Date().toISOString()
         }).eq('id', state.user.uid);
         
@@ -1816,7 +1972,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     state.user?.uid, state.isLoading, 
     state.btcBalance, state.tycoonPoints, state.xp, state.level, state.energyCells,
     state.streak, state.ownedContracts, state.questProgress, state.farmSettings,
-    state.researchedNodes, state.battlePass
+    state.researchedNodes, state.battlePass,
+    state.factoryData, state.altcoinBalances, state.cosmetics
   ]);
 
   // User Data Subscriptions
@@ -2046,7 +2203,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       name,
       description: desc,
       badge,
-      owner_id: state.user.uid,
+      ownerId: state.user.uid,
       members: 1,
       totalHash: state.totalHashRate,
       level: 1,
@@ -2060,8 +2217,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       tycoonPoints: state.tycoonPoints - cost,
       userGuildId: newGuild.id
     }).eq('id', state.user.uid);
-
-    dispatch({ type: 'SET_GAME_STATE', state: { tycoonPoints: state.tycoonPoints - cost, userGuildId: newGuild.id } as any });
   };
 
   const onWatchAd = async () => {
@@ -2093,37 +2248,23 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!state.user) throw new Error("Auth required");
     if (state.userGuildId) throw new Error("Already in a guild");
 
-    // Fetch latest guild state to avoid stale member count
-    const { data: latestGuild, error: gError } = await supabase
-      .from(TABLES.GUILDS)
-      .select('members, totalHash')
-      .eq('id', guild.id)
-      .single();
-
-    if (gError || !latestGuild) throw new Error("Lonca bulunamadı");
-
     await supabase.from(TABLES.PROFILES).update({ userGuildId: guild.id }).eq('id', state.user.uid);
     await supabase.from(TABLES.GUILDS).update({
-      members: (latestGuild.members || 0) + 1,
-      totalHash: (latestGuild.totalHash || 0) + state.totalHashRate
+      members: guild.members + 1,
+      totalHash: guild.totalHash + state.totalHashRate
     }).eq('id', guild.id);
-
-    dispatch({ type: 'SET_GAME_STATE', state: { userGuildId: guild.id } as any });
   };
 
   const leaveGuildInFirestore = async (guildId: string) => {
     if (!state.user) throw new Error("Auth required");
-    // Fetch latest guild state
-    const { data: guild, error: gError } = await supabase.from(TABLES.GUILDS).select('*').eq('id', guildId).single();
-    if (gError || !guild) throw new Error("Lonca bulunamadı");
+    const { data: guild } = await supabase.from(TABLES.GUILDS).select('*').eq('id', guildId).single();
+    if (!guild) return;
 
     await supabase.from(TABLES.PROFILES).update({ userGuildId: null }).eq('id', state.user.uid);
     await supabase.from(TABLES.GUILDS).update({
-      members: Math.max(0, (guild.members || 0) - 1),
-      totalHash: Math.max(0, (guild.totalHash || 0) - state.totalHashRate)
+      members: Math.max(0, guild.members - 1),
+      totalHash: Math.max(0, guild.totalHash - state.totalHashRate)
     }).eq('id', guildId);
-
-    dispatch({ type: 'SET_GAME_STATE', state: { userGuildId: null } as any });
   };
 
   const donateToGuildInFirestore = async (amount: number) => {
@@ -2218,15 +2359,36 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     dispatch({ type: 'CLAIM_STREAK_REWARD' });
     
     // 2. Side effect: Ödülü hesapla (tekrar hesaplıyoruz çünkü newState henüz elimizde değil veya o anki state'i kullanabiliriz)
-    const currentDayIndex = state.streak.count % 7;
+    const currentDayIndex = state.streak.count % 28;
     const rewards = [
-        { type: 'tp', value: 100 },
-        { type: 'tp', value: 250 },
-        { type: 'btc', value: 0.000001 },
-        { type: 'tp', value: 500 },
-        { type: 'energy', value: 5 },
-        { type: 'tp', value: 1000 },
-        { type: 'btc', value: 0.00001 },
+      { type: 'tp',     value: 200 },
+      { type: 'tp',     value: 400 },
+      { type: 'energy', value: 8 },
+      { type: 'tp',     value: 600 },
+      { type: 'btc',    value: 0.000003 },
+      { type: 'tp',     value: 1000 },
+      { type: 'btc',    value: 0.00002 },
+      { type: 'tp',     value: 300 },
+      { type: 'energy', value: 12 },
+      { type: 'tp',     value: 750 },
+      { type: 'btc',    value: 0.000005 },
+      { type: 'tp',     value: 1200 },
+      { type: 'energy', value: 20 },
+      { type: 'btc',    value: 0.00005 },
+      { type: 'tp',     value: 500 },
+      { type: 'btc',    value: 0.000008 },
+      { type: 'energy', value: 15 },
+      { type: 'tp',     value: 1500 },
+      { type: 'btc',    value: 0.00001 },
+      { type: 'tp',     value: 2000 },
+      { type: 'btc',    value: 0.0001 },
+      { type: 'tp',     value: 800 },
+      { type: 'energy', value: 24 },
+      { type: 'btc',    value: 0.000015 },
+      { type: 'tp',     value: 2500 },
+      { type: 'btc',    value: 0.00002 },
+      { type: 'tp',     value: 3000 },
+      { type: 'btc',    value: 0.0003 },
     ];
     const reward = rewards[currentDayIndex];
     

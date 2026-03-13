@@ -694,13 +694,15 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
 
                 // hashrate_settings satırını yükle
                 try {
-                    const { data: hrRow } = await supabase.from('settings').select('value').eq('id', 'hashrate_settings').single();
-                    if (hrRow?.value) setHashrateSettings((p: any) => ({ ...p, ...hrRow.value }));
+                    const { data: hrRow } = await supabase.from('settings').select('*').eq('id', 'hashrate_settings').single();
+                    const hrV = hrRow?.value || (hrRow && hrRow.id ? hrRow : null);
+                    if (hrV) setHashrateSettings((p: any) => ({ ...p, ...hrV }));
                 } catch {}
                 // google_ads_config satırını yükle
                 try {
-                    const { data: adsRow } = await supabase.from('settings').select('value').eq('id', 'google_ads_config').maybeSingle();
-                    if (adsRow?.value) setGoogleAdsConfig((p: any) => ({ ...p, ...adsRow.value }));
+                    const { data: adsRow } = await supabase.from('settings').select('*').eq('id', 'google_ads_config').maybeSingle();
+                    const adsV = adsRow?.value || (adsRow && adsRow.id ? adsRow : null);
+                    if (adsV) setGoogleAdsConfig((p: any) => ({ ...p, ...adsV }));
                 } catch {}
             } catch (e) { /* tables may not exist yet */ }
         };

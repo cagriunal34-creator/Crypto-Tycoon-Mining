@@ -15,6 +15,7 @@ import { cn } from '../lib/utils';
 import { useGame, energyToHashScale } from '../context/GameContext';
 import { useNotify } from '../context/NotificationContext';
 import { useTheme } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 import LiveEarningsCard from './LiveEarningsCard';
 import ProgressionPanel from './ProgressionPanel';
 import MiningEventsBar from './MiningEventsBar';
@@ -62,6 +63,7 @@ function OverclockCard({ isActive, isCooldown, multiplier, secondsLeft, cooldown
   cfg: any; tycoonPoints: number; onActivate: () => void;
   accentColor: string; theme: any;
 }) {
+  const { t } = useLanguage();
   const canAfford = tycoonPoints >= (cfg?.costTp || 0);
   const canActivate = !isActive && !isCooldown && canAfford;
 
@@ -122,18 +124,18 @@ function OverclockCard({ isActive, isCooldown, multiplier, secondsLeft, cooldown
               </span>
               {isActive && (
                 <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full animate-pulse"
-                  style={{ background: `${color}20`, color }}>AKTİF</span>
+                  style={{ background: `${color}20`, color }}>{t('mining.overclock.active')}</span>
               )}
               {isCooldown && (
                 <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full"
-                  style={{ background: `${color}20`, color }}>COOLDOWN</span>
+                  style={{ background: `${color}20`, color }}>{t('mining.overclock.cooldown')}</span>
               )}
             </div>
             <p className="text-[10px] font-mono mt-0.5" style={{ color: theme.vars['--ct-muted'] }}>
               {isActive
-                ? `⚡ +${boostPct}% · ${formatTime(secondsLeft)} kaldı`
+                ? `⚡ +${boostPct}% · ${formatTime(secondsLeft)} ${t('mining.remaining')}`
                 : isCooldown
-                  ? `❄️ −${penaltyPct}% ceza · ${formatTime(cooldownSecondsLeft)} kaldı`
+                  ? `❄️ −${penaltyPct}% ceza · ${formatTime(cooldownSecondsLeft)} ${t('mining.remaining')}`
                   : `+${boostPct}% hashrate · ${cfg?.durationMinutes}dk · ${cfg?.costTp} TP`}
             </p>
           </div>
@@ -152,7 +154,7 @@ function OverclockCard({ isActive, isCooldown, multiplier, secondsLeft, cooldown
               ? { background: color, color: '#000', boxShadow: `0 4px 16px ${color}40` }
               : { background: `${color}15`, color: `${color}60`, border: `1px solid ${color}20` }
             }>
-            {isActive ? 'Aktif' : isCooldown ? `❄️ ${formatTime(cooldownSecondsLeft)}` : canAfford ? 'Başlat' : `${cfg?.costTp} TP Yok`}
+            {isActive ? t('mining.overclock.btn_active') : isCooldown ? `❄️ ${formatTime(cooldownSecondsLeft)}` : canAfford ? t('mining.overclock.btn_start') : `${cfg?.costTp} ${t('mining.overclock.no_tp')}`}
           </button>
         </div>
       </div>
@@ -162,17 +164,17 @@ function OverclockCard({ isActive, isCooldown, multiplier, secondsLeft, cooldown
         <div className="flex items-center gap-4 mt-3 pt-3 relative z-10"
           style={{ borderTop: `1px solid ${color}15` }}>
           {[
-            { label: 'Süre', val: `${cfg?.durationMinutes}dk`, icon: Timer },
-            { label: 'Cooldown', val: `${cfg?.cooldownMinutes}dk`, icon: Snowflake },
-            { label: 'Ceza', val: `-${penaltyPct}%`, icon: AlertTriangle },
-            { label: 'Maliyet', val: `${cfg?.costTp} TP`, icon: Zap },
+            { label: 'Süre', key: 'mining.duration', val: `${cfg?.durationMinutes}dk`, icon: Timer },
+            { label: 'Cooldown', key: 'mining.cooldown', val: `${cfg?.cooldownMinutes}dk`, icon: Snowflake },
+            { label: 'Ceza', key: 'mining.penalty', val: `-${penaltyPct}%`, icon: AlertTriangle },
+            { label: 'Maliyet', key: 'mining.cost', val: `${cfg?.costTp} TP`, icon: Zap },
           ].map((item, i) => {
             const ItemIcon = item.icon;
             return (
               <div key={i} className="flex items-center gap-1">
                 <ItemIcon size={9} style={{ color: `${color}80` }} />
                 <span className="text-[8px] font-bold" style={{ color: theme.vars['--ct-muted'] }}>
-                  {item.label}: <span style={{ color: `${color}CC` }}>{item.val}</span>
+                  {t(item.key || '')}: <span style={{ color: `${color}CC` }}>{item.val}</span>
                 </span>
               </div>
             );
@@ -202,6 +204,7 @@ export default function MiningPanel({
   } = useGame();
   const { notify, requestPushPermission, pushEnabled } = useNotify();
   const { theme } = useTheme();
+  const { t } = useLanguage();
 
   const a1 = theme.vars['--ct-a1'];
   const a2 = theme.vars['--ct-a2'];
@@ -237,7 +240,7 @@ export default function MiningPanel({
 
   const handleWatchAd = () => {
     onWatchAd();
-    notify({ type: 'mining', title: 'Reklam izleniyor…', message: '+2 enerji hücresi ve +10 TP kazanacaksın.' });
+    notify({ type: 'mining', title: t('mining.ad_watching'), message: t('mining.ad_reward_msg') });
   };
 
   return (
@@ -257,8 +260,8 @@ export default function MiningPanel({
                       <Flame size={18} className="text-orange-400 relative z-10" />
                     </div>
                     <div>
-                      <h4 className="text-xs font-black text-orange-100 uppercase tracking-widest">Mutlu Saatler</h4>
-                      <p className="text-[10px] text-orange-500/80 font-mono">×1.2 KAZANÇ AKTIF</p>
+                      <h4 className="text-xs font-black text-orange-100 uppercase tracking-widest">{t('mining.happy_hour.title')}</h4>
+                      <p className="text-[10px] text-orange-500/80 font-mono">{t('mining.happy_hour.desc')}</p>
                     </div>
                   </div>
                   <div className="text-sm font-black text-orange-400 font-mono">{happyHourCountdown}</div>
@@ -280,7 +283,7 @@ export default function MiningPanel({
             <div className="mt-8 text-center">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 mb-3">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Sistem Aktif</span>
+                <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">{t('mining.system_status.active')}</span>
               </div>
               <h3 className="text-3xl font-black italic tracking-tighter text-white">
                 {effectiveHashRate.toFixed(1)} <span className="text-emerald-500 text-lg">GH/S</span>
@@ -310,7 +313,7 @@ export default function MiningPanel({
               <div className="grid grid-cols-2 gap-3">
                 <div className="glass-card p-4 flex flex-col gap-2">
                   <TrendingUp size={16} className="text-emerald-400" />
-                  <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Donanım Sağlığı</span>
+                  <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">{t('mining.hardware_health')}</span>
                   <span className="text-sm font-black text-white">
                     {state.ownedContracts.length > 0
                       ? `%${(state.ownedContracts.reduce((acc, c) => acc + c.condition, 0) / state.ownedContracts.length).toFixed(1)}`
@@ -319,7 +322,7 @@ export default function MiningPanel({
                 </div>
                 <div className="glass-card p-4 flex flex-col gap-2">
                   <Zap size={16} className="text-yellow-500" />
-                  <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Enerji Gideri</span>
+                  <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">{t('mining.energy_expense')}</span>
                   <span className="text-sm font-black text-white">
                     {Math.floor(state.farmSettings.baseElectricityCost * (1 - (state.farmSettings.powerSupplyLevel - 1) * 0.1))} TP/dk
                   </span>
@@ -332,7 +335,7 @@ export default function MiningPanel({
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
                     <div className="w-1 h-3 rounded-full bg-emerald-500" />
-                    <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Canlı Hashrate</h3>
+                    <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">{t('mining.live_hashrate')}</h3>
                   </div>
                 </div>
                 <div className="flex-1">
@@ -346,40 +349,18 @@ export default function MiningPanel({
             </div>
           </div>
 
-          {/* Middle Row: Interaction Panels */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {state.overclockConfig?.enabled && (
-              <OverclockCard
-                isActive={isOverclockActive}
-                isCooldown={isOverclockCooldown}
-                multiplier={overclockMultiplier}
-                secondsLeft={overclockSecondsLeft}
-                cooldownSecondsLeft={cooldownSecondsLeft}
-                cfg={state.overclockConfig}
-                tycoonPoints={state.tycoonPoints}
-                onActivate={() => {
-                  const result = activateOverclock();
-                  if (result.success) {
-                    notify({ type: 'mining', title: '⚡ Overclock Aktif!', message: result.message });
-                  } else {
-                    notify({ type: 'warning', title: 'Overclock', message: result.message });
-                  }
-                }}
-                accentColor={a1}
-                theme={theme}
-              />
-            )}
-            <ProgressionPanel />
-          </div>
+            <div className="grid grid-cols-1 gap-6">
+              <ProgressionPanel />
+            </div>
 
           {/* Bottom Row: Rewards & Caps */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <PrestigePanel onOpenPrestige={onOpenPrestige} />
             <div className="premium-glass p-6 rounded-3xl space-y-4">
-              <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <TrendingUp size={16} className={dailyCapReached ? "text-red-400" : "text-emerald-500"} />
-                  <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Günlük Limit</h3>
+                  <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">{t('mining.daily_limit.title')}</h3>
                 </div>
                 <span className="text-xs font-black italic text-white">{dailyEarnedBtc.toFixed(8)} BTC</span>
               </div>
@@ -392,59 +373,68 @@ export default function MiningPanel({
                 />
               </div>
               <p className="text-[10px] text-zinc-500 font-bold text-center uppercase tracking-widest">
-                {dailyCapReached ? 'Günlük kazanç limitine ulaşıldı' : `Kapasite: %${dailyEarnedPct.toFixed(1)}`}
+                {dailyCapReached ? t('mining.daily_limit.reached') : `${t('mining.daily_limit.capacity')} %${dailyEarnedPct.toFixed(1)}`}
               </p>
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <button onClick={() => onNavigate('vip')} className="premium-glass p-4 rounded-2xl flex flex-col items-center gap-2 hover:bg-white/5 transition-all">
-              <Crown size={20} className="text-yellow-500" />
-              <span className="text-[10px] font-black uppercase tracking-widest">VIP</span>
-            </button>
-            <button onClick={() => onNavigate('battlepass')} className="premium-glass p-4 rounded-2xl flex flex-col items-center gap-2 hover:bg-white/5 transition-all">
-              <Star size={20} className="text-emerald-500" />
-              <span className="text-[10px] font-black uppercase tracking-widest">PASS</span>
-            </button>
-            <button onClick={() => onNavigate('marketplace')} className="premium-glass p-4 rounded-2xl flex flex-col items-center gap-2 hover:bg-white/5 transition-all">
-              <ShoppingCart size={20} className="text-blue-500" />
-              <span className="text-[10px] font-black uppercase tracking-widest">PAZAR</span>
-            </button>
-            <button onClick={handleWatchAd} className="premium-glass p-4 rounded-2xl flex flex-col items-center gap-2 hover:bg-white/5 transition-all relative overflow-hidden"
-              style={{ border: `1px solid rgba(251,191,36,0.25)` }}>
-              <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle at 50% 0%, rgba(251,191,36,0.08) 0%, transparent 70%)' }} />
-              <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 2, repeat: Infinity, repeatDelay: 1 }}>
-                <Gift size={20} style={{ color: '#fbbf24' }} />
-              </motion.div>
-              <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: '#fbbf24' }}>BONUS</span>
-            </button>
-          </div>
+          {/* Action Buttons & Help Links (Relocated) */}
+          <div className="space-y-6 pt-4">
+            <div className="grid grid-cols-4 gap-3">
+              <button onClick={() => onNavigate('vip')} className="premium-glass aspect-square rounded-2xl flex flex-col items-center justify-center gap-2 hover:bg-white/5 transition-all group border-white/5">
+                <div className="p-2.5 rounded-xl bg-yellow-500/10 group-hover:bg-yellow-500/20 transition-colors">
+                  <Crown size={20} className="text-yellow-500" />
+                </div>
+                <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400 group-hover:text-white transition-colors">{t('common.vip')}</span>
+              </button>
+              
+              <button onClick={() => onNavigate('battlepass')} className="premium-glass aspect-square rounded-2xl flex flex-col items-center justify-center gap-2 hover:bg-white/5 transition-all group border-white/5">
+                <div className="p-2.5 rounded-xl bg-emerald-500/10 group-hover:bg-emerald-500/20 transition-colors">
+                  <Star size={20} className="text-emerald-500" />
+                </div>
+                <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400 group-hover:text-white transition-colors">{t('common.pass')}</span>
+              </button>
 
-          <motion.button 
-            whileTap={{ scale: 0.98 }}
-            onClick={() => {
-              dispatch({ type: 'AD_BOOST_MINING', hoursEquivalent: 1 });
-              notify({ type: 'mining', title: '⚡ Madencilik Hızlandı!', message: '1 saatlik kazanç anında eklendi.' });
-            }}
-            className="w-full py-6 rounded-3xl relative overflow-hidden font-black text-lg uppercase tracking-[0.2em] text-white shadow-2xl"
-            style={{ background: `linear-gradient(135deg,${a1},${a2})` }}>
-            <div className="absolute inset-0 bg-white/10 opacity-0 hover:opacity-100 transition-opacity" />
-            <div className="flex items-center justify-center gap-3 relative z-10">
-              <Zap size={24} fill="currentColor" className="animate-pulse" />
-              <span>Hızlandırılmış Madencilik</span>
+              <button onClick={() => onNavigate('marketplace')} className="premium-glass aspect-square rounded-2xl flex flex-col items-center justify-center gap-2 hover:bg-white/5 transition-all group border-white/5">
+                <div className="p-2.5 rounded-xl bg-blue-500/10 group-hover:bg-blue-500/20 transition-colors">
+                  <ShoppingCart size={20} className="text-blue-500" />
+                </div>
+                <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400 group-hover:text-white transition-colors">{t('common.marketplace')}</span>
+              </button>
+
+              <button onClick={handleWatchAd} className="premium-glass aspect-square rounded-2xl flex flex-col items-center justify-center gap-2 hover:bg-white/5 transition-all relative overflow-hidden group border-amber-500/20">
+                <div className="p-2.5 rounded-xl bg-amber-500/10 group-hover:bg-amber-500/20 transition-colors">
+                  <motion.div animate={{ scale: [1, 1.15, 1] }} transition={{ duration: 2, repeat: Infinity }}>
+                    <Gift size={20} className="text-amber-500" />
+                  </motion.div>
+                </div>
+                <span className="text-[9px] font-black uppercase tracking-widest text-amber-500/80 group-hover:text-amber-400 transition-colors">{t('common.bonus')}</span>
+              </button>
             </div>
-          </motion.button>
-        </div>
-      </div>
 
-      <div className="flex items-center justify-center gap-8 opacity-30 pt-8">
-        <button className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:opacity-100 transition-opacity">
-          <HelpCircle size={14} /><span>Yardım Merkezi</span>
-        </button>
-        <button className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:opacity-100 transition-opacity">
-          <Info size={14} /><span>Sistem Rehberi</span>
-        </button>
+            <div className="flex items-center justify-between gap-3 pt-2">
+              <button 
+                onClick={() => notify({ type: 'info', title: t('mining.help_center'), message: 'Destek talepleri için Telegram grubumuza katılabilir veya Ayarlar > Destek kısmını kullanabilirsiniz.' })}
+                className="flex-1 flex items-center justify-center gap-3 py-4 rounded-2xl bg-white/5 border border-white/5 text-[9px] font-black uppercase tracking-widest text-zinc-500 hover:text-white transition-all group"
+              >
+                <HelpCircle size={14} className="group-hover:text-blue-400 transition-colors" />
+                <span>{t('mining.help_center')}</span>
+              </button>
+              
+              <button 
+                onClick={() => {
+                  import('./OnboardingTour').then(mod => mod.resetOnboarding());
+                  window.dispatchEvent(new Event('restart-onboarding'));
+                  notify({ type: 'success', title: t('mining.system_guide'), message: 'Kullanım turu yeniden başlatılıyor...' });
+                }}
+                className="flex-1 flex items-center justify-center gap-3 py-4 rounded-2xl bg-white/5 border border-white/5 text-[9px] font-black uppercase tracking-widest text-zinc-500 hover:text-white transition-all group"
+              >
+                <Info size={14} className="group-hover:text-emerald-400 transition-colors" />
+                <span>{t('mining.system_guide')}</span>
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

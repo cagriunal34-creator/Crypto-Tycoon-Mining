@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { useGame } from '../context/GameContext';
 import { useTheme } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 import AnimatedNumber from './AnimatedNumber';
 
 interface WebSidebarProps {
@@ -18,38 +19,39 @@ interface WebSidebarProps {
 const WebSidebar: React.FC<WebSidebarProps> = ({ activeScreen, onNavigate }) => {
   const { state } = useGame();
   const { theme } = useTheme();
+  const { t } = useLanguage();
   
   const a1 = theme.vars['--ct-a1'];
   const a2 = theme.vars['--ct-a2'];
 
   const navGroups = [
     {
-      label: 'Ana Menü',
+      label: t('sidebar.main_menu'),
       items: [
-        { id: 'panel', label: 'Dashboard', icon: LayoutDashboard },
-        { id: 'shop', label: 'Market', icon: ShoppingCart },
-        { id: 'contracts', label: 'Kontratlar', icon: FileText },
-        { id: 'research', label: 'Teknoloji', icon: Microscope },
-        { id: 'quests', label: 'Görevler', icon: Award },
+        { id: 'panel', label: t('nav.panel'), icon: LayoutDashboard },
+        { id: 'shop', label: t('nav.market'), icon: ShoppingCart },
+        { id: 'contracts', label: t('nav.contract'), icon: FileText },
+        { id: 'research', label: t('nav.research'), icon: Microscope },
+        { id: 'quests', label: t('nav.quests'), icon: Award },
       ]
     },
     {
-      label: 'Ekonomi & Sosyal',
+      label: t('sidebar.economy_social'),
       items: [
-        { id: 'wallet', label: 'Cüzdan', icon: Wallet },
-        { id: 'marketplace', label: 'Pazaryeri', icon: ShoppingCart },
-        { id: 'referral', label: 'Referans', icon: Users },
-        { id: 'guild', label: 'Lonca', icon: Shield },
+        { id: 'wallet', label: t('nav.wallet'), icon: Wallet },
+        { id: 'marketplace', label: t('nav.marketplace'), icon: ShoppingCart },
+        { id: 'referral', label: t('nav.social'), icon: Users },
+        { id: 'guild', label: t('nav.guild'), icon: Shield },
       ]
     },
     {
-      label: 'Sistem',
+      label: t('sidebar.system'),
       items: [
-        { id: 'farm', label: 'Madencilik Çiftliği', icon: Box },
-        { id: 'infrastructure', label: 'Altyapı', icon: Zap },
-        { id: 'wheel', label: 'Şans Çarkı', icon: RotateCcw },
-        { id: 'battlepass', label: 'Battle Pass', icon: Star },
-        { id: 'vip', label: 'VIP Üyelik', icon: Crown },
+        { id: 'farm', label: t('nav.farm'), icon: Box },
+        { id: 'infrastructure', label: t('nav.infrastructure'), icon: Zap },
+        { id: 'wheel', label: t('nav.wheel'), icon: RotateCcw },
+        { id: 'battlepass', label: t('nav.battlepass'), icon: Star },
+        { id: 'vip', label: t('nav.vip'), icon: Crown },
       ]
     }
   ];
@@ -82,12 +84,12 @@ const WebSidebar: React.FC<WebSidebarProps> = ({ activeScreen, onNavigate }) => 
           </div>
           <div className="overflow-hidden">
             <p className="text-sm font-bold truncate text-white">{state.username}</p>
-            <p className="text-[10px] font-black uppercase" style={{ color: a1 }}>Lv.{state.level} Madenci</p>
+            <p className="text-[10px] font-black uppercase" style={{ color: a1 }}>Lv.{state.level} {t('sidebar.miner_rank')}</p>
           </div>
         </div>
         <div className="space-y-2">
           <div className="flex justify-between items-center text-[10px]">
-            <span className="font-bold uppercase tracking-widest" style={{ color: 'var(--ct-muted)' }}>BTC Bakiyesi</span>
+            <span className="font-bold uppercase tracking-widest" style={{ color: 'var(--ct-muted)' }}>{t('sidebar.btc_balance')}</span>
             <span className="font-black" style={{ color: a1 }}>
               <AnimatedNumber value={state.btcBalance} precision={8} />
             </span>
@@ -149,7 +151,7 @@ const WebSidebar: React.FC<WebSidebarProps> = ({ activeScreen, onNavigate }) => 
         >
           <div className="flex items-center gap-3">
             <Bell size={18} />
-            <span className="text-xs font-bold">Bildirimler</span>
+            <span className="text-xs font-bold">{t('sidebar.notifications')}</span>
           </div>
           {(state.inboxNotifications?.filter(n => !n.read).length || 0) > 0 && (
             <span className="w-5 h-5 rounded-full text-white text-[9px] font-black flex items-center justify-center border border-zinc-950"
@@ -167,7 +169,7 @@ const WebSidebar: React.FC<WebSidebarProps> = ({ activeScreen, onNavigate }) => 
           style={{ color: activeScreen === 'settings' ? a1 : 'var(--ct-muted)' }}
         >
           <Settings size={18} />
-          <span className="text-xs font-bold">Ayarlar</span>
+          <span className="text-xs font-bold">{t('sidebar.settings')}</span>
         </button>
       </div>
     </aside>

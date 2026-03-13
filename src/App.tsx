@@ -7,9 +7,9 @@ import React, { useState, useEffect, useRef, Suspense } from 'react';
 import {
   LayoutDashboard, Wallet, Settings, Bell, FileText,
   TrendingUp, Award, RotateCcw, Users, Box, Menu, X,
-  Star, ShoppingCart, Crown, Shield, Zap, RefreshCw, Microscope, Gift
+  Star, ShoppingCart, Crown, Shield, Zap, RefreshCw, Microscope, Gift, BarChart2, Trophy
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import AdRewardModal from './components/AdRewardModal';
 import AdBanner from './components/AdBanner';
 import { LoginScreen } from './components/LoginScreen';
@@ -21,6 +21,7 @@ import { cn } from './lib/utils';
 import { GameProvider, useGame } from './context/GameContext';
 import { NotificationProvider, useNotify } from './context/NotificationContext';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
+import { LanguageProvider } from './context/LanguageContext';
 import { INITIAL_STATE } from './context/GameContext'; // Assuming INITIAL_STATE is exported from GameContext
 
 import AmbientBackground from './components/AmbientBackground';
@@ -60,6 +61,14 @@ import { usePushNotifications } from './hooks/usePushNotifications';
 import NotificationPermissionBanner from './components/NotificationPermissionBanner';
 import LowEnergyAdBanner from './components/LowEnergyAdBanner';
 import OnboardingTour from './components/OnboardingTour';
+import SoundManager from './components/SoundManager';
+import VipAura from './components/VipAura';
+import StatsScreen from './components/StatsScreen';
+import TournamentScreen from './components/TournamentScreen';
+import CosmeticShop from './components/CosmeticShop';
+import FactoryScreen from './components/FactoryScreen';
+import AltcoinScreen from './components/AltcoinScreen';
+import StarterPackPopup from './components/StarterPackPopup';
 
 // ── Push Notification Manager ─────────────────────────────────────────────────
 // Ayrı bileşen: GameContext state'ine erişir, hook'u çalıştırır, banner'ı gösterir
@@ -79,7 +88,9 @@ function PushNotificationManager() {
       .map((c: any) => ({ name: c.name || 'Kontrat', expiresAt: c.expiresAt }));
 
     // Guild bilgisi
-    const myGuild = (state.guilds || []).find((g: any) => g.id === state.userGuildId);
+    const myGuild = (state.guilds || []).find((g: any) => 
+      g.members?.some((m: any) => m.id === state.user?.uid)
+    );
 
     return {
       btcBalance: state.btcBalance || 0,
@@ -212,7 +223,12 @@ function AppInner() {
       case 'vip': return <VIPScreen />;
       case 'infrastructure': return <InfrastructureScreen />;
       case 'research': return <ResearchTree />;
-      case 'guild': return <GuildScreen userId={state.user?.uid || null} />;
+      case 'guild': return <GuildScreen />;
+      case 'stats': return <StatsScreen />;
+      case 'tournament': return <TournamentScreen />;
+      case 'cosmetics': return <CosmeticShop />;
+      case 'factory': return <FactoryScreen />;
+      case 'altcoin': return <AltcoinScreen />;
       default: return <MiningPanel onOpenContracts={() => setActiveScreen('contracts')} onWatchAd={handleWatchAd} onOpenPrestige={() => setIsPrestigeOpen(true)} onNavigate={(screen) => setActiveScreen(screen as Screen)} />;
     }
   };
@@ -236,6 +252,8 @@ function AppInner() {
     { id: 'infrastructure', label: 'Altyapı', icon: Zap },
     { id: 'vip', label: 'VIP', icon: Crown },
     { id: 'inbox', label: 'Gelen Kutusu', icon: Bell },
+    { id: 'stats', label: 'İstatistik', icon: BarChart2 },
+    { id: 'tournament', label: 'Turnuva', icon: Trophy },
     { id: 'settings', label: 'Ayarlar', icon: Settings },
   ];
 
@@ -344,6 +362,8 @@ function AppInner() {
     <div className="flex flex-col h-screen max-w-md mx-auto overflow-hidden relative"
       style={{ background: 'var(--ct-bg, #030303)' }}>
 
+      <SoundManager />
+      <VipAura />
       <AmbientBackground />
       <Suspense fallback={null}>
         {state.announcement && <NewsTicker announcement={state.announcement} />}
@@ -447,6 +467,9 @@ function AppInner() {
       <PushNotificationManager />
       <LowEnergyAdBanner onWatchAd={handleWatchAd} />
       <OnboardingTour />
+      <SoundManager />
+      <VipAura />
+      <StarterPackPopup />
 
       {/* ── Header ─────────────────────────────────────────────── */}
       <header className="flex items-center justify-between px-5 py-3 sticky top-0 z-50 backdrop-blur-xl relative"
@@ -566,6 +589,7 @@ function AppInner() {
         />
       )}
       <PrestigeModal isOpen={isPrestigeOpen} onClose={() => setIsPrestigeOpen(false)} />
+      <StarterPackPopup />
 
     </div>
   );
@@ -575,12 +599,14 @@ export default function App() {
   return (
     <ThemeProvider>
       <GameProvider>
-        <NotificationProvider>
-          <AppErrorBoundary>
-            <OfflineDetector />
-            <AppInner />
-          </AppErrorBoundary>
-        </NotificationProvider>
+        <LanguageProvider>
+          <NotificationProvider>
+            <AppErrorBoundary>
+              <OfflineDetector />
+              <AppInner />
+            </AppErrorBoundary>
+          </NotificationProvider>
+        </LanguageProvider>
       </GameProvider>
     </ThemeProvider>
   );

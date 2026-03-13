@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   User, Globe, Mail, Shield, FileText, LogOut, Trash2,
-  ChevronRight, Heart, MessageSquare, Palette, Check, Crown, Star, Smartphone, Map
+  ChevronRight, Heart, MessageSquare, Palette, Check, Crown, Star, Smartphone, Map, RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { resetOnboarding } from './OnboardingTour';
@@ -12,6 +12,7 @@ import { useNotify } from '../context/NotificationContext';
 import ThemeCard from './ThemeCard';
 import { firebaseSignOut } from '../lib/firebase';
 import { supabase, TABLES } from '../lib/supabase';
+import { useLanguage } from '../context/LanguageContext';
 
 type Tab = 'account' | 'themes';
 
@@ -21,14 +22,24 @@ export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: st
   const { theme, setTheme, allThemes } = useTheme();
   const { state, updateUserProfile, uploadAvatar } = useGame();
   const { notify } = useNotify();
+  const { language, setLanguage, t } = useLanguage();
   const [justChanged, setJustChanged] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [supportLinks, setSupportLinks] = useState<any>(null);
   const [editForm, setEditForm] = useState({
     username: state.username,
     email: state.email,
     phone: state.phone
   });
   const [isUploading, setIsUploading] = useState(false);
+
+  useEffect(() => {
+    const fetchLinks = async () => {
+      const { data } = await supabase.from(TABLES.SETTINGS).select('value').eq('id', 'support_legal_links').single();
+      if (data?.value) setSupportLinks(data.value);
+    };
+    fetchLinks();
+  }, []);
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
@@ -59,13 +70,25 @@ export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: st
   };
 
   const handleSupportLink = (label: string) => {
-    const urls: Record<string, string> = {
-      'Bize Destek Olun': 'mailto:support@cryptotycoon.app',
-      'Bize Ulaşın': 'mailto:support@cryptotycoon.app',
-      'Şartlar ve Koşullar': '/terms',
-      'Gizlilik Politikası': '/privacy',
+    const defaultUrls: Record<string, string> = {
+      'support_us': 'mailto:support@cryptotycoon.app',
+      'contact_us': 'mailto:support@cryptotycoon.app',
+      'terms': '/terms',
+      'privacy': '/privacy',
     };
-    const url = urls[label];
+    
+    const keyMap: Record<string, string> = {
+      'support_us': 'supportUs',
+      'contact_us': 'contactUs',
+      'terms': 'terms',
+      'privacy': 'privacy'
+    };
+
+    const linkKey = Object.keys(defaultUrls).find(key => t(`settings.${key}`) === label);
+    if (!linkKey) return;
+
+    const url = (supportLinks && supportLinks[keyMap[linkKey]]) || defaultUrls[linkKey];
+    
     if (url) {
       if (url.startsWith('mailto:')) {
         window.location.href = url;
@@ -91,8 +114,8 @@ export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: st
       {/* ── Tab Bar ── */}
       <div className="flex gap-2 p-1 rounded-2xl bg-white/[0.03] border border-white/[0.04]">
         {([
-          { id: 'account', label: 'Hesap',   Icon: User    },
-          { id: 'themes',  label: 'Temalar', Icon: Palette },
+          { id: 'account', label: t('settings.account'),   Icon: User    },
+          { id: 'themes',  label: t('settings.themes'), Icon: Palette },
         ] as { id: Tab; label: string; Icon: React.ElementType }[]).map(({ id, label, Icon }) => {
           const active = activeTab === id;
           return (
@@ -120,10 +143,10 @@ export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: st
             <div>
               <h2 className="text-xl font-black tracking-tight"
                 style={{ background: `linear-gradient(90deg, var(--ct-text, #fff), ${a1})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                Uygulama Teması
+                {t('settings.app_theme')}
               </h2>
               <p className="text-xs mt-1" style={{ color: 'var(--ct-muted, #71717a)' }}>
-                Seçtiğin tema anında uygulanır ve cihazına kaydedilir.
+                {t('settings.app_theme_desc')}
               </p>
             </div>
 
@@ -133,7 +156,7 @@ export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: st
               <span className="text-3xl">{theme.emoji}</span>
               <div className="flex-1">
                 <div className="text-sm font-black" style={{ color: 'var(--ct-text, #fff)' }}>{theme.name}</div>
-                <div className="text-[10px] mt-0.5" style={{ color: 'var(--ct-muted, #888)' }}>{theme.tag} · Aktif tema</div>
+                <div className="text-[10px] mt-0.5" style={{ color: 'var(--ct-muted, #888)' }}>{theme.tag} · {t('settings.active_theme')}</div>
               </div>
               <div className="flex gap-2">
                 {(['--ct-a1','--ct-a2','--ct-a3'] as const).map(v => (
@@ -147,7 +170,7 @@ export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: st
               <div className="flex items-center gap-2 px-1">
                 <div className="w-1 h-3 rounded-full" style={{ background: `linear-gradient(180deg, ${a1}, ${a2})` }} />
                 <h3 className="text-[10px] font-black uppercase tracking-widest" style={{ color: a1 }}>
-                  Premium Temalar
+                  {t('settings.premium_themes')}
                 </h3>
                 <div className="flex-1 h-px" style={{ background: `${a1}20` }} />
               </div>
@@ -163,7 +186,7 @@ export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: st
               <div className="flex items-center gap-2 px-1">
                 <div className="w-1 h-3 rounded-full" style={{ background: 'rgba(255,255,255,0.2)' }} />
                 <h3 className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'var(--ct-muted, #71717a)' }}>
-                  Klasik Temalar
+                  {t('settings.classic_themes')}
                 </h3>
                 <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.06)' }} />
               </div>
@@ -188,10 +211,10 @@ export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: st
                     <Check size={16} />
                   </div>
                   <div>
-                    <div className="text-xs font-black" style={{ color: 'var(--ct-text, #fff)' }}>Tema Uygulandı!</div>
+                    <div className="text-xs font-black" style={{ color: 'var(--ct-text, #fff)' }}>{t('settings.theme_applied')}</div>
                     <div className="text-[10px]" style={{ color: 'var(--ct-muted, #888)' }}>
                       {allThemes.find(t => t.id === justChanged)?.emoji}{' '}
-                      {allThemes.find(t => t.id === justChanged)?.name} aktif edildi.
+                      {allThemes.find(t => t.id === justChanged)?.name} {t('settings.vip_active').toLowerCase()}.
                     </div>
                   </div>
                 </motion.div>
@@ -205,7 +228,7 @@ export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: st
                 style={{ background: 'var(--ct-card-bg, rgba(10,10,10,0.8))', border: `1px solid ${a1}18` }}>
                 <div className="px-4 py-2.5 flex items-center gap-2"
                   style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: `${a1}06` }}>
-                  <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: a1 }}>⭐ Premium</span>
+                  <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: a1 }}>⭐ {t('settings.premium_themes')}</span>
                 </div>
                 {allThemes.filter(t => ['obsidian','amber-noir','violet-core','arctic-dawn'].includes(t.id)).map((t, i, arr) => (
                   <button key={t.id} onClick={() => handleSelectTheme(t.id)}
@@ -246,7 +269,7 @@ export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: st
                 style={{ background: 'var(--ct-card-bg, rgba(10,10,10,0.8))', border: '1px solid rgba(255,255,255,0.05)' }}>
                 <div className="px-4 py-2.5 flex items-center gap-2"
                   style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.02)' }}>
-                  <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: 'var(--ct-muted, #71717a)' }}>Klasik</span>
+                  <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: 'var(--ct-muted, #71717a)' }}>{t('settings.classic_themes')}</span>
                 </div>
                 {allThemes.filter(t => !['obsidian','amber-noir','violet-core','arctic-dawn'].includes(t.id)).map((t, i, arr) => (
                   <button key={t.id} onClick={() => handleSelectTheme(t.id)}
@@ -367,7 +390,7 @@ export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: st
               {isEditing ? (
                 <div className="w-full max-w-[280px] space-y-3">
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase tracking-widest px-1" style={{ color: 'var(--ct-muted, #71717a)' }}>Kullanıcı Adı</label>
+                    <label className="text-[10px] font-bold uppercase tracking-widest px-1" style={{ color: 'var(--ct-muted, #71717a)' }}>{t('settings.username')}</label>
                     <input 
                       type="text"
                       className="w-full px-4 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.08] text-sm focus:outline-none focus:border-white/20"
@@ -377,7 +400,7 @@ export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: st
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase tracking-widest px-1" style={{ color: 'var(--ct-muted, #71717a)' }}>E-posta</label>
+                    <label className="text-[10px] font-bold uppercase tracking-widest px-1" style={{ color: 'var(--ct-muted, #71717a)' }}>{t('settings.email')}</label>
                     <input 
                       type="email"
                       className="w-full px-4 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.08] text-sm focus:outline-none focus:border-white/20"
@@ -387,7 +410,7 @@ export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: st
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase tracking-widest px-1" style={{ color: 'var(--ct-muted, #71717a)' }}>Telefon</label>
+                    <label className="text-[10px] font-bold uppercase tracking-widest px-1" style={{ color: 'var(--ct-muted, #71717a)' }}>{t('settings.phone')}</label>
                     <input 
                       type="tel"
                       className="w-full px-4 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.08] text-sm focus:outline-none focus:border-white/20"
@@ -404,7 +427,7 @@ export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: st
                       }}
                       className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-white/[0.05] border border-white/[0.05] hover:bg-white/[0.1] transition-all"
                       style={{ color: 'var(--ct-text, #fff)' }}>
-                      İptal
+                      {t('settings.cancel')}
                     </button>
                     <button 
                       onClick={async () => {
@@ -429,7 +452,7 @@ export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: st
                       }}
                       className="flex-1 py-2.5 rounded-xl text-xs font-bold transition-all"
                       style={{ background: a1, color: '#000' }}>
-                      Kaydet
+                      {t('settings.save')}
                     </button>
                   </div>
                 </div>
@@ -441,11 +464,11 @@ export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: st
                     </h2>
                     <div className="flex items-center justify-center gap-1.5 mt-1" style={{ color: 'var(--ct-muted, #71717a)' }}>
                       <Mail size={10} />
-                      <p className="text-xs">{state.email || 'E-posta belirtilmemiş'}</p>
+                      <p className="text-xs">{state.email || t('settings.email') + ' ...'}</p>
                     </div>
                     <div className="flex items-center justify-center gap-1.5 mt-1" style={{ color: 'var(--ct-muted, #71717a)' }}>
                       <Smartphone size={10} />
-                      <p className="text-[10px]">{state.phone || 'Telefon belirtilmemiş'}</p>
+                      <p className="text-[10px]">{state.phone || t('settings.phone') + ' ...'}</p>
                     </div>
                   </div>
                   <button 
@@ -459,7 +482,7 @@ export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: st
                     }}
                     className="px-6 py-2 rounded-full text-xs font-bold transition-all"
                     style={{ border: `1px solid ${a1}35`, color: a1, background: `${a1}08` }}>
-                    Profili Düzenle
+                    {t('settings.profile_edit')}
                   </button>
                 </>
               )}
@@ -467,7 +490,7 @@ export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: st
 
             {/* Hesap Ayarları */}
             <div className="space-y-3">
-              <h3 className="text-[10px] font-bold uppercase tracking-widest px-2" style={{ color: 'var(--ct-muted, #71717a)' }}>Üyelik ve Durum</h3>
+              <h3 className="text-[10px] font-bold uppercase tracking-widest px-2" style={{ color: 'var(--ct-muted, #71717a)' }}>{t('settings.membership_status')}</h3>
               <div className="rounded-3xl overflow-hidden"
                 style={{ background: 'var(--ct-card-bg, rgba(10,10,10,0.8))', border: '1px solid rgba(255,255,255,0.05)' }}>
                 
@@ -480,9 +503,9 @@ export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: st
                       <Crown size={18} />
                     </div>
                     <div className="text-left">
-                      <span className="text-sm font-medium block" style={{ color: 'var(--ct-text, #fff)' }}>VIP Üyelik</span>
+                      <span className="text-sm font-medium block" style={{ color: 'var(--ct-text, #fff)' }}>{t('settings.vip_status')}</span>
                       <span className="text-[10px]" style={{ color: 'var(--ct-muted, #888)' }}>
-                        {state.vip?.isActive ? `${state.vip.tier === 'gold' ? 'Gold' : 'Silver'} Aktif` : 'Aktif değil'}
+                        {state.vip?.isActive ? `${state.vip.tier === 'gold' ? 'Gold' : 'Silver'} ${t('settings.vip_active')}` : t('settings.vip_inactive')}
                       </span>
                     </div>
                   </div>
@@ -497,9 +520,9 @@ export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: st
                       <Star size={18} />
                     </div>
                     <div className="text-left">
-                      <span className="text-sm font-medium block" style={{ color: 'var(--ct-text, #fff)' }}>Battle Pass</span>
+                      <span className="text-sm font-medium block" style={{ color: 'var(--ct-text, #fff)' }}>{t('settings.battlepass')}</span>
                       <span className="text-[10px]" style={{ color: 'var(--ct-muted, #888)' }}>
-                        Seviye {state.battlePass?.currentLevel || 0} · {state.battlePass?.isPremium ? 'Premium' : 'Ücretsiz'}
+                        {t('settings.bp_level')} {state.battlePass?.currentLevel || 0} · {state.battlePass?.isPremium ? 'Premium' : 'Free'}
                       </span>
                     </div>
                   </div>
@@ -510,30 +533,32 @@ export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: st
 
             {/* Hesap Ayarları */}
             <div className="space-y-3">
-              <h3 className="text-[10px] font-bold uppercase tracking-widest px-2" style={{ color: 'var(--ct-muted, #71717a)' }}>Hesap Ayarları</h3>
+              <h3 className="text-[10px] font-bold uppercase tracking-widest px-2" style={{ color: 'var(--ct-muted, #71717a)' }}>{t('settings.account_settings')}</h3>
               <div className="rounded-3xl overflow-hidden"
                 style={{ background: 'var(--ct-card-bg, rgba(10,10,10,0.8))', border: '1px solid rgba(255,255,255,0.05)' }}>
-                <button className="w-full px-5 py-4 flex items-center justify-between hover:bg-white/5 transition-colors"
+                <button 
+                  onClick={() => setLanguage(language === 'tr' ? 'en' : 'tr')}
+                  className="w-full px-5 py-4 flex items-center justify-between hover:bg-white/5 transition-colors"
                   style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                   <div className="flex items-center gap-4">
                     <div className="p-2 rounded-xl" style={{ background: `${a3}18`, color: a3 }}><Globe size={18} /></div>
-                    <span className="text-sm font-medium" style={{ color: 'var(--ct-text, #fff)' }}>Dil</span>
+                    <span className="text-sm font-medium" style={{ color: 'var(--ct-text, #fff)' }}>{t('settings.language')}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs" style={{ color: 'var(--ct-muted, #888)' }}>Türkçe</span>
-                    <ChevronRight size={16} style={{ color: 'var(--ct-muted, #888)' }} />
+                    <span className="text-xs uppercase font-bold" style={{ color: a3 }}>{language === 'tr' ? 'Türkçe' : 'English'}</span>
+                    <RefreshCw size={14} style={{ color: 'var(--ct-muted, #888)' }} className="animate-spin-slow" />
                   </div>
                 </button>
                 {/* Turu Tekrar Göster */}
                 <button
-                  onClick={() => { resetOnboarding(); notify({ type: 'info', title: '🎯 Tur Sıfırlandı', message: 'Sayfayı yenilediğinde onboarding turu tekrar başlayacak.' }); }}
+                  onClick={() => { resetOnboarding(); notify({ type: 'info', title: `🎯 ${t('settings.onboarding_restart')}`, message: t('settings.onboarding_desc') }); }}
                   className="w-full px-5 py-4 flex items-center justify-between hover:bg-white/5 transition-colors"
                   style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                   <div className="flex items-center gap-4">
                     <div className="p-2 rounded-xl" style={{ background: `${a1}18`, color: a1 }}><Map size={18} /></div>
                     <div className="text-left">
-                      <span className="text-sm font-medium block" style={{ color: 'var(--ct-text, #fff)' }}>Onboarding Turunu Tekrar Gör</span>
-                      <span className="text-[10px]" style={{ color: 'var(--ct-muted, #888)' }}>Yeni başlangıç rehberini yeniden başlat</span>
+                      <span className="text-sm font-medium block" style={{ color: 'var(--ct-text, #fff)' }}>{t('settings.onboarding_restart')}</span>
+                      <span className="text-[10px]" style={{ color: 'var(--ct-muted, #888)' }}>{t('settings.onboarding_desc')}</span>
                     </div>
                   </div>
                   <ChevronRight size={16} style={{ color: 'var(--ct-muted, #888)' }} />
@@ -545,12 +570,14 @@ export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: st
                     </div>
                     <div className="text-left">
                       <span className="text-sm font-medium block" style={{ color: 'var(--ct-text, #fff)' }}>Google</span>
-                      <span className="text-[10px] font-bold" style={{ color: a1 }}>Bağlandı</span>
+                      <span className="text-[10px] font-bold" style={{ color: a1 }}>{t('settings.google_connected')}</span>
                     </div>
                   </div>
-                  <button className="px-4 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[10px] font-bold hover:bg-white/10 transition-all"
+                  <button 
+                    onClick={handleLogout}
+                    className="px-4 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[10px] font-bold hover:bg-white/10 transition-all"
                     style={{ color: 'var(--ct-text, #fff)' }}>
-                    Bağlantıyı Kes
+                    {t('settings.disconnect')}
                   </button>
                 </div>
               </div>
@@ -558,14 +585,14 @@ export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: st
 
             {/* Destek */}
             <div className="space-y-3">
-              <h3 className="text-[10px] font-bold uppercase tracking-widest px-2" style={{ color: 'var(--ct-muted, #71717a)' }}>Destek ve Bilgi</h3>
+              <h3 className="text-[10px] font-bold uppercase tracking-widest px-2" style={{ color: 'var(--ct-muted, #71717a)' }}>{t('settings.support_info')}</h3>
               <div className="rounded-3xl overflow-hidden"
                 style={{ background: 'var(--ct-card-bg, rgba(10,10,10,0.8))', border: '1px solid rgba(255,255,255,0.05)' }}>
                 {[
-                  { Icon: Heart,         label: 'Bize Destek Olun',    color: a1 },
-                  { Icon: MessageSquare, label: 'Bize Ulaşın',         color: a2 },
-                  { Icon: FileText,      label: 'Şartlar ve Koşullar', color: a3 },
-                  { Icon: Shield,        label: 'Gizlilik Politikası', color: a1 },
+                  { Icon: Heart,         label: t('settings.support_us'),    color: a1 },
+                  { Icon: MessageSquare, label: t('settings.contact_us'),         color: a2 },
+                  { Icon: FileText,      label: t('settings.terms'), color: a3 },
+                  { Icon: Shield,        label: t('settings.privacy'), color: a1 },
                 ].map(({ Icon, label, color }, i, arr) => (
                   <button key={label} className="w-full px-5 py-4 flex items-center justify-between hover:bg-white/5 transition-colors"
                     onClick={() => handleSupportLink(label)}
@@ -592,7 +619,7 @@ export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: st
                 <div className="p-2 rounded-xl bg-red-500/10 text-red-500 group-hover:bg-red-500 group-hover:text-white transition-all">
                   <LogOut size={18} />
                 </div>
-                <span className="text-sm font-bold text-red-500">Oturumu Kapat</span>
+                <span className="text-sm font-bold text-red-500">{t('settings.logout')}</span>
               </button>
               <button
                 key="Hesabı Sil"
@@ -602,7 +629,7 @@ export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: st
                 <div className="p-2 rounded-xl bg-red-500/10 text-red-500 group-hover:bg-red-500 group-hover:text-white transition-all">
                   <Trash2 size={18} />
                 </div>
-                <span className="text-sm font-bold text-red-500">Hesabı Sil</span>
+                <span className="text-sm font-bold text-red-500">{t('settings.delete_account')}</span>
               </button>
             </div>
 
@@ -611,22 +638,22 @@ export default function SettingsScreen({ onNavigate }: { onNavigate: (screen: st
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6">
                 <div className="rounded-3xl p-6 space-y-4 max-w-sm w-full"
                   style={{ background: 'var(--ct-card-bg, #111)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                  <h3 className="text-base font-black text-red-500 uppercase tracking-tight">Hesabı Sil</h3>
-                  <p className="text-sm text-zinc-400">Bu işlem geri alınamaz. Tüm verileriniz, BTC bakiyeniz ve ilerlemeleriniz kalıcı olarak silinecektir.</p>
+                  <h3 className="text-base font-black text-red-500 uppercase tracking-tight">{t('settings.delete_confirm_title')}</h3>
+                  <p className="text-sm text-zinc-400">{t('settings.delete_confirm_desc')}</p>
                   <div className="flex gap-3">
                     <button
                       onClick={() => setShowDeleteConfirm(false)}
                       className="flex-1 py-3 rounded-2xl text-xs font-bold bg-white/5 border border-white/10 hover:bg-white/10 transition-all"
                       style={{ color: 'var(--ct-text, #fff)' }}
                     >
-                      İptal
+                      {t('settings.delete_confirm_no')}
                     </button>
                     <button
                       onClick={handleDeleteAccount}
                       disabled={isDeletingAccount}
                       className="flex-1 py-3 rounded-2xl text-xs font-bold bg-red-500 text-white hover:bg-red-600 transition-all disabled:opacity-50"
                     >
-                      {isDeletingAccount ? 'Siliniyor...' : 'Evet, Sil'}
+                      {isDeletingAccount ? t('common.loading') : t('settings.delete_confirm_yes')}
                     </button>
                   </div>
                 </div>

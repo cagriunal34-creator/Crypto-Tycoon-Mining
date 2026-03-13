@@ -65,21 +65,30 @@ export default function BatteryWidget({
 
     // Supabase realtime — admin ayarlarını anlık al
     useEffect(() => {
-        supabase.from('settings').select('value').eq('id', 'hashrate_settings').single()
-            .then(({ data }) => { if (data?.value) setCfg(p => ({ ...p, ...data.value })); });
+        supabase.from('settings').select('*').eq('id', 'hashrate_settings').single()
+            .then(({ data }) => {
+                const v = data?.value || (data && data.id ? data : null);
+                if (v) setCfg(p => ({ ...p, ...v }));
+            });
 
         const ch = supabase.channel('bw-cfg')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'settings', filter: 'id=eq.hashrate_settings' }, p => {
-                const v = (p.new as any)?.value;
-                if (v) setCfg(s => ({ ...s, ...v }));
-            })
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'settings', filter: 'id=eq.v1' }, p => {
-                const s = p.new as any; if (!s) return;
-                setCfg(prev => ({
-                    ...prev,
-                    ...(s.battery_drain_hours   !== undefined && { battery_drain_hours:   s.battery_drain_hours }),
-                    ...(s.energy_regen_per_hour !== undefined && { energy_regen_per_hour: s.energy_regen_per_hour }),
-                }));
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'settings' }, p => {
+                const s = p.new as any;
+                if (!s || !s.id) return;
+                
+                // Handle both underscore and space IDs defensive
+                const normalizedId = s.id.replace(/ /g, '_');
+                const v = s.value || (s.id !== 'v1' ? s : null);
+
+                if (normalizedId === 'hashrate_settings' && v) {
+                    setCfg(prev => ({ ...prev, ...v }));
+                } else if (normalizedId === 'v1') {
+                    setCfg(prev => ({
+                        ...prev,
+                        ...(s.battery_drain_hours   !== undefined && { battery_drain_hours:   s.battery_drain_hours }),
+                        ...(s.energy_regen_per_hour !== undefined && { energy_regen_per_hour: s.energy_regen_per_hour }),
+                    }));
+                }
             })
             .subscribe();
         return () => { supabase.removeChannel(ch); };

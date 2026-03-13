@@ -9,22 +9,24 @@ import {
   ChevronRight, Info, Gift, Plus, Search,
   X, CheckCircle2, TrendingUp, Star, Swords, Clock, Flame, Target
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../lib/utils';
 import { useGame, Guild } from '../context/GameContext';
 import { GUILD_GOALS } from '../constants/gameData';
 import { useNotify } from '../context/NotificationContext';
 import { supabase, TABLES } from '../lib/supabase';
 import { useTheme } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 
 type GuildTab = 'overview' | 'members' | 'goals' | 'battle';
 
-export default function GuildScreen({ userId }: { userId: string | null }) {
+export default function GuildScreen({ userId }: { userId?: string | null }) {
   const { 
     state, createGuildInFirestore, joinGuildInFirestore, 
     leaveGuildInFirestore, donateToGuildInFirestore, claimGuildReward 
   } = useGame();
   const { notify } = useNotify();
+  const { t } = useLanguage();
 
   const [activeTab, setActiveTab] = useState<GuildTab>('overview');
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -43,31 +45,31 @@ export default function GuildScreen({ userId }: { userId: string | null }) {
   const userGuild = state.guilds.find(g => g.id === state.userGuildId);
 
   const handleCreate = async () => {
-    if (name.length < 3) return notify({ type: 'warning', title: 'Hata', message: 'Lonca adı en az 3 karakter olmalıdır.' });
+    if (name.length < 3) return notify({ type: 'warning', title: t('common.error'), message: t('guild.notify.error_name_min') });
     if (isCreating) return;
     try {
       setIsCreating(true);
       await createGuildInFirestore(name, desc, badge, 1000);
-      notify({ type: 'success', title: 'Başarılı', message: 'Lonca başarıyla kuruldu!' });
+      notify({ type: 'success', title: t('common.success'), message: t('guild.notify.create_success') });
       setShowCreateModal(false);
     } catch (e: any) {
-      notify({ type: 'warning', title: 'Hata', message: e.message });
+      notify({ type: 'warning', title: t('common.error'), message: e.message });
     } finally {
       setIsCreating(false);
     }
   };
 
-  const handleClaimReward = async (goalId: string, btcValue: number) => {
+  const handleClaimReward = async (goalId: string, rewardValue: number) => {
     try {
-      await claimGuildReward(goalId, btcValue);
-      notify({ type: 'success', title: 'Ödül Alındı!', message: 'Ödülünüz bakiyenize eklendi.' });
+      await claimGuildReward(goalId, rewardValue);
+      notify({ type: 'success', title: t('guild.goals.claim_btn'), message: t('guild.notify.reward_claimed') });
     } catch (e: any) {
-      notify({ type: 'warning', title: 'Hata', message: e.message });
+      notify({ type: 'warning', title: t('common.error'), message: e.message });
     }
   };
 
   // Fetch Guild Members & Leader
-  const [leaderName, setLeaderName] = useState('Yükleniyor...');
+  const [leaderName, setLeaderName] = useState(t('common.loading') + '...');
 
   useEffect(() => {
     if (state.userGuildId) {
@@ -89,14 +91,14 @@ export default function GuildScreen({ userId }: { userId: string | null }) {
           const ownerId = (currentGuild as any)?.owner_id;
           
           if (ownerId === state.user?.uid) {
-            setLeaderName('Sen');
+            setLeaderName(t('guild.members.me'));
           } else if (ownerId) {
             const { data: ownerData } = await supabase
               .from(TABLES.PROFILES)
               .select('username')
               .eq('id', ownerId)
               .single();
-            setLeaderName(ownerData?.username || 'Anonim Lider');
+            setLeaderName(ownerData?.username || t('common.anonymous'));
           }
         } catch (e) {
           console.error("Error fetching guild data:", e);
@@ -106,7 +108,7 @@ export default function GuildScreen({ userId }: { userId: string | null }) {
       };
       fetchGuildStats();
     }
-  }, [state.userGuildId, state.user?.uid, state.guilds]);
+  }, [state.userGuildId, state.user?.uid, state.guilds, t]);
 
   if (!userGuild) {
     return (
@@ -116,9 +118,9 @@ export default function GuildScreen({ userId }: { userId: string | null }) {
           <div className="w-20 h-20 rounded-[2.5rem] bg-blue-500/10 border border-blue-500/20 flex items-center justify-center mx-auto mb-6">
             <Shield size={40} className="text-blue-500" />
           </div>
-          <h2 className="text-2xl font-black tracking-tight text-white">Bir Loncaya Katıl</h2>
+          <h2 className="text-2xl font-black tracking-tight text-white">{t('guild.join_title')}</h2>
           <p className="text-zinc-500 text-sm max-w-[280px] mx-auto italic">
-            Madencilerle güçlerini birleştir, ortak hedeflere ulaş ve özel BTC ödülleri kazan!
+            {t('guild.join_desc')}
           </p>
           <div className="flex flex-col gap-3 pt-4 px-4">
             <button 
@@ -126,7 +128,7 @@ export default function GuildScreen({ userId }: { userId: string | null }) {
               className="w-full py-4 bg-emerald-500 text-black font-black text-xs uppercase tracking-widest rounded-2xl flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition-all shadow-lg"
             >
               <Plus size={18} />
-              Yeni Lonca Kur (1,000 TP)
+              {t('guild.btn.create')} (1,000 TP)
             </button>
           </div>
         </div>
@@ -134,14 +136,14 @@ export default function GuildScreen({ userId }: { userId: string | null }) {
         {/* Guild List */}
         <div className="px-1 space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-black text-zinc-500 uppercase tracking-[0.2em]">Aktif Loncalar</h3>
+            <h3 className="text-xs font-black text-zinc-500 uppercase tracking-[0.2em]">{t('guild.active_guilds')}</h3>
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10">
               <Search size={12} className="text-zinc-500" />
               <input
                   type="text"
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  placeholder="Ara..."
+                  placeholder={t('guild.search_placeholder')}
                   className="bg-transparent border-none text-[10px] focus:outline-none text-zinc-300 w-20"
                 />
             </div>
@@ -150,7 +152,7 @@ export default function GuildScreen({ userId }: { userId: string | null }) {
           <div className="grid gap-3">
             {state.guilds.length === 0 ? (
               <div className="p-8 text-center bg-white/[0.02] border border-white/5 rounded-3xl">
-                <p className="text-xs text-zinc-600 font-bold italic">Henüz lonca bulunmuyor...</p>
+                <p className="text-xs text-zinc-600 font-bold italic">{t('guild.no_guilds')}</p>
               </div>
             ) : (
               state.guilds
@@ -163,13 +165,13 @@ export default function GuildScreen({ userId }: { userId: string | null }) {
                   onClick={async () => {
                      if (joiningGuildId) return;
                      try {
-                       setJoiningGuildId(guild.id);
-                       await joinGuildInFirestore(guild);
-                       notify({ type: 'success', title: 'Loncaya Katıldın!', message: `${guild.name} ailesine hoş geldin.` });
+                        setJoiningGuildId(guild.id);
+                        await joinGuildInFirestore(guild);
+                        notify({ type: 'success', title: t('common.success'), message: `${guild.name} ${t('guild.notify.join_success')}` });
                      } catch (e: any) {
-                       notify({ type: 'warning', title: 'Hata', message: e.message });
+                        notify({ type: 'warning', title: t('common.error'), message: e.message });
                      } finally {
-                       setJoiningGuildId(null);
+                        setJoiningGuildId(null);
                      }
                    }}
                   className="p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center gap-4 cursor-pointer hover:bg-white/[0.05] transition-all"
@@ -180,13 +182,13 @@ export default function GuildScreen({ userId }: { userId: string | null }) {
                   <div className="flex-1">
                     <h4 className="text-sm font-bold text-white">{guild.name}</h4>
                     <p className="text-[10px] text-zinc-500">
-                      {guild.members} Üye · {(guild.totalHash / 1000).toFixed(1)} TH/s
+                      {guild.members} {t('guild.members_count')} · {(guild.totalHash / 1000).toFixed(1)} TH/s
                     </p>
                   </div>
                    <div className="text-right">
                      <span className="text-[10px] font-black text-emerald-500 px-2 py-1 rounded-lg bg-emerald-500/10">Lv.{guild.level}</span>
                      <p className="text-[8px] text-zinc-600 mt-1 uppercase font-bold tracking-widest">
-                       {joiningGuildId === guild.id ? 'Katılınıyor...' : 'Katıl'}
+                       {joiningGuildId === guild.id ? t('guild.joining') : t('guild.join_btn')}
                      </p>
                    </div>
                 </motion.div>
@@ -199,24 +201,24 @@ export default function GuildScreen({ userId }: { userId: string | null }) {
         <AnimatePresence>
           {showCreateModal && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-              <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="w-full max-w-sm bg-[#0a0a0a] border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
+              <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="w-full max-sm bg-[#0a0a0a] border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
                 <div className="p-4 border-b border-white/5 flex items-center justify-between bg-white/5">
-                  <h3 className="text-sm font-bold text-white">Yeni Lonca Kur</h3>
+                  <h3 className="text-sm font-bold text-white">{t('guild.modal.create_title')}</h3>
                   <button onClick={() => setShowCreateModal(false)} className="p-2 hover:bg-white/5 rounded-full transition-colors">
                     <X size={18} className="text-zinc-400" />
                   </button>
                 </div>
-                <div className="p-6 space-y-5">
+                  <div className="p-6 space-y-5">
+                   <div className="space-y-2">
+                     <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">{t('guild.modal.name_label')}</label>
+                     <input 
+                       value={name} onChange={e => setName(e.target.value)}
+                       className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-emerald-500/50" 
+                       placeholder={t('guild.modal.name_placeholder')}
+                     />
+                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">Lonca Adı</label>
-                    <input 
-                      value={name} onChange={e => setName(e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-emerald-500/50" 
-                      placeholder="Örn: Bitcoin Baronları"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">Badge (Emoji)</label>
+                    <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">{t('guild.modal.badge_label')}</label>
                     <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
                       {['🛡️', '⚔️', '💎', '👑', '🚀', '🔥', '⚡', '🦁', '🦅', '🦈'].map(b => (
                         <button key={b} onClick={() => setBadge(b)} className={cn("w-10 h-10 rounded-lg flex items-center justify-center text-xl transition-all", badge === b ? "bg-emerald-500/20 border border-emerald-500" : "bg-white/5 border border-white/10")}>{b}</button>
@@ -229,7 +231,7 @@ export default function GuildScreen({ userId }: { userId: string | null }) {
                       disabled={isCreating}
                       className="w-full py-4 bg-emerald-500 text-black font-black text-xs uppercase tracking-widest rounded-2xl hover:brightness-110 active:scale-95 transition-all shadow-lg disabled:opacity-50"
                     >
-                      {isCreating ? 'Kuruluyor...' : 'Lonca Kur (1,000 TP)'}
+                      {isCreating ? t('guild.modal.creating') : `${t('guild.btn.create')} (1,000 TP)`}
                     </button>
                   </div>
                 </div>
@@ -257,7 +259,7 @@ export default function GuildScreen({ userId }: { userId: string | null }) {
             <h2 className="text-2xl font-black tracking-tight text-white mb-1 uppercase italic leading-none">{userGuild.name}</h2>
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-black bg-emerald-500 text-black px-2 py-0.5 rounded italic">LV.{userGuild.level}</span>
-              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Sıralama #{userGuild.rank}</span>
+              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{t('guild.dashboard.rank_label')} #{userGuild.rank}</span>
             </div>
           </div>
         </div>
@@ -265,7 +267,7 @@ export default function GuildScreen({ userId }: { userId: string | null }) {
         {/* XP Progress Bar */}
         <div className="mt-6 space-y-1.5">
           <div className="flex justify-between text-[9px] font-black uppercase tracking-widest text-zinc-500">
-            <span>Tecrübe (XP)</span>
+            <span>{t('guild.dashboard.xp_label')}</span>
             <span>{Math.floor(userGuild.xp).toLocaleString()} / {userGuild.xpToNextLevel.toLocaleString()}</span>
           </div>
           <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
@@ -281,10 +283,10 @@ export default function GuildScreen({ userId }: { userId: string | null }) {
       {/* Tabs */}
       <div className="flex p-1 bg-white/5 rounded-2xl border border-white/5">
         {[
-          { id: 'overview', label: 'Genel Bakış', icon: Info },
-          { id: 'members', label: 'Üyeler', icon: Users },
-          { id: 'goals', label: 'Hedefler', icon: Trophy },
-          { id: 'battle', label: 'Savaş', icon: Swords },
+          { id: 'overview', label: t('guild.tabs.overview'), icon: Info },
+          { id: 'members', label: t('guild.tabs.members'), icon: Users },
+          { id: 'goals', label: t('guild.tabs.goals'), icon: Trophy },
+          { id: 'battle', label: t('guild.tabs.battle'), icon: Swords },
         ].map(tab => (
           <button
             key={tab.id}
@@ -316,11 +318,11 @@ export default function GuildScreen({ userId }: { userId: string | null }) {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-4 bg-white/[0.03] border border-white/5 rounded-3xl">
-                  <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1">Üyeler</p>
+                  <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1">{t('guild.tabs.members')}</p>
                   <p className="text-xl font-black text-white">{userGuild.members} / 25</p>
                 </div>
                 <div className="p-4 bg-white/[0.03] border border-white/5 rounded-3xl">
-                  <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1">Toplam Güç</p>
+                  <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1">{t('guild.dashboard.total_power')}</p>
                   <p className="text-xl font-black text-blue-400">{(userGuild.totalHash / 1000).toFixed(1)} TH/s</p>
                 </div>
               </div>
@@ -331,12 +333,12 @@ export default function GuildScreen({ userId }: { userId: string | null }) {
                     <Crown size={20} className="text-yellow-500" />
                   </div>
                   <div>
-                    <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Lonca Lideri</p>
+                    <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">{t('guild.members.leader_label')}</p>
                     <p className="text-sm font-bold text-white uppercase italic tracking-tight">{leaderName}</p>
                   </div>
                 </div>
                 <p className="text-xs text-zinc-400 leading-relaxed italic">
-                  "{userGuild.description || 'Loncaya henüz bir açıklama girilmemiş.'}"
+                  "{userGuild.description || t('guild.no_description')}"
                 </p>
               </div>
 
@@ -345,11 +347,11 @@ export default function GuildScreen({ userId }: { userId: string | null }) {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-emerald-400">
                     <Zap size={16} />
-                    <h4 className="text-xs font-black uppercase tracking-widest">Lonca Bağışı</h4>
+                    <h4 className="text-xs font-black uppercase tracking-widest">{t('guild.donation.title')}</h4>
                   </div>
-                  <span className="text-[10px] font-bold text-zinc-500">{state.tycoonPoints.toLocaleString()} TP Mevcut</span>
+                  <span className="text-[10px] font-bold text-zinc-500">{state.tycoonPoints.toLocaleString()} {t('guild.donation.available_label')}</span>
                 </div>
-                <p className="text-[10px] text-zinc-400">TycoonPoint bağışlayarak loncanın XP kazanmasını sağlayabilir ve seviye atlatabilirsin.</p>
+                <p className="text-[10px] text-zinc-400">{t('guild.donation.desc')}</p>
                 <div className="grid grid-cols-2 gap-2">
                   {[500, 2500].map(amount => (
                     <button 
@@ -357,9 +359,9 @@ export default function GuildScreen({ userId }: { userId: string | null }) {
                        onClick={async () => {
                          try {
                            await donateToGuildInFirestore(amount);
-                           notify({ type: 'success', title: 'Bağış Yapıldı!', message: `${amount} TP bağışlandı.` });
+                           notify({ type: 'success', title: t('guild.notify.donate_success_title'), message: `${amount} TP ${t('guild.notify.donate_success_msg')}` });
                          } catch (e: any) {
-                           notify({ type: 'warning', title: 'Hata', message: e.message });
+                           notify({ type: 'warning', title: t('common.error'), message: e.message });
                          }
                        }}
                        className="py-3 bg-white/5 border border-white/10 rounded-2xl text-[10px] font-black hover:bg-white/10 transition-all flex flex-col items-center gap-1"
@@ -373,18 +375,18 @@ export default function GuildScreen({ userId }: { userId: string | null }) {
 
               <button 
                 onClick={async () => {
-                  if (window.confirm('Loncadan ayrılmak istediğine emin misin?')) {
+                  if (window.confirm(t('guild.leave_confirm'))) {
                     try {
                       await leaveGuildInFirestore(userGuild.id);
-                      notify({ type: 'info', title: 'Ayrıldın', message: 'Loncadan ayrıldın.' });
+                      notify({ type: 'info', title: t('guild.notify.leave_title'), message: t('guild.notify.leave_msg') });
                     } catch (e: any) {
-                      notify({ type: 'warning', title: 'Hata', message: e.message });
+                      notify({ type: 'warning', title: t('common.error'), message: e.message });
                     }
                   }
                 }}
                 className="w-full py-4 text-xs font-black uppercase tracking-widest text-red-500/50 hover:text-red-500 transition-colors"
               >
-                Loncadan Ayrıl
+                {t('guild.leave_btn')}
               </button>
             </div>
           )}
@@ -397,31 +399,31 @@ export default function GuildScreen({ userId }: { userId: string | null }) {
                      {state.username?.slice(0, 2).toUpperCase()}
                    </div>
                    <div>
-                     <p className="text-sm font-bold text-white">{state.username} (Sen)</p>
-                     <p className="text-[10px] text-emerald-500 font-bold">Üye · Lv.{state.level}</p>
+                     <p className="text-sm font-bold text-white">{state.username} ({t('guild.members.me')})</p>
+                     <p className="text-[10px] text-emerald-500 font-bold">{t('guild.members.member_label')} · Lv.{state.level}</p>
                    </div>
                  </div>
                  <div className="text-right">
                    <p className="text-xs font-black text-white">{state.totalHashRate.toFixed(1)} GH/s</p>
-                   <p className="text-[8px] text-zinc-500 uppercase font-bold">Katkı</p>
+                   <p className="text-[8px] text-zinc-500 uppercase font-bold">{t('guild.members.contribution')}</p>
                  </div>
               </div>
 
               <div className="flex items-center gap-2 py-4">
                 <div className="flex-1 h-px bg-white/5" />
-                <span className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">Diğer Üyeler</span>
+                <span className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">{t('guild.members.other_label')}</span>
                 <div className="flex-1 h-px bg-white/5" />
               </div>
 
               <div className="grid gap-3">
                 {loadingMembers ? (
                   <div className="p-8 text-center bg-white/[0.02] border border-white/5 rounded-3xl animate-pulse">
-                    <p className="text-xs text-zinc-600 font-bold italic">Üyeler yükleniyor...</p>
+                    <p className="text-xs text-zinc-600 font-bold italic">{t('common.loading')}...</p>
                   </div>
                 ) : membersList.length === 0 ? (
                   <div className="p-8 text-center bg-white/[0.02] border border-white/5 rounded-3xl">
                     <Users size={24} className="mx-auto text-zinc-700 mb-2" />
-                    <p className="text-xs text-zinc-600 font-bold italic">Başka üye bulunmuyor...</p>
+                    <p className="text-xs text-zinc-600 font-bold italic">{t('guild.members.no_others')}</p>
                   </div>
                 ) : (
                   membersList.map(member => (
@@ -431,13 +433,13 @@ export default function GuildScreen({ userId }: { userId: string | null }) {
                           {member.username?.slice(0, 2).toUpperCase() || '??'}
                         </div>
                         <div>
-                          <p className="text-sm font-bold text-white">{member.username || 'Bilinmiyor'}</p>
-                          <p className="text-[10px] text-zinc-500">Üye · Lv.{member.level}</p>
+                          <p className="text-sm font-bold text-white">{member.username || t('common.anonymous')}</p>
+                          <p className="text-[10px] text-zinc-500">{t('guild.members.member_label')} · Lv.{member.level}</p>
                         </div>
                       </div>
                       <div className="text-right">
                         <p className="text-xs font-black text-zinc-400">{member.totalHashRate?.toFixed(1) || '0.0'} GH/s</p>
-                        <p className="text-[8px] text-zinc-600 uppercase font-bold">Katkı</p>
+                        <p className="text-[8px] text-zinc-600 uppercase font-bold">{t('guild.members.contribution')}</p>
                       </div>
                     </div>
                   ))
@@ -449,7 +451,7 @@ export default function GuildScreen({ userId }: { userId: string | null }) {
           {activeTab === 'goals' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between px-1">
-                <h3 className="text-xs font-black text-zinc-500 uppercase tracking-[0.2em]">Ortak Hedefler</h3>
+                <h3 className="text-xs font-black text-zinc-500 uppercase tracking-[0.2em]">{t('guild.goals.title')}</h3>
                 <TrendingUp size={14} className="text-zinc-500" />
               </div>
 
@@ -503,7 +505,7 @@ export default function GuildScreen({ userId }: { userId: string | null }) {
 
                       <div className="space-y-1.5 relative z-10">
                          <div className="flex justify-between text-[8px] font-black uppercase tracking-widest text-zinc-500 px-1">
-                            <span>İlerleme: %{Math.min(100, Math.floor(progress))}</span>
+                            <span>{t('guild.goals.progress_label')}: %{Math.min(100, Math.floor(progress))}</span>
                             <span>{Math.floor(currentVal)} / {goal.requirement}</span>
                          </div>
                          <div className="h-2 w-full bg-black/40 rounded-full overflow-hidden p-0.5">
@@ -517,16 +519,16 @@ export default function GuildScreen({ userId }: { userId: string | null }) {
 
                       {!isClaimed && isComplete && (
                         <button 
-                          onClick={() => handleClaimReward(goal.id, goal.reward.type === 'btc' ? goal.reward.value : 0)}
+                          onClick={() => handleClaimReward(goal.id, goal.reward.value)}
                           className="mt-4 w-full py-3 bg-emerald-500 text-black font-black text-[10px] uppercase tracking-widest rounded-xl hover:brightness-110 active:scale-95 transition-all shadow-[0_0_15px_rgba(16,185,129,0.3)]"
                         >
-                          Ödülünü Al
+                          {t('guild.goals.claim_btn')}
                         </button>
                       )}
 
                       {isClaimed && (
                         <div className="absolute top-2 right-2 flex items-center gap-1 text-[8px] font-black uppercase text-emerald-500/50">
-                           <CheckCircle2 size={10} /> Alındı
+                           <CheckCircle2 size={10} /> {t('guild.goals.claimed_label')}
                         </div>
                       )}
                     </motion.div>
@@ -537,7 +539,7 @@ export default function GuildScreen({ userId }: { userId: string | null }) {
               <div className="p-4 rounded-2xl bg-white/[0.02] border border-dashed border-white/10 flex items-center gap-3">
                 <Info size={16} className="text-zinc-500 min-w-[16px]" />
                 <p className="text-[10px] text-zinc-500 leading-relaxed italic">
-                  Hedef ödülleri tüm lonca üyeleri için geçerlidir ancak her üye ödülü sadece bir kez talep edebilir.
+                  {t('guild.goals.footer_info')}
                 </p>
               </div>
             </div>
@@ -645,6 +647,7 @@ function GuildBattleTab({ userGuild, allGuilds, userHashRate, userGuildId, userI
   notify: any;
 }) {
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const a1 = theme.vars['--ct-a1'];
 
   // ── Lonca sahibi mi? ─────────────────────────────────────────────────────────
@@ -694,7 +697,7 @@ function GuildBattleTab({ userGuild, allGuilds, userHashRate, userGuildId, userI
       setBattle(prev => { triggerSync(prev); return prev; });
     }, SUPABASE_SYNC_INTERVAL_MS);
     return () => { if (syncTimerRef.current) clearInterval(syncTimerRef.current); };
-  }, [battle.phase]);
+  }, [battle.phase, triggerSync]);
 
   // ── Savaş bitişi kontrolü ────────────────────────────────────────────────────
   React.useEffect(() => {
@@ -703,7 +706,7 @@ function GuildBattleTab({ userGuild, allGuilds, userHashRate, userGuildId, userI
       saveBattle(finished);
       triggerSync(finished);
     }
-  }, [battle]);
+  }, [battle, saveBattle, triggerSync]);
 
   // ── Countdown ────────────────────────────────────────────────────────────────
   const [timeLeft, setTimeLeft] = React.useState('');
@@ -729,7 +732,7 @@ function GuildBattleTab({ userGuild, allGuilds, userHashRate, userGuildId, userI
       setSyncStatus(secsSinceSync < 15 ? 'synced' : secsSinceSync < 30 ? 'pending' : 'error');
     }, 1000);
     return () => clearInterval(interval);
-  }, [battle.phase, battle.endsAt, battle.lastSyncedAt]);
+  }, [battle.phase, battle.endsAt, battle.lastSyncedAt, battle, saveBattle, triggerSync]);
 
   const enemyGuild = allGuilds.find(g => g.id === battle.challengedGuildId);
   const canContribute = battle.phase === 'active' &&
@@ -751,7 +754,7 @@ function GuildBattleTab({ userGuild, allGuilds, userHashRate, userGuildId, userI
     saveBattle(newBattle);
     // İlk sync hemen
     triggerSync(newBattle);
-    notify({ type: 'success', title: '⚔️ Savaş Başladı!', message: `${guild.name} loncasına meydan okudun! 48 saat içinde en fazla hash üret.` });
+    notify({ type: 'success', title: `⚔️ ${t('guild.notify.battle_start_title')}`, message: `${guild.name} ${t('guild.notify.battle_start_msg')}` });
   };
 
   const handleContribute = () => {
@@ -766,7 +769,7 @@ function GuildBattleTab({ userGuild, allGuilds, userHashRate, userGuildId, userI
       contributions: [...battle.contributions, { time: Date.now(), hash: contribution }].slice(-20),
     };
     saveBattle(updated);
-    notify({ type: 'mining', title: '⚡ Katkı Sağlandı!', message: `+${contribution.toFixed(0)} GH/s loncana eklendi!` });
+    notify({ type: 'mining', title: `⚡ ${t('guild.notify.contribute_success_title')}`, message: `+${contribution.toFixed(0)} GH/s ${t('guild.notify.contribute_success_msg')}` });
   };
 
   const handleReset = () => {
@@ -793,15 +796,15 @@ function GuildBattleTab({ userGuild, allGuilds, userHashRate, userGuildId, userI
             <Swords size={20} className="text-red-400" />
           </div>
           <div>
-            <div className="text-sm font-black text-white">Lonca Savaşı</div>
-            <div className="text-[10px] text-zinc-500">48 saatlik hash üretim yarışması</div>
+            <div className="text-sm font-black text-white">{t('guild.battle.title')}</div>
+            <div className="text-[10px] text-zinc-500">{t('guild.battle.desc')}</div>
           </div>
         </div>
         <div className="grid grid-cols-3 gap-2 text-center">
           {[
-            { icon: '⚔️', label: '48 Saat', sub: 'süre' },
-            { icon: '🏆', label: 'VIP 1 Ay', sub: 'kazanana' },
-            { icon: '⚡', label: 'Hash Gücü', sub: 'belirler' },
+            { icon: '⚔️', label: t('guild.battle.duration_label'), sub: t('guild.battle.duration_sub') },
+            { icon: '🏆', label: t('guild.battle.reward_label'), sub: t('guild.battle.reward_sub') },
+            { icon: '⚡', label: t('guild.battle.metric_label'), sub: t('guild.battle.metric_sub') },
           ].map(item => (
             <div key={item.label} className="p-2 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)' }}>
               <div className="text-base mb-1">{item.icon}</div>
@@ -818,18 +821,17 @@ function GuildBattleTab({ userGuild, allGuilds, userHashRate, userGuildId, userI
           style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.08)' }}>
           <Shield size={16} className="text-zinc-600 shrink-0" />
           <p className="text-[11px] text-zinc-500 leading-relaxed">
-            Savaş başlatmak için <span className="text-white font-bold">lonca sahibi</span> olman gerekiyor.
-            Lonca kurucusu meydan okuma yapabilir.
+            {t('guild.battle.owner_only')}
           </p>
         </div>
       ) : (
         <div>
           <div className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-3 flex items-center gap-2">
-            <Target size={12} /> Meydan Okuyabileceğin Loncalar
+            <Target size={12} /> {t('guild.battle.challengeable_title')}
           </div>
           {challengeable.length === 0 ? (
             <div className="p-6 rounded-2xl text-center" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
-              <div className="text-zinc-600 text-sm">Şu an başka lonca yok.</div>
+              <div className="text-zinc-600 text-sm">{t('guild.battle.no_guilds')}</div>
             </div>
           ) : (
             <div className="space-y-2">
@@ -845,15 +847,15 @@ function GuildBattleTab({ userGuild, allGuilds, userHashRate, userGuildId, userI
                           <span className="text-xs font-black text-white">{guild.name}</span>
                           <span className="text-[8px] px-1.5 py-0.5 rounded-full font-bold"
                             style={{ background: isStronger ? 'rgba(239,68,68,0.12)' : 'rgba(52,211,153,0.12)', color: isStronger ? '#f87171' : '#34d399' }}>
-                            {isStronger ? '▲ Güçlü' : '▼ Zayıf'}
+                            {isStronger ? '▲ ' + t('guild.battle.stronger') : '▼ ' + t('guild.battle.weaker')}
                           </span>
                         </div>
-                        <div className="text-[9px] text-zinc-600">{guild.members} üye · {(guild.totalHash / 1000).toFixed(1)} TH/s</div>
+                        <div className="text-[9px] text-zinc-600">{guild.members} {t('guild.members_count')} · {(guild.totalHash / 1000).toFixed(1)} TH/s</div>
                       </div>
                       <motion.button whileTap={{ scale: 0.93 }} onClick={() => handleChallenge(guild)}
                         className="px-3 py-1.5 rounded-xl text-[10px] font-black flex items-center gap-1.5"
                         style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171' }}>
-                        <Swords size={11} /> Savaş
+                        <Swords size={11} /> {t('guild.tabs.battle')}
                       </motion.button>
                     </div>
                   </motion.div>
@@ -876,7 +878,7 @@ function GuildBattleTab({ userGuild, allGuilds, userHashRate, userGuildId, userI
           <motion.div animate={{ scale: [1, 1.15, 1] }} transition={{ duration: 1.5, repeat: Infinity }}>
             <Flame size={18} className="text-red-400" />
           </motion.div>
-          <span className="text-xs font-black text-red-400 uppercase tracking-widest">Savaş Devam Ediyor</span>
+          <span className="text-xs font-black text-red-400 uppercase tracking-widest">{t('guild.battle.active_status')}</span>
         </div>
         <div className="flex items-center gap-3">
           {/* Sync göstergesi */}
@@ -901,7 +903,7 @@ function GuildBattleTab({ userGuild, allGuilds, userHashRate, userGuildId, userI
           <div className="text-center flex-1">
             <div className="text-3xl mb-1">{userGuild.badge}</div>
             <div className="text-[11px] font-black text-white truncate max-w-[90px]">{userGuild.name}</div>
-            <div className="text-[9px] text-zinc-500">Sen</div>
+            <div className="text-[9px] text-zinc-500">{t('guild.members.me')}</div>
           </div>
           <div className="flex flex-col items-center gap-1">
             <div className="text-lg font-black text-red-400">VS</div>
@@ -909,8 +911,8 @@ function GuildBattleTab({ userGuild, allGuilds, userHashRate, userGuildId, userI
           </div>
           <div className="text-center flex-1">
             <div className="text-3xl mb-1">{enemyGuild?.badge || '⚔️'}</div>
-            <div className="text-[11px] font-black text-white truncate max-w-[90px]">{enemyGuild?.name || 'Rakip'}</div>
-            <div className="text-[9px] text-zinc-500">Rakip</div>
+            <div className="text-[11px] font-black text-white truncate max-w-[90px]">{enemyGuild?.name || t('guild.battle.enemy')}</div>
+            <div className="text-[9px] text-zinc-500">{t('guild.battle.enemy')}</div>
           </div>
         </div>
 
@@ -918,7 +920,7 @@ function GuildBattleTab({ userGuild, allGuilds, userHashRate, userGuildId, userI
         <div className="mb-3">
           <div className="flex justify-between text-[9px] font-black uppercase tracking-widest mb-1.5">
             <span style={{ color: a1 }}>{myPct}%</span>
-            <span className="text-zinc-600">Hash Gücü</span>
+            <span className="text-zinc-600">{t('guild.battle.metric_label')}</span>
             <span className="text-red-400">{100 - myPct}%</span>
           </div>
           <div className="h-3 rounded-full overflow-hidden flex" style={{ background: 'rgba(255,255,255,0.05)' }}>
@@ -931,11 +933,11 @@ function GuildBattleTab({ userGuild, allGuilds, userHashRate, userGuildId, userI
 
         <div className="grid grid-cols-2 gap-3">
           <div className="p-3 rounded-xl text-center" style={{ background: `${a1}08`, border: `1px solid ${a1}20` }}>
-            <div className="text-[9px] font-bold text-zinc-500 mb-1">Senin Puanın</div>
+            <div className="text-[9px] font-bold text-zinc-500 mb-1">{t('guild.battle.your_score')}</div>
             <div className="text-base font-black" style={{ color: a1 }}>{(battle.myGuildScore / 1000).toFixed(1)} TH</div>
           </div>
           <div className="p-3 rounded-xl text-center" style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)' }}>
-            <div className="text-[9px] font-bold text-zinc-500 mb-1">Rakip Puanı</div>
+            <div className="text-[9px] font-bold text-zinc-500 mb-1">{t('guild.battle.enemy_score')}</div>
             <div className="text-base font-black text-red-400">{(battle.enemyGuildScore / 1000).toFixed(1)} TH</div>
           </div>
         </div>
@@ -948,19 +950,19 @@ function GuildBattleTab({ userGuild, allGuilds, userHashRate, userGuildId, userI
           ? { background: `linear-gradient(135deg, ${a1}, ${theme.vars['--ct-a2']})`, color: '#000', boxShadow: `0 8px 24px ${a1}40` }
           : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', color: '#52525b' }}>
         <Zap size={18} fill={canContribute ? 'currentColor' : 'none'} />
-        {canContribute ? `+${userHashRate.toFixed(0)} GH/s Katkı Sağla` : `Katkı bekleniyor (1 dk cooldown)`}
+        {canContribute ? `+${userHashRate.toFixed(0)} GH/s ${t('guild.battle.contribute_btn')}` : t('guild.battle.cooldown_msg')}
       </motion.button>
 
       {/* Son Katkılar */}
       {battle.contributions.length > 0 && (
         <div>
-          <div className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mb-2">Son Katkılar</div>
+          <div className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mb-2">{t('guild.battle.recent_contributions')}</div>
           <div className="space-y-1.5">
             {[...battle.contributions].reverse().slice(0, 5).map((c, i) => (
               <div key={i} className="flex items-center justify-between px-3 py-2 rounded-xl"
                 style={{ background: 'rgba(255,255,255,0.02)' }}>
                 <span className="text-[10px] text-zinc-500">
-                  {new Date(c.time).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                  {new Date(c.time).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
                 </span>
                 <span className="text-[10px] font-black" style={{ color: a1 }}>+{c.hash.toFixed(0)} GH/s</span>
               </div>
@@ -989,36 +991,36 @@ function GuildBattleTab({ userGuild, allGuilds, userHashRate, userGuildId, userI
           {won ? '🏆' : '💀'}
         </motion.div>
         <div className="text-2xl font-black mb-2" style={{ color: won ? a1 : '#f87171' }}>
-          {won ? 'Zafer!' : 'Yenilgi'}
+          {won ? t('guild.battle.victory') : t('guild.battle.defeat')}
         </div>
         <div className="text-sm text-zinc-400 mb-6">
-          {won ? `${userGuild.name} kazandı! Harika bir savaş.` : `${enemyGuild?.name || 'Rakip'} bu sefer üstün geldi.`}
+          {won ? `${userGuild.name} ${t('guild.battle.victory_msg')}` : `${enemyGuild?.name || t('guild.battle.enemy')} ${t('guild.battle.defeat_msg')}`}
         </div>
         <div className="grid grid-cols-2 gap-3 mb-6">
           <div className="p-3 rounded-xl" style={{ background: `${a1}08`, border: `1px solid ${a1}20` }}>
-            <div className="text-[9px] text-zinc-500 mb-1">Senin Puanın</div>
+            <div className="text-[9px] text-zinc-500 mb-1">{t('guild.battle.your_score')}</div>
             <div className="text-base font-black" style={{ color: a1 }}>{(battle.myGuildScore / 1000).toFixed(1)} TH</div>
           </div>
           <div className="p-3 rounded-xl" style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)' }}>
-            <div className="text-[9px] text-zinc-500 mb-1">Rakip Puanı</div>
+            <div className="text-[9px] text-zinc-500 mb-1">{t('guild.battle.enemy_score')}</div>
             <div className="text-base font-black text-red-400">{(battle.enemyGuildScore / 1000).toFixed(1)} TH</div>
           </div>
         </div>
         {won && (
           <div className="p-3 rounded-2xl mb-4" style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)' }}>
-            <div className="text-xs font-black text-amber-400">🎁 Kazanana Özel Ödül</div>
-            <div className="text-[10px] text-zinc-500 mt-1">VIP üyelik veya 500 TP için destek ile iletişime geç</div>
+            <div className="text-xs font-black text-amber-400">🎁 {t('guild.battle.reward_title')}</div>
+            <div className="text-[10px] text-zinc-500 mt-1">{t('guild.battle.reward_desc')}</div>
           </div>
         )}
         {isOwner && (
           <motion.button whileTap={{ scale: 0.97 }} onClick={handleReset}
             className="w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest"
             style={{ background: `linear-gradient(135deg, ${a1}, ${theme.vars['--ct-a2']})`, color: '#000' }}>
-            Yeni Savaş Başlat
+            {t('guild.battle.restart_btn')}
           </motion.button>
         )}
         {!isOwner && (
-          <div className="text-[10px] text-zinc-600">Yeni savaş için lonca sahibini bekle.</div>
+          <div className="text-[10px] text-zinc-600">{t('guild.battle.wait_owner')}</div>
         )}
       </motion.div>
     </div>

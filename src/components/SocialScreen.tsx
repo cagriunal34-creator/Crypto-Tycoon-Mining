@@ -46,9 +46,8 @@ export default function SocialScreen() {
   const [promoCode, setPromoCode] = React.useState('');
   const [promoLoading, setPromoLoading] = React.useState(false);
   const [promoResult, setPromoResult] = React.useState<{ success: boolean; message: string } | null>(null);
-  const [claimedMilestones, setClaimedMilestones] = React.useState<number[]>(() => {
-    try { return JSON.parse(localStorage.getItem('claimed_milestones_v1') || '[]'); } catch { return []; }
-  });
+  const claimedMilestones = state.claimedMilestones || [];
+
 
   const referralCount = state.referralCount || 0;
   const referralLink = `https://cryptotycoon.app/?ref=${state.referralCode}`;
@@ -56,20 +55,9 @@ export default function SocialScreen() {
   const progressToNext = nextMilestone ? Math.min(100, (referralCount / nextMilestone.count) * 100) : 100;
 
   const handleClaimMilestone = (m: typeof MILESTONES[0]) => {
-    if (referralCount < m.count || state.claimedMilestones?.includes(m.count)) return;
-    
-    // Dispatch to context for global state and DB sync
-    dispatch({ 
-      type: 'CLAIM_MILESTONE', 
-      milestone: m.count, 
-      tpReward: m.tpReward 
-    });
-    
-    notify({ 
-      type: 'success', 
-      title: `${m.badge} Milestone Kazanıldı!`, 
-      message: `+${m.tpReward.toLocaleString()} TP ve %${m.speedBonus} hız bonusu!` 
-    });
+    if (referralCount < m.count || claimedMilestones.includes(m.count)) return;
+    dispatch({ type: 'CLAIM_MILESTONE', milestoneCount: m.count, tpReward: m.tpReward });
+    notify({ type: 'success', title: `${m.badge} Milestone Kazanıldı!`, message: `+${m.tpReward.toLocaleString()} TP ve %${m.speedBonus} hız bonusu!` });
   };
 
   const handleCopy = async () => {
@@ -191,7 +179,7 @@ export default function SocialScreen() {
               <div className="space-y-2">
                 {MILESTONES.map((m, i) => {
                   const reached = referralCount >= m.count;
-                  const claimed = state.claimedMilestones?.includes(m.count);
+                  const claimed = claimedMilestones.includes(m.count);
                   return (
                     <motion.div key={m.count} initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.06 }}
                       className="flex items-center gap-3 p-3.5 rounded-2xl"

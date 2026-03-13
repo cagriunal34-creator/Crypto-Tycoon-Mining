@@ -26,4 +26,5 @@ export const TABLES = {
   NOTIFICATIONS: 'notifications',
   SUPPORT_TICKETS: 'support_tickets',
   LUCKY_WHEEL_REWARDS: 'lucky_wheel_rewards',
+  TRANSLATIONS: 'translations',
 };
