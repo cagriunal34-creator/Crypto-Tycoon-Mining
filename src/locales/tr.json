@@ -44,5 +44,30 @@
     "error": "Hata",
     "warning": "Uyarı",
     "loading": "Yükleniyor..."
+  },
+  "sidebar": {
+    "main_menu": "Ana Menü",
+    "economy_social": "Ekonomi & Sosyal",
+    "system": "Sistem",
+    "notifications": "Bildirimler",
+    "settings": "Ayarlar",
+    "miner_rank": "Madenci",
+    "btc_balance": "BTC Bakiyesi"
+  },
+  "nav": {
+    "panel": "Panel",
+    "market": "Market",
+    "contract": "Kontrat",
+    "research": "Gelişim",
+    "quests": "Görevler",
+    "wallet": "Cüzdan",
+    "marketplace": "Pazaryeri",
+    "social": "Sosyal",
+    "guild": "Lonca",
+    "farm": "Çiftlik",
+    "infrastructure": "Altyapı",
+    "wheel": "Çark",
+    "battlepass": "Battle Pass",
+    "vip": "VIP"
   }
 }

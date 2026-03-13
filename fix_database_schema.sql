@@ -111,9 +111,35 @@ INSERT INTO public.translations (id, tr, en, category) VALUES
 ('mining.system_guide', 'Sistem Rehberi', 'System Guide', 'mining'),
 ('mining.daily_limit.title', 'Günlük Limit', 'Daily Limit', 'mining'),
 
--- Guild (Short List)
+-- Sidebar & Navigation
+('sidebar.main_menu', 'Ana Menü', 'Main Menu', 'sidebar'),
+('sidebar.economy_social', 'Ekonomi & Sosyal', 'Economy & Social', 'sidebar'),
+('sidebar.system', 'Sistem', 'System', 'sidebar'),
+('sidebar.notifications', 'Bildirimler', 'Notifications', 'sidebar'),
+('sidebar.settings', 'Ayarlar', 'Settings', 'sidebar'),
+('sidebar.miner_rank', 'Madenci', 'Miner', 'sidebar'),
+('sidebar.btc_balance', 'BTC Bakiyesi', 'BTC Balance', 'sidebar'),
+('nav.panel', 'Panel', 'Dashboard', 'nav'),
+('nav.market', 'Market', 'Market', 'nav'),
+('nav.contract', 'Kontrat', 'Contract', 'nav'),
+('nav.research', 'Gelişim', 'Research', 'nav'),
+('nav.quests', 'Görevler', 'Quests', 'nav'),
+('nav.wallet', 'Cüzdan', 'Wallet', 'nav'),
+('nav.marketplace', 'Pazaryeri', 'Marketplace', 'nav'),
+('nav.social', 'Sosyal', 'Social', 'nav'),
+('nav.guild', 'Lonca', 'Guild', 'nav'),
+('nav.farm', 'Çiftlik', 'Farm', 'nav'),
+('nav.infrastructure', 'Altyapı', 'Infrastructure', 'nav'),
+('nav.wheel', 'Çark', 'Wheel', 'nav'),
+('nav.battlepass', 'Battle Pass', 'Battle Pass', 'nav'),
+('nav.vip', 'VIP', 'VIP', 'nav'),
+
+-- Guild
 ('guild.join_title', 'Bir Loncaya Katıl', 'Join a Guild', 'guild'),
-('guild.btn.create', 'Yeni Lonca Kur', 'Create New Guild', 'guild')
+('guild.btn.create', 'Yeni Lonca Kur', 'Create New Guild', 'guild'),
+('guild.join_desc', 'Madencilerle güçlerini birleştir, ortak hedeflere ulaş ve özel BTC ödülleri kazan!', 'Join forces with miners, reach common goals and win special BTC rewards!', 'guild'),
+('guild.active_guilds', 'Aktif Loncalar', 'Active Guilds', 'guild'),
+('guild.search_placeholder', 'Ara...', 'Search...', 'guild')
 
 ON CONFLICT (id) DO UPDATE SET
     tr = EXCLUDED.tr,

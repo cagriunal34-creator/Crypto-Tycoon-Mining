@@ -44,5 +44,30 @@
     "error": "Error",
     "warning": "Warning",
     "loading": "Loading..."
+  },
+  "sidebar": {
+    "main_menu": "Main Menu",
+    "economy_social": "Economy & Social",
+    "system": "System",
+    "notifications": "Notifications",
+    "settings": "Settings",
+    "miner_rank": "Miner",
+    "btc_balance": "BTC Balance"
+  },
+  "nav": {
+    "panel": "Dashboard",
+    "market": "Market",
+    "contract": "Contract",
+    "research": "Research",
+    "quests": "Quests",
+    "wallet": "Wallet",
+    "marketplace": "Marketplace",
+    "social": "Social",
+    "guild": "Guild",
+    "farm": "Farm",
+    "infrastructure": "Infrastructure",
+    "wheel": "Wheel",
+    "battlepass": "Battle Pass",
+    "vip": "VIP"
   }
 }
