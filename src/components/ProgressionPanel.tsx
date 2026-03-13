@@ -8,15 +8,9 @@ import { motion } from 'motion/react';
 import { Zap, Flame, Trophy, Star, TrendingUp, ChevronRight } from 'lucide-react';
 import { useGame } from '../context/GameContext';
 import { useTheme } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 import { cn } from '../lib/utils';
 
-const LEVEL_PERKS: Record<number, string[]> = {
-  1: ['Temel Madencilik', 'Günlük Bonus'],
-  2: ['Hız +5%', 'Görev Sistemi'],
-  3: ['Şans Çarkı', 'Referral Bonusu +10%'],
-  4: ['Mining Farm', 'Hız +10%', 'Flash Teklifler'],
-  5: ['Prestige Modu', 'Hız +20%', 'Özel Görevler'],
-};
 
 function StreakBadge({ streak }: { streak: number }) {
   if (streak < 2) return null;
@@ -28,7 +22,7 @@ function StreakBadge({ streak }: { streak: number }) {
       className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-orange-500/10 border border-orange-500/20"
     >
       <Flame size={12} className="text-orange-500" fill="currentColor" />
-      <span className="text-[10px] text-orange-500 font-bold">{streak} Günlük Seri · +%{bonus}</span>
+      <span className="text-[10px] text-orange-500 font-bold">{streak} {useLanguage().t('mining.daily_bonus')} · +%{bonus}</span>
     </motion.div>
   );
 }
@@ -36,11 +30,20 @@ function StreakBadge({ streak }: { streak: number }) {
 export default function ProgressionPanel() {
   const { state } = useGame();
   const { theme } = useTheme();
+  const { t } = useLanguage();
+
+  const LEVEL_PERKS: Record<number, string[]> = {
+    1: [t('mining.perks.basic_mining'), t('mining.perks.daily_bonus')],
+    2: [`${t('mining.perks.speed_boost')}5%`, t('mining.perks.quest_system')],
+    3: [t('mining.perks.lucky_wheel'), `${t('mining.perks.referral_bonus')}10%`],
+    4: [t('mining.perks.mining_farm'), `${t('mining.perks.speed_boost')}10%`, t('mining.perks.flash_offers')],
+    5: [t('mining.perks.prestige_mode'), `${t('mining.perks.speed_boost')}20%`, t('mining.perks.special_quests')],
+  };
   
   const a1 = theme.vars['--ct-a1'];
   
   const xpPercent = Math.round((state.xp / state.xpToNextLevel) * 100);
-  const nextPerks = LEVEL_PERKS[state.level + 1] || ['Max seviyeye ulaştın!'];
+  const nextPerks = LEVEL_PERKS[state.level + 1] || [t('mining.perks.max_level')];
 
   return (
     <div className="glass-card rounded-xl p-4 space-y-4 border border-white/5">
@@ -59,14 +62,14 @@ export default function ProgressionPanel() {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-sm font-black text-white tracking-tight uppercase">SEVİYE {state.level}</h3>
+              <h3 className="text-sm font-black text-white tracking-tight uppercase">{t('common.level')} {state.level}</h3>
               <div className="px-1.5 py-0.5 rounded border text-[8px] font-black uppercase tracking-widest"
                    style={{ background: `${a1}10`, borderColor: `${a1}20`, color: a1 }}>
                 {state.rankTitle}
               </div>
             </div>
             <p className="text-[9px] text-zinc-500 font-mono uppercase tracking-widest">
-              {state.xp} / {state.xpToNextLevel} XP
+              {state.xp} / {state.xpToNextLevel} {t('common.xp')}
             </p>
           </div>
         </div>
@@ -88,8 +91,8 @@ export default function ProgressionPanel() {
           </motion.div>
         </div>
         <div className="flex justify-between text-[8px] text-zinc-500 font-mono uppercase tracking-widest">
-          <span>PROGRESS: {xpPercent}%</span>
-          <span>NEXT: {state.xpToNextLevel - state.xp} XP</span>
+          <span>{t('mining.progress')}: {xpPercent}%</span>
+          <span>{t('mining.next_level')}: {state.xpToNextLevel - state.xp} {t('common.xp')}</span>
         </div>
       </div>
 
@@ -97,7 +100,7 @@ export default function ProgressionPanel() {
       <div className="bg-[#0a0a0a]/50 rounded-lg p-3 space-y-2 border border-white/5">
         <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest flex items-center gap-1.5">
           <Trophy size={10} className="text-yellow-500" />
-          <span>Seviye {state.level + 1} Kilit Açılımları</span>
+          <span>{t('common.level')} {state.level + 1} {t('mining.level_unlocks')}</span>
         </p>
         <div className="flex flex-wrap gap-2">
           {nextPerks.map((perk) => (

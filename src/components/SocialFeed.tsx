@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { User, Zap, Star, Globe, TrendingUp, History } from 'lucide-react';
 import { supabase, TABLES } from '../lib/supabase';
+import { useLanguage } from '../context/LanguageContext';
 
 interface Activity {
     id: string;
@@ -16,6 +17,7 @@ const ACTIONS: string[] = [];
 
 export default function SocialFeed() {
     const [activities, setActivities] = useState<Activity[]>([]);
+    const { t } = useLanguage();
 
     useEffect(() => {
         const fetchInitial = async () => {
@@ -26,12 +28,12 @@ export default function SocialFeed() {
                 .limit(5);
 
             if (data) {
-                const mapped = data.map((t: any) => ({
-                    id: t.id,
-                    user: 'Bir Madenci',
-                    action: t.description || 'İşlem gerçekleştirdi',
-                    time: 'AZ ÖNCE',
-                    color: t.amount > 0 ? '#10b981' : '#6366f1'
+                const mapped = data.map((t_item: any) => ({
+                    id: t_item.id,
+                    user: t('mining.social.miner'),
+                    action: t_item.description || t('mining.social.action'),
+                    time: t('mining.social.just_now'),
+                    color: t_item.amount > 0 ? '#10b981' : '#6366f1'
                 }));
                 setActivities(mapped);
             }
@@ -45,9 +47,9 @@ export default function SocialFeed() {
                 const { data: profile } = await supabase.from(TABLES.PROFILES).select('username').eq('id', payload.new.user_id).single();
                 const newAct: Activity = {
                     id: payload.new.id,
-                    user: profile?.username || 'Gizli Madenci',
-                    action: payload.new.description || 'İşlem gerçekleştirdi',
-                    time: 'YENİ',
+                    user: profile?.username || t('mining.social.hidden_miner'),
+                    action: payload.new.description || t('mining.social.action'),
+                    time: t('mining.social.new'),
                     color: payload.new.amount > 0 ? '#10b981' : '#6366f1'
                 };
                 setActivities(prev => [newAct, ...prev].slice(0, 5));
@@ -62,11 +64,11 @@ export default function SocialFeed() {
             <div className="flex items-center justify-between px-1">
                 <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] flex items-center gap-2">
                     <Globe size={12} className="text-zinc-600" />
-                    CANLI AKTİVİTE AKIŞI
+                    {t('mining.live_activity_stream')}
                 </h3>
                 <div className="flex items-center gap-1">
                     <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    <span className="text-[9px] font-bold text-emerald-500/60 uppercase">ONLINE</span>
+                    <span className="text-[9px] font-bold text-emerald-500/60 uppercase">{t('mining.online')}</span>
                 </div>
             </div>
 

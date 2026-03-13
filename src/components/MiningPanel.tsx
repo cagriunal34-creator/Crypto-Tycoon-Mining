@@ -135,8 +135,8 @@ function OverclockCard({ isActive, isCooldown, multiplier, secondsLeft, cooldown
               {isActive
                 ? `⚡ +${boostPct}% · ${formatTime(secondsLeft)} ${t('mining.remaining')}`
                 : isCooldown
-                  ? `❄️ −${penaltyPct}% ceza · ${formatTime(cooldownSecondsLeft)} ${t('mining.remaining')}`
-                  : `+${boostPct}% hashrate · ${cfg?.durationMinutes}dk · ${cfg?.costTp} TP`}
+                  ? `❄️ −${penaltyPct}% ${t('mining.penalty')} · ${formatTime(cooldownSecondsLeft)} ${t('mining.remaining')}`
+                  : `+${boostPct}% hashrate · ${cfg?.durationMinutes}${t('mining.min')} · ${cfg?.costTp} TP`}
             </p>
           </div>
         </div>
@@ -164,17 +164,17 @@ function OverclockCard({ isActive, isCooldown, multiplier, secondsLeft, cooldown
         <div className="flex items-center gap-4 mt-3 pt-3 relative z-10"
           style={{ borderTop: `1px solid ${color}15` }}>
           {[
-            { label: 'Süre', key: 'mining.duration', val: `${cfg?.durationMinutes}dk`, icon: Timer },
-            { label: 'Cooldown', key: 'mining.cooldown', val: `${cfg?.cooldownMinutes}dk`, icon: Snowflake },
-            { label: 'Ceza', key: 'mining.penalty', val: `-${penaltyPct}%`, icon: AlertTriangle },
-            { label: 'Maliyet', key: 'mining.cost', val: `${cfg?.costTp} TP`, icon: Zap },
+            { label: t('mining.duration'), val: `${cfg?.durationMinutes}${t('mining.min')}`, icon: Timer },
+            { label: t('mining.cooldown'), val: `${cfg?.cooldownMinutes}${t('mining.min')}`, icon: Snowflake },
+            { label: t('mining.penalty'), val: `-${penaltyPct}%`, icon: AlertTriangle },
+            { label: t('mining.cost'), val: `${cfg?.costTp} TP`, icon: Zap },
           ].map((item, i) => {
             const ItemIcon = item.icon;
             return (
               <div key={i} className="flex items-center gap-1">
                 <ItemIcon size={9} style={{ color: `${color}80` }} />
                 <span className="text-[8px] font-bold" style={{ color: theme.vars['--ct-muted'] }}>
-                  {t(item.key || '')}: <span style={{ color: `${color}CC` }}>{item.val}</span>
+                  {item.label}: <span style={{ color: `${color}CC` }}>{item.val}</span>
                 </span>
               </div>
             );
@@ -224,7 +224,7 @@ export default function MiningPanel({
     type: (ev.type as any) || 'flash_pool',
     label: ev.name,
     emoji: ev.type === 'multiplier' ? '⚡' : ev.type === 'bonus_tp' ? '🎯' : '💰',
-    description: `${ev.multiplier > 1 ? `+${((ev.multiplier - 1) * 100).toFixed(0)}% BTC çarpanı` : 'Özel etkinlik'} — Admin tarafından başlatıldı`,
+    description: `${ev.multiplier > 1 ? t('mining.event.btc_multiplier').replace('%{val}', ((ev.multiplier - 1) * 100).toFixed(0)) : t('mining.event.special')} — ${t('mining.event.admin_started')}`,
     multiplier: ev.multiplier || 1.0,
     hashBoost: 0,
     endsAt: ev.ends_at ? new Date(ev.ends_at).getTime() : now + 86400000,
@@ -414,7 +414,7 @@ export default function MiningPanel({
 
             <div className="flex items-center justify-between gap-3 pt-2">
               <button 
-                onClick={() => notify({ type: 'info', title: t('mining.help_center'), message: 'Destek talepleri için Telegram grubumuza katılabilir veya Ayarlar > Destek kısmını kullanabilirsiniz.' })}
+                onClick={() => notify({ type: 'info', title: t('mining.help_center'), message: t('mining.help_center_msg') })}
                 className="flex-1 flex items-center justify-center gap-3 py-4 rounded-2xl bg-white/5 border border-white/5 text-[9px] font-black uppercase tracking-widest text-zinc-500 hover:text-white transition-all group"
               >
                 <HelpCircle size={14} className="group-hover:text-blue-400 transition-colors" />
@@ -425,7 +425,7 @@ export default function MiningPanel({
                 onClick={() => {
                   import('./OnboardingTour').then(mod => mod.resetOnboarding());
                   window.dispatchEvent(new Event('restart-onboarding'));
-                  notify({ type: 'success', title: t('mining.system_guide'), message: 'Kullanım turu yeniden başlatılıyor...' });
+                  notify({ type: 'success', title: t('mining.system_guide'), message: t('mining.system_guide_msg') });
                 }}
                 className="flex-1 flex items-center justify-center gap-3 py-4 rounded-2xl bg-white/5 border border-white/5 text-[9px] font-black uppercase tracking-widest text-zinc-500 hover:text-white transition-all group"
               >

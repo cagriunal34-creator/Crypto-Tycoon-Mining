@@ -39,12 +39,6 @@
     "delete_confirm_yes": "Yes, Delete",
     "delete_confirm_no": "Cancel"
   },
-  "common": {
-    "success": "Success",
-    "error": "Error",
-    "warning": "Warning",
-    "loading": "Loading..."
-  },
   "sidebar": {
     "main_menu": "Main Menu",
     "economy_social": "Economy & Social",
@@ -69,5 +63,90 @@
     "wheel": "Wheel",
     "battlepass": "Battle Pass",
     "vip": "VIP"
+  },
+  "mining": {
+    "help_center": "Help Center",
+    "system_guide": "System Guide",
+    "daily_limit": {
+      "title": "Daily Limit",
+      "reached": "Daily earning limit reached",
+      "capacity": "Capacity"
+    },
+    "happy_hour": {
+      "title": "Happy Hour",
+      "desc": "x1.2 EARNINGS ACTIVE"
+    },
+    "live_hashrate": "Live Hashrate",
+    "system_status": {
+      "active": "System Active"
+    },
+    "hardware_health": "Hardware Health",
+    "energy_expense": "Energy Expense",
+    "live_balance": "Live Balance",
+    "estimated_daily": "Estimated Daily",
+    "live_activity_stream": "Live Activity Stream",
+    "level_unlocks": "Unlocks",
+    "progress": "Progress",
+    "next_level": "Next Level",
+    "session": "SESSION",
+    "online": "ONLINE",
+    "remaining": "remaining",
+    "duration": "Duration",
+    "cooldown": "Cooldown",
+    "penalty": "Penalty",
+    "cost": "Cost",
+    "ad_watching": "Watching ad...",
+    "ad_reward_msg": "You will earn +2 energy cells and +10 TP.",
+    "overclock": {
+      "active": "ACTIVE",
+      "cooldown": "COOLDOWN",
+      "btn_active": "Active",
+      "btn_start": "Start",
+      "no_tp": "No TP"
+    },
+    "rank": {
+      "newbie": "New Miner"
+    },
+    "perks": {
+      "max_level": "Max level reached!"
+    },
+    "social": {
+      "miner": "A Miner",
+      "hidden_miner": "Hidden Miner",
+      "action": "Performed an action",
+      "just_now": "JUST NOW",
+      "new": "NEW"
+    },
+    "event": {
+      "btc_multiplier": "+%{val} BTC multiplier",
+      "special": "Special event",
+      "admin_started": "Started by admin"
+    },
+    "help_center_msg": "For support, join our Telegram group or use Settings > Support.",
+    "system_guide_msg": "Restarting system guide...",
+    "min": "min"
+  },
+  "battery": {
+    "status": {
+      "full": "Full",
+      "medium": "Medium",
+      "low": "Low",
+      "critical": "Critical"
+    },
+    "charging": "Charging",
+    "critical_warn": "Energy Critical!"
+  },
+  "common": {
+    "level": "LEVEL",
+    "tycoon_points": "TycoonPoints",
+    "xp": "XP",
+    "vip": "VIP",
+    "pass": "PASS",
+    "marketplace": "MARKET",
+    "bonus": "BONUS",
+    "success": "Success",
+    "error": "Error",
+    "warning": "Warning",
+    "loading": "Loading..."
   }
 }

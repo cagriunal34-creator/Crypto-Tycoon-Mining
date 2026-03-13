@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { TrendingUp, Zap } from 'lucide-react';
 import { useGame } from '../context/GameContext';
 import { useTheme } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 
 /**
  * Animates a number smoothly from previous to current value.
@@ -53,6 +54,7 @@ function useAnimatedValue(value: number, duration = 800) {
 export default function LiveEarningsCard() {
   const { state, btcToUsd, formatBtc, effectiveHashRate } = useGame();
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const [sessionEarned, setSessionEarned] = useState(0);
   const [prevBalance, setPrevBalance] = useState(state.btcBalance);
 
@@ -98,7 +100,7 @@ export default function LiveEarningsCard() {
                 <div className="absolute inset-0 blur-sm animate-pulse" style={{ background: a1 }}></div>
                 <div className="w-2 h-2 rounded-full relative z-10" style={{ background: a1 }} />
               </div>
-              <span className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: a1 }}>Canlı Bakiye</span>
+              <span className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: a1 }}>{t('mining.live_balance')}</span>
             </div>
             <div className="flex items-center gap-1.5 px-2 py-0.5 rounded shadow-lg border"
                  style={{ background: `${a1}05`, borderColor: `${a1}20` }}>
@@ -128,7 +130,7 @@ export default function LiveEarningsCard() {
               >
                 <Zap size={10} style={{ color: a1 }} fill="currentColor" />
                 <span className="text-[10px] font-mono" style={{ color: a1 }}>
-                  SESSION: +{formatBtc(sessionEarned)} BTC
+                  {t('mining.session')}: +{formatBtc(sessionEarned)} BTC
                 </span>
               </motion.div>
             )}
@@ -140,7 +142,7 @@ export default function LiveEarningsCard() {
       <div className="grid grid-cols-2 gap-3">
         <div className="glass-panel rounded-xl p-4 space-y-1 relative overflow-hidden group hover:border-white/20 transition-colors">
           <div className="absolute top-0 right-0 p-2 opacity-5 group-hover:opacity-10 transition-opacity"><Zap size={40} /></div>
-          <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest">TycoonPoints</p>
+          <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest">{t('common.tycoon_points')}</p>
           <div className="flex items-baseline gap-1">
             <span className="text-lg font-bold tabular-nums text-white">{Math.floor(animatedTp).toLocaleString()}</span>
             <span className="text-[10px] font-bold" style={{ color: a1 }}>TP</span>
@@ -149,7 +151,7 @@ export default function LiveEarningsCard() {
 
         <div className="glass-panel rounded-xl p-4 space-y-1 relative overflow-hidden group hover:border-white/20 transition-colors">
           <div className="absolute top-0 right-0 p-2 opacity-5 group-hover:opacity-10 transition-opacity"><TrendingUp size={40} /></div>
-          <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest">Tahmini Günlük</p>
+          <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest">{t('mining.estimated_daily')}</p>
           <div className="flex items-baseline gap-1">
             <span className="text-lg font-bold tabular-nums text-white">{btcToUsd(btcPerSecond * 86400)}</span>
           </div>

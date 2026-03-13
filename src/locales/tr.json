@@ -39,12 +39,6 @@
     "delete_confirm_yes": "Evet, Sil",
     "delete_confirm_no": "İptal"
   },
-  "common": {
-    "success": "Başarılı",
-    "error": "Hata",
-    "warning": "Uyarı",
-    "loading": "Yükleniyor..."
-  },
   "sidebar": {
     "main_menu": "Ana Menü",
     "economy_social": "Ekonomi & Sosyal",
@@ -69,5 +63,90 @@
     "wheel": "Çark",
     "battlepass": "Battle Pass",
     "vip": "VIP"
+  },
+  "mining": {
+    "help_center": "Yardım Merkezi",
+    "system_guide": "Sistem Rehberi",
+    "daily_limit": {
+      "title": "Günlük Limit",
+      "reached": "Günlük kazanç limitine ulaşıldı",
+      "capacity": "Kapasite"
+    },
+    "happy_hour": {
+      "title": "Mutlu Saatler",
+      "desc": "×1.2 KAZANÇ AKTİF"
+    },
+    "live_hashrate": "Canlı Hashrate",
+    "system_status": {
+      "active": "Sistem Aktif"
+    },
+    "hardware_health": "Donanım Sağlığı",
+    "energy_expense": "Enerji Gideri",
+    "live_balance": "Canlı Bakiye",
+    "estimated_daily": "Tahmini Günlük",
+    "live_activity_stream": "Canlı Aktivite Akışı",
+    "level_unlocks": "Kilit Açılımları",
+    "progress": "İlerleme",
+    "next_level": "Sonraki Seviye",
+    "session": "OTURUM",
+    "online": "ÇEVRİMİÇİ",
+    "remaining": "kaldı",
+    "duration": "Süre",
+    "cooldown": "Cooldown",
+    "penalty": "Ceza",
+    "cost": "Maliyet",
+    "ad_watching": "Reklam izleniyor…",
+    "ad_reward_msg": "+2 enerji hücresi ve +10 TP kazanacaksın.",
+    "overclock": {
+      "active": "AKTİF",
+      "cooldown": "COOLDOWN",
+      "btn_active": "Aktif",
+      "btn_start": "Başlat",
+      "no_tp": "TP Yok"
+    },
+    "rank": {
+      "newbie": "Yeni Madenci"
+    },
+    "perks": {
+      "max_level": "Max seviyeye ulaştın!"
+    },
+    "social": {
+      "miner": "Bir Madenci",
+      "hidden_miner": "Gizli Madenci",
+      "action": "İşlem gerçekleştirdi",
+      "just_now": "AZ ÖNCE",
+      "new": "YENİ"
+    },
+    "event": {
+      "btc_multiplier": "+%{val} BTC çarpanı",
+      "special": "Özel etkinlik",
+      "admin_started": "Admin tarafından başlatıldı"
+    },
+    "help_center_msg": "Destek talepleri için Telegram grubumuza katılabilir veya Ayarlar > Destek kısmını kullanabilirsiniz.",
+    "system_guide_msg": "Kullanım turu yeniden başlatılıyor...",
+    "min": "dk"
+  },
+  "battery": {
+    "status": {
+      "full": "Dolu",
+      "medium": "Orta",
+      "low": "Düşük",
+      "critical": "Kritik"
+    },
+    "charging": "Şarj Oluyor",
+    "critical_warn": "Enerji Kritik!"
+  },
+  "common": {
+    "level": "SEVİYE",
+    "tycoon_points": "TycoonPoints",
+    "xp": "XP",
+    "vip": "VIP",
+    "pass": "PASS",
+    "marketplace": "PAZAR",
+    "bonus": "BONUS",
+    "success": "Başarılı",
+    "error": "Hata",
+    "warning": "Uyarı",
+    "loading": "Yükleniyor..."
   }
 }

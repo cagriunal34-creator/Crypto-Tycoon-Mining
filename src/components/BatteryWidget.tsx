@@ -20,6 +20,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 
 interface Props {
     /** Mevcut pil seviyesi 0–100 */
@@ -113,6 +114,7 @@ export default function BatteryWidget({
     }, [cfg, isCharging, staticDisplay, onLevelChange]);
 
     const { theme } = useTheme();
+    const { t } = useLanguage();
     const a1 = theme.vars['--ct-a1'];
 
     const pct       = Math.max(0, Math.min(100, lvl));
@@ -120,7 +122,7 @@ export default function BatteryWidget({
     const isCrit    = pct < 15;
     const fill      = pct > 55 ? a1 : pct > 25 ? '#f59e0b' : '#ef4444';
     const glow      = pct > 55 ? `${a1}88` : pct > 25 ? 'rgba(245,158,11,0.55)' : 'rgba(239,68,68,0.75)';
-    const statusLbl = pct > 55 ? 'Dolu' : pct > 25 ? 'Orta' : pct > 10 ? 'Düşük' : 'Kritik';
+    const statusLbl = pct > 55 ? t('battery.status.full') : pct > 25 ? t('battery.status.medium') : pct > 10 ? t('battery.status.low') : t('battery.status.critical');
 
     /* ── COMPACT (yatay) ── */
     if (compact) {
@@ -214,11 +216,11 @@ export default function BatteryWidget({
                 <div className="flex items-center gap-1.5">
                     <div style={{ width:6, height:6, borderRadius:'50%', background:fill, boxShadow:`0 0 6px ${glow}`, animation: isCrit ? 'bd .85s ease-in-out infinite' : 'bi 2.5s ease-in-out infinite' }}/>
                     <span style={{ color:fill, fontSize:9, fontWeight:900, letterSpacing:'0.15em', textTransform:'uppercase' }}>
-                        {isCharging ? 'Şarj Oluyor' : statusLbl}
+                        {isCharging ? t('battery.charging') : statusLbl}
                     </span>
                 </div>
                 {isCrit && !isCharging && (
-                    <span style={{ color:'#ef4444', fontSize:8, fontWeight:700, opacity:0.85 }}>⚠ Enerji Kritik!</span>
+                    <span style={{ color:'#ef4444', fontSize:8, fontWeight:700, opacity:0.85 }}>⚠ {t('battery.critical_warn')}</span>
                 )}
             </div>
 
